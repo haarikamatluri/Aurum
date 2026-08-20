@@ -1,0 +1,75 @@
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  font-size: 12.5px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  color: var(--positive);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 0 3px var(--positive-bg);
+}
+
+.tick {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.tick-name {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+.tick-val {
+  font-weight: 700;
+}
+
+.tick.pos .tick-val {
+  color: var(--positive);
+}
+
+.tick.neg .tick-val {
+  color: var(--negative);
+}
+
+@media (max-width: 900px) {
+  .tick:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .ticker {
+    gap: var(--space-3);
+  }
+  .tick:nth-child(2),
+  .tick:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .status-text {
+    display: none;
+  }
+  .tick {
+    display: none;
+  }
+}

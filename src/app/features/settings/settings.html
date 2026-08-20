@@ -1,0 +1,111 @@
+<div class="settings-page">
+  <div class="page-head">
+    <h1>Settings</h1>
+    <p class="page-sub">Manage your investor profile, notifications, and appearance.</p>
+  </div>
+
+  <section class="card card-pad">
+    <div class="panel-header">
+      <span class="panel-title"><app-icon name="user" [size]="15" /> Investor Profile</span>
+      @if (savedProfile()) { <span class="badge badge-positive">Saved</span> }
+    </div>
+
+    <form [formGroup]="profileForm" (ngSubmit)="saveProfile()" class="profile-form">
+      <div class="field">
+        <label class="field-label" for="riskTolerance">Risk Tolerance</label>
+        <select id="riskTolerance" class="select" formControlName="riskTolerance">
+          @for (o of riskToleranceOptions; track o) { <option [value]="o">{{ o }}</option> }
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="horizon">Investment Horizon</label>
+        <select id="horizon" class="select" formControlName="investmentHorizon">
+          @for (o of horizonOptions; track o) { <option [value]="o">{{ o }}</option> }
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="objective">Primary Objective</label>
+        <select id="objective" class="select" formControlName="primaryObjective">
+          @for (o of objectiveOptions; track o) { <option [value]="o">{{ o }}</option> }
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="maxDrawdown">Maximum Drawdown Tolerance (%)</label>
+        <input id="maxDrawdown" type="number" class="input" formControlName="maxDrawdownTolerancePct" min="1" max="90" />
+        @if (profileForm.controls.maxDrawdownTolerancePct.invalid && profileForm.controls.maxDrawdownTolerancePct.touched) {
+          <span class="field-error">Enter a value between 1 and 90.</span>
+        }
+      </div>
+
+      <div class="field full">
+        <span class="field-label">Target Sector Allocations</span>
+        <div class="target-grid">
+          @for (t of targetAllocations; track t.sector) {
+            <div class="target-row">
+              <span class="target-sector truncate">{{ t.sector }}</span>
+              <span class="target-pct num">{{ t.targetPct }}%</span>
+            </div>
+          }
+        </div>
+        <span class="field-hint">Target allocations power the concentration flags shown on your Risk and Dashboard pages.</span>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Investor Profile</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card card-pad">
+    <div class="panel-header">
+      <span class="panel-title"><app-icon name="bell" [size]="15" /> Notifications</span>
+      @if (savedNotifications()) { <span class="badge badge-positive">Saved</span> }
+    </div>
+
+    <div class="notif-list">
+      @for (row of notificationRows; track row.key) {
+        <div class="notif-row">
+          <div class="notif-text">
+            <span class="notif-label">{{ row.label }}</span>
+            <span class="notif-desc">{{ row.description }}</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" [checked]="notifications()[row.key]" (change)="toggleNotification(row.key)" [attr.aria-label]="row.label" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="card card-pad">
+    <div class="panel-header">
+      <span class="panel-title"><app-icon name="monitor" [size]="15" /> Appearance</span>
+    </div>
+    <div class="theme-options">
+      @for (opt of themeOptions; track opt.id) {
+        <button type="button" class="theme-option" [class.active]="theme.preference() === opt.id" (click)="setTheme(opt.id)">
+          <app-icon [name]="opt.icon" [size]="18" />
+          <span>{{ opt.label }}</span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="card card-pad">
+    <div class="panel-header">
+      <span class="panel-title"><app-icon name="users" [size]="15" /> Account</span>
+    </div>
+    <div class="account-row">
+      <div class="avatar-lg">{{ auth.currentUser().avatarInitials }}</div>
+      <div class="account-meta">
+        <span class="account-name">{{ auth.currentUser().name }}</span>
+        <span class="account-email">{{ auth.currentUser().email }}</span>
+        <span class="badge badge-accent">{{ auth.currentUser().accountTier }}</span>
+      </div>
+    </div>
+  </section>
+</div>

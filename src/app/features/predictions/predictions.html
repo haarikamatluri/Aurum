@@ -1,0 +1,36 @@
+<div class="predictions-page">
+  <div class="page-head">
+    <div>
+      <h1>Predictions</h1>
+      <p class="page-sub">Model-generated outlooks for your largest holdings.</p>
+    </div>
+    <div class="segmented">
+      @for (h of horizons; track h) {
+        <button type="button" class="segmented-item" [class.active]="horizon() === h" (click)="horizon.set(h)">{{ h }}D</button>
+      }
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <app-icon name="info" [size]="14" />
+    <span>These are statistical <strong>model estimates</strong> based on historical patterns — not guaranteed forecasts and not investment advice.</span>
+  </div>
+
+  @switch (resource().status) {
+    @case ('loading') {
+      <div class="pred-grid">
+        @for (i of [1,2,3,4,5,6]; track i) { <div class="card card-pad"><app-skeleton height="180px" /></div> }
+      </div>
+    }
+    @case ('error') {
+      <div class="card"><app-error-state [message]="resource().error!" (retry)="load()" /></div>
+    }
+    @case ('success') {
+      <div class="pred-grid">
+        @for (o of resource().data!; track o.symbol) {
+          <div class="card card-pad"><app-prediction-card [outlook]="o" /></div>
+        }
+      </div>
+    }
+  }
+</div>

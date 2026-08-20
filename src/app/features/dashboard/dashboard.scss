@@ -1,0 +1,25 @@
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.g-summary { grid-column: 1 / -1; }
+.g-briefing { grid-column: span 2; }
+.g-pulse { grid-column: span 1; }
+.g-performance { grid-column: span 2; }
+.g-allocation { grid-column: span 1; }
+.g-contributors { grid-column: span 1; }
+.g-risk { grid-column: span 1; }
+.g-movers { grid-column: span 1; }
+
+@media (max-width: 1280px) {
+  .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g-briefing, .g-pulse, .g-performance, .g-allocation { grid-column: 1 / -1; }
+}
+
+@media (max-width: 768px) {
+  .dash-grid { grid-template-columns: minmax(0, 1fr); }
+  .g-contributors, .g-risk, .g-movers { grid-column: 1 / -1; }
+}

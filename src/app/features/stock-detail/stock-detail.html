@@ -1,0 +1,228 @@
+<div class="stock-page">
+  <a routerLink="/watchlist" class="back-link"><app-icon name="arrow-left" [size]="13" /> Back</a>
+
+  @if (loading() && !quote()) {
+    <div class="card card-pad"><app-skeleton height="90px" /></div>
+  } @else if (quote(); as q) {
+    <div class="stock-header card card-pad">
+      <div class="header-main">
+        <div class="header-id">
+          <h1>{{ q.symbol }}</h1>
+          <span class="company-name">{{ profile()?.name ?? q.name }}</span>
+          @if (profile(); as p) { <span class="sector-tag badge badge-neutral">{{ p.sector }}</span> }
+        </div>
+        <div class="header-actions">
+          <div class="header-price">
+            <span class="price num">${{ q.price.toFixed(2) }}</span>
+            <app-change-badge [value]="q.changePct" />
+          </div>
+          <button type="button" class="btn btn-primary btn-sm ask-ai-btn" (click)="askAiAboutStock()">
+            <app-icon name="sparkles" [size]="13" /> Ask AI about {{ q.symbol }}
+          </button>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-label" appTooltip="Total market value of all outstanding shares.">Market Cap</span><span class="stat-val">{{ q.marketCap | compactNumber: true }}</span></div>
+        <div class="stat"><span class="stat-label" appTooltip="Number of shares traded today.">Volume</span><span class="stat-val">{{ q.volume | compactNumber }}</span></div>
+        <div class="stat"><span class="stat-label">52W High</span><span class="stat-val">${{ q.high52w.toFixed(2) }}</span></div>
+        <div class="stat"><span class="stat-label">52W Low</span><span class="stat-val">${{ q.low52w.toFixed(2) }}</span></div>
+        <div class="stat"><span class="stat-label" appTooltip="Price divided by trailing 12-month earnings per share.">P/E</span><span class="stat-val">{{ q.peRatio.toFixed(1) }}</span></div>
+        <div class="stat"><span class="stat-label" appTooltip="Trailing 12-month earnings per share.">EPS</span><span class="stat-val">${{ q.eps.toFixed(2) }}</span></div>
+        <div class="stat"><span class="stat-label" appTooltip="Volatility relative to the overall market. 1.0 = market average.">Beta</span><span class="stat-val">{{ q.beta.toFixed(2) }}</span></div>
+      </div>
+
+      <app-range-bar [low]="q.low52w" [high]="q.high52w" [current]="q.price" [lowLabel]="'52W Low $' + q.low52w.toFixed(2)" [highLabel]="'52W High $' + q.high52w.toFixed(2)" [secondaryLow]="q.dayLow" [secondaryHigh]="q.dayHigh" />
+    </div>
+
+    <div class="card">
+      <app-tabs [tabs]="tabs" [active]="activeTab()" (activeChange)="activeTab.set($event)" />
+
+      <div class="tab-content">
+        @switch (activeTab()) {
+          @case ('overview') {
+            <div class="overview-grid">
+              <div class="overview-desc">
+                <h3>About {{ q.symbol }}</h3>
+                <p>{{ profile()?.description }}</p>
+                @if (position(); as pos) {
+                  <div class="held-note">
+                    <app-icon name="briefcase" [size]="14" />
+                    You hold <strong>{{ pos.shares }} shares</strong> ({{ pos.weightPct.toFixed(1) }}% of your portfolio)
+                  </div>
+                }
+              </div>
+              <div class="overview-side">
+                <span class="side-title">Today's Range</span>
+                <app-range-bar [low]="q.dayLow" [high]="q.dayHigh" [current]="q.price" [lowLabel]="'$' + q.dayLow.toFixed(2)" [highLabel]="'$' + q.dayHigh.toFixed(2)" />
+                <div class="divider"></div>
+                <span class="side-title">Open / Prev. Close</span>
+                <div class="mini-stats-row">
+                  <span>Open <strong class="num">${{ q.open.toFixed(2) }}</strong></span>
+                  <span>Prev. Close <strong class="num">${{ q.prevClose.toFixed(2) }}</strong></span>
+                </div>
+              </div>
+            </div>
+          }
+
+          @case ('chart') {
+            <div class="chart-controls">
+              <div class="segmented">
+                @for (r of chartRanges; track r) {
+                  <button type="button" class="segmented-item" [class.active]="chartRange() === r" (click)="chartRange.set(r)">{{ r }}</button>
+                }
+              </div>
+              <div class="indicator-toggles">
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().sma20" (change)="toggleIndicator('sma20')" /> SMA 20</label>
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().sma50" (change)="toggleIndicator('sma50')" /> SMA 50</label>
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().sma200" (change)="toggleIndicator('sma200')" /> SMA 200</label>
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().ema" (change)="toggleIndicator('ema')" /> EMA</label>
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().bollinger" (change)="toggleIndicator('bollinger')" /> Bollinger</label>
+                <label class="ind-check"><input type="checkbox" [checked]="indicators().volume" (change)="toggleIndicator('volume')" /> Volume</label>
+              </div>
+            </div>
+            <app-price-chart [candles]="candles()" [indicators]="indicators()" [loading]="candlesLoading()" />
+          }
+
+          @case ('technical') {
+            @if (technical(); as t) {
+              <div class="tech-grid">
+                <div class="tech-card">
+                  <span class="tech-label" appTooltip="Relative Strength Index — momentum oscillator from 0-100. Above 70 is typically overbought, below 30 oversold.">RSI</span>
+                  <span class="tech-value">{{ t.rsi.value }}</span>
+                  <span class="badge" [class]="t.rsi.label === 'Overbought' ? 'badge-negative' : t.rsi.label === 'Oversold' ? 'badge-positive' : 'badge-neutral'">{{ t.rsi.label }}</span>
+                </div>
+                <div class="tech-card">
+                  <span class="tech-label" appTooltip="Moving Average Convergence Divergence — trend-following momentum indicator.">MACD</span>
+                  <span class="tech-value">{{ t.macd.value.toFixed(2) }}</span>
+                  <span class="badge" [class]="t.macd.label === 'bullish' ? 'badge-positive' : t.macd.label === 'bearish' ? 'badge-negative' : 'badge-neutral'">{{ t.macd.label }}</span>
+                </div>
+                <div class="tech-card">
+                  <span class="tech-label">Trend</span>
+                  <span class="tech-value">{{ t.trend.label }}</span>
+                  <span class="badge" [class]="t.trend.sentiment === 'bullish' ? 'badge-positive' : t.trend.sentiment === 'bearish' ? 'badge-negative' : 'badge-neutral'">{{ t.trend.sentiment }}</span>
+                </div>
+                <div class="tech-card">
+                  <span class="tech-label" appTooltip="Annualized price volatility based on recent trading history.">Volatility</span>
+                  <span class="tech-value">{{ t.volatility.annualizedPct }}%</span>
+                  <span class="badge" [class]="t.volatility.label === 'High' ? 'badge-warning' : 'badge-neutral'">{{ t.volatility.label }}</span>
+                </div>
+                <div class="tech-card">
+                  <span class="tech-label" appTooltip="Performance relative to sector peers over the recent period.">Relative Strength</span>
+                  <span class="tech-value small">{{ t.relativeStrength.label }}</span>
+                  <span class="badge" [class]="t.relativeStrength.sentiment === 'bullish' ? 'badge-positive' : t.relativeStrength.sentiment === 'bearish' ? 'badge-negative' : 'badge-neutral'">{{ t.relativeStrength.sentiment }}</span>
+                </div>
+              </div>
+
+              <div class="tech-detail-grid">
+                <div class="detail-card">
+                  <span class="side-title">Moving Averages</span>
+                  @for (ma of t.movingAverages; track ma.period + ma.type) {
+                    <div class="ma-row"><span>{{ ma.type }} {{ ma.period }}</span><span class="num">${{ ma.value.toFixed(2) }}</span></div>
+                  }
+                </div>
+                <div class="detail-card">
+                  <span class="side-title">Bollinger Bands</span>
+                  <div class="ma-row"><span>Upper</span><span class="num">${{ t.bollinger.upper.toFixed(2) }}</span></div>
+                  <div class="ma-row"><span>Middle</span><span class="num">${{ t.bollinger.middle.toFixed(2) }}</span></div>
+                  <div class="ma-row"><span>Lower</span><span class="num">${{ t.bollinger.lower.toFixed(2) }}</span></div>
+                  <div class="divider" style="margin: 10px 0;"></div>
+                  <div class="ma-row"><span>Support</span><span class="num text-positive">${{ t.support.toFixed(2) }}</span></div>
+                  <div class="ma-row"><span>Resistance</span><span class="num text-negative">${{ t.resistance.toFixed(2) }}</span></div>
+                </div>
+              </div>
+            }
+          }
+
+          @case ('fundamentals') {
+            @if (fundamentals(); as f) {
+              <div class="fund-grid">
+                <div class="fund-item"><span>Market Cap</span><strong>{{ f.marketCap | compactNumber: true }}</strong></div>
+                <div class="fund-item"><span>P/E (Trailing)</span><strong>{{ f.peRatio.toFixed(1) }}</strong></div>
+                <div class="fund-item"><span>P/E (Forward)</span><strong>{{ f.forwardPe.toFixed(1) }}</strong></div>
+                <div class="fund-item"><span>EPS</span><strong>${{ f.eps.toFixed(2) }}</strong></div>
+                <div class="fund-item"><span>EPS Growth</span><strong [class.text-positive]="f.epsGrowthPct >= 0" [class.text-negative]="f.epsGrowthPct < 0">{{ f.epsGrowthPct >= 0 ? '+' : '' }}{{ f.epsGrowthPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Revenue (TTM)</span><strong>{{ f.revenueTtm | compactNumber: true }}</strong></div>
+                <div class="fund-item"><span>Revenue Growth</span><strong class="text-positive">+{{ f.revenueGrowthPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Gross Margin</span><strong>{{ f.grossMarginPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Operating Margin</span><strong>{{ f.operatingMarginPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Net Margin</span><strong>{{ f.netMarginPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Debt / Equity</span><strong>{{ f.debtToEquity.toFixed(2) }}</strong></div>
+                <div class="fund-item"><span>Free Cash Flow</span><strong>{{ f.freeCashFlow | compactNumber: true }}</strong></div>
+                <div class="fund-item"><span>Dividend Yield</span><strong>{{ f.dividendYieldPct.toFixed(2) }}%</strong></div>
+                <div class="fund-item"><span>Payout Ratio</span><strong>{{ f.payoutRatioPct.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>ROE</span><strong>{{ f.roe.toFixed(1) }}%</strong></div>
+                <div class="fund-item"><span>Beta</span><strong>{{ f.beta.toFixed(2) }}</strong></div>
+              </div>
+            }
+          }
+
+          @case ('news') {
+            @if (news().length) {
+              <div class="news-list">
+                @for (n of news(); track n.id) {
+                  <div class="news-item">
+                    <span class="badge" [class]="n.sentiment === 'positive' ? 'badge-positive' : n.sentiment === 'negative' ? 'badge-negative' : 'badge-neutral'">{{ n.category }}</span>
+                    <div class="news-body">
+                      <span class="news-headline">{{ n.headline }}</span>
+                      <span class="news-summary">{{ n.summary }}</span>
+                      <span class="news-meta">{{ n.source }} · {{ n.publishedAt | relativeTime }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <app-empty-state icon="newspaper" title="No recent news" description="There's no simulated news for this symbol right now." />
+            }
+          }
+
+          @case ('events') {
+            @if (events().length) {
+              <div class="events-list">
+                @for (e of events(); track e.id) {
+                  <div class="event-item">
+                    <div class="event-date">
+                      <span class="event-day">{{ e.date | date: 'd' }}</span>
+                      <span class="event-month">{{ e.date | date: 'MMM' }}</span>
+                    </div>
+                    <div class="event-body">
+                      <span class="badge badge-accent">{{ e.type }}</span>
+                      <span class="event-title">{{ e.title }}</span>
+                      <span class="event-desc">{{ e.description }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          }
+
+          @case ('prediction') {
+            @if (prediction(); as pred) {
+              <div class="prediction-wrap">
+                <app-prediction-card [outlook]="pred" [showSymbol]="false" />
+              </div>
+            }
+          }
+
+          @case ('impact') {
+            @if (position(); as pos) {
+              <div class="impact-grid">
+                <div class="impact-item"><span>Shares Held</span><strong>{{ pos.shares }}</strong></div>
+                <div class="impact-item"><span>Average Cost</span><strong>${{ pos.avgCost.toFixed(2) }}</strong></div>
+                <div class="impact-item"><span>Market Value</span><strong>${{ pos.marketValue.toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</strong></div>
+                <div class="impact-item"><span>Portfolio Weight</span><strong>{{ pos.weightPct.toFixed(1) }}%</strong></div>
+                <div class="impact-item"><span>Today's P&amp;L</span><strong [class.text-positive]="pos.todayPnlAbs >= 0" [class.text-negative]="pos.todayPnlAbs < 0">{{ pos.todayPnlAbs >= 0 ? '+' : '' }}${{ pos.todayPnlAbs.toFixed(2) }}</strong></div>
+                <div class="impact-item"><span>Total P&amp;L</span><strong [class.text-positive]="pos.totalPnlAbs >= 0" [class.text-negative]="pos.totalPnlAbs < 0">{{ pos.totalPnlAbs >= 0 ? '+' : '' }}${{ pos.totalPnlAbs.toFixed(0) }} ({{ pos.totalPnlPct.toFixed(1) }}%)</strong></div>
+              </div>
+              <a [routerLink]="['/scenarios']" class="btn btn-outline btn-sm" style="margin-top: var(--space-4);">
+                <app-icon name="git-branch" [size]="13" /> Model a scenario for {{ q.symbol }}
+              </a>
+            } @else {
+              <app-empty-state icon="briefcase" title="Not currently in your portfolio" [description]="q.symbol + ' is not one of your holdings, so it has no direct portfolio impact today.'" />
+            }
+          }
+        }
+      </div>
+    </div>
+  }
+</div>

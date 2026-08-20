@@ -1,0 +1,86 @@
+<div class="markets-page">
+  <div class="page-head">
+    <h1>Markets</h1>
+    <p class="page-sub">Broad index levels, sector breadth, and every security in the demo universe.</p>
+  </div>
+
+  @switch (resource().status) {
+    @case ('loading') {
+      <div class="card card-pad">
+        <div class="index-grid">
+          @for (i of [1,2,3,4,5,6]; track i) { <app-skeleton height="90px" radius="12px" /> }
+        </div>
+      </div>
+    }
+    @case ('error') {
+      <div class="card"><app-error-state [message]="resource().error!" (retry)="load()" /></div>
+    }
+    @case ('success') {
+      <div class="card card-pad">
+        <div class="panel-header"><span class="panel-title">Indices</span></div>
+        <div class="index-grid">
+          @for (idx of resource().data!.indices; track idx.symbol) {
+            <div class="index-card">
+              <div class="index-top">
+                <span class="index-name">{{ idx.name }}</span>
+                <app-change-badge [value]="idx.changePct" />
+              </div>
+              <span class="index-value num">{{ idx.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+              <div class="index-spark"><app-sparkline [points]="idx.sparkline" /></div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card card-pad">
+          <div class="panel-header"><span class="panel-title">Sector Performance</span><span class="panel-subtitle">Today</span></div>
+          <div class="sector-list">
+            @for (s of resource().data!.sectors; track s.sector) {
+              <div class="sector-row">
+                <span class="sector-name truncate">{{ s.sector }}</span>
+                <div class="sector-bar-track">
+                  <div
+                    class="sector-bar"
+                    [class.pos]="s.changePct >= 0"
+                    [class.neg]="s.changePct < 0"
+                    [style.width.%]="(abs(s.changePct) / maxAbsSectorChange(resource().data!.sectors)) * 100"
+                  ></div>
+                </div>
+                <app-change-badge [value]="s.changePct" size="sm" />
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="panel-header card-pad" style="padding-bottom: 0;"><span class="panel-title">All Securities</span></div>
+          <div class="table-scroll">
+            <table class="data-grid">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>Change</th>
+                  <th>Volume</th>
+                  <th>Mkt Cap</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (q of resource().data!.quotes; track q.symbol) {
+                  <tr class="clickable" [routerLink]="['/stocks', q.symbol]">
+                    <td><span class="sym">{{ q.symbol }}</span></td>
+                    <td class="num">${{ q.price.toFixed(2) }}</td>
+                    <td><app-change-badge [value]="q.changePct" size="sm" /></td>
+                    <td class="num">{{ (q.volume / 1e6).toFixed(1) }}M</td>
+                    <td class="num">${{ (q.marketCap / 1e9).toFixed(0) }}B</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
+  }
+</div>

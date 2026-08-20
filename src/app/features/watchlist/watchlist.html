@@ -1,0 +1,69 @@
+<div class="watchlist-page">
+  <div class="page-head">
+    <div>
+      <h1>Watchlist</h1>
+      <p class="page-sub">Technicals and model signals for securities you're tracking.</p>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" (click)="load()">
+      <app-icon name="refresh-cw" [size]="13" /> Refresh
+    </button>
+  </div>
+
+  <div class="card">
+    @switch (resource().status) {
+      @case ('loading') {
+        <div class="card-pad">
+          @for (i of [1,2,3,4,5]; track i) { <app-skeleton height="40px" /> <div style="height: 8px"></div> }
+        </div>
+      }
+      @case ('error') {
+        <app-error-state [message]="resource().error!" (retry)="load()" />
+      }
+      @case ('success') {
+        @if (!resource().data!.length) {
+          <app-empty-state icon="eye" title="Your watchlist is empty" description="Add stocks to keep an eye on price, technicals, and model predictions." />
+        } @else {
+          <div class="table-scroll">
+            <table class="data-grid">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>Change</th>
+                  <th>Volume</th>
+                  <th>RSI</th>
+                  <th>Trend</th>
+                  <th>Prediction</th>
+                  <th>Alert</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (q of resource().data!; track q.symbol) {
+                  <tr class="clickable" [routerLink]="['/stocks', q.symbol]">
+                    <td>
+                      <div class="sym-cell">
+                        <span class="sym">{{ q.symbol }}</span>
+                        <span class="sym-name truncate">{{ q.name }}</span>
+                      </div>
+                    </td>
+                    <td class="num">${{ q.price.toFixed(2) }}</td>
+                    <td><app-change-badge [value]="q.changePct" size="sm" /></td>
+                    <td><span [class]="volumeClass(q.volumeState)">{{ q.volumeState }}</span></td>
+                    <td class="num">{{ q.rsi }}</td>
+                    <td><span class="badge" [class]="trendClass(q.trend)">{{ q.trend }}</span></td>
+                    <td class="num">{{ q.predictionPct }}%</td>
+                    <td>
+                      @if (q.hasAlert) {
+                        <app-icon name="bell" [size]="15" />
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    }
+  </div>
+</div>

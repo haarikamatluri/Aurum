@@ -1,0 +1,46 @@
+<div class="alerts-page">
+  <div class="page-head">
+    <div>
+      <h1>Alerts</h1>
+      <p class="page-sub">Price, technical, portfolio, market, and prediction notifications.</p>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" (click)="markAllRead()">Mark all read</button>
+  </div>
+
+  <div class="filter-row">
+    @for (c of categoryFilters; track c) {
+      <button type="button" class="segmented-item" [class.active]="categoryFilter() === c" (click)="categoryFilter.set(c)">{{ c }}</button>
+    }
+  </div>
+
+  @switch (resource().status) {
+    @case ('loading') {
+      <div class="card card-pad">
+        @for (i of [1,2,3,4]; track i) { <app-skeleton height="64px" /> <div style="height: 10px"></div> }
+      </div>
+    }
+    @case ('error') {
+      <div class="card"><app-error-state [message]="resource().error!" (retry)="load()" /></div>
+    }
+    @case ('success') {
+      @if (!filtered().length) {
+        <div class="card"><app-empty-state icon="bell" title="No alerts" description="You're all caught up — nothing needs your attention right now." /></div>
+      } @else {
+        <div class="sections">
+          @for (section of sections; track section.severity) {
+            @if (bySeverity(section.severity).length) {
+              <div class="section">
+                <span class="section-title">{{ section.title }} ({{ bySeverity(section.severity).length }})</span>
+                <div class="section-list">
+                  @for (a of bySeverity(section.severity); track a.id) {
+                    <app-alert-item [alert]="a" (markRead)="markRead($event)" (dismiss)="dismiss($event)" />
+                  }
+                </div>
+              </div>
+            }
+          }
+        </div>
+      }
+    }
+  }
+</div>
