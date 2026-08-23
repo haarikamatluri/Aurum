@@ -3,14 +3,13 @@ import { RouterOutlet } from '@angular/router';
 import { Sidebar } from '../sidebar/sidebar';
 import { Topbar } from '../topbar/topbar';
 import { BottomNav } from '../bottom-nav/bottom-nav';
-import { AiPanel } from '../ai-panel/ai-panel';
 import { UiStateService } from '../../core/services/ui-state.service';
 
-/** Root authenticated layout: sidebar + topbar + routed content + global AI panel. */
+/** Root app layout: minimal sidebar + topbar + routed content. */
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, Sidebar, Topbar, BottomNav, AiPanel],
+  imports: [RouterOutlet, Sidebar, Topbar, BottomNav],
   template: `
     <div class="shell">
       <app-sidebar />
@@ -21,7 +20,6 @@ import { UiStateService } from '../../core/services/ui-state.service';
         </main>
       </div>
       <app-bottom-nav />
-      <app-ai-panel />
     </div>
   `,
   styleUrl: './shell.scss',

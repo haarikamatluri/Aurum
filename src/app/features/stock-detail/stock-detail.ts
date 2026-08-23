@@ -1,134 +1,227 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, effect, inject, input, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { Subscription, forkJoin } from 'rxjs';
-import { StockService } from '../../core/services/stock.service';
-import { AnalyticsService } from '../../core/services/analytics.service';
-import { NewsService } from '../../core/services/news.service';
-import { PredictionService } from '../../core/services/prediction.service';
+import { ChangeDetectionStrategy, Component, inject, computed, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { DecimalPipe, DatePipe } from '@angular/common';
 import { PortfolioService } from '../../core/services/portfolio.service';
-import { StockProfile, StockQuote, TechnicalIndicators, Fundamentals, CorporateEvent } from '../../core/models/stock.model';
-import { NewsArticle } from '../../core/models/news.model';
-import { PredictionOutlook } from '../../core/models/prediction.model';
-import { Position } from '../../core/models/portfolio.model';
-import { Candle, TimeRange } from '../../core/models/common.model';
-import { UiStateService } from '../../core/services/ui-state.service';
-
-import { Icon } from '../../shared/ui/icon/icon';
-import { ChangeBadge } from '../../shared/ui/change-badge/change-badge';
-import { RangeBar } from '../../shared/ui/range-bar/range-bar';
-import { Tabs, TabDef } from '../../shared/ui/tabs/tabs';
-import { PriceChart, PriceChartIndicatorState } from '../../shared/ui/price-chart/price-chart';
-import { PredictionCard } from '../../shared/ui/prediction-card/prediction-card';
-import { Skeleton } from '../../shared/ui/skeleton/skeleton';
-import { EmptyState } from '../../shared/ui/empty-state/empty-state';
-import { TooltipDirective } from '../../shared/directives/tooltip.directive';
-import { RelativeTimePipe } from '../../shared/pipes/relative-time.pipe';
-import { CompactNumberPipe } from '../../shared/pipes/compact-number.pipe';
-
-const TABS: TabDef[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'chart', label: 'Chart' },
-  { id: 'technical', label: 'Technical' },
-  { id: 'fundamentals', label: 'Fundamentals' },
-  { id: 'news', label: 'News' },
-  { id: 'events', label: 'Events' },
-  { id: 'prediction', label: 'Prediction' },
-  { id: 'impact', label: 'Portfolio Impact' },
-];
-
-const CHART_RANGES: TimeRange[] = ['1D', '5D', '1M', '3M', '6M', '1Y', '5Y'];
+import { NotificationService } from '../../core/services/notification.service';
+import { CurrencyCode } from '../../core/models/portfolio.model';
 
 @Component({
-  selector: 'app-stock-detail-page',
+  selector: 'app-stock-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, Icon, ChangeBadge, RangeBar, Tabs, PriceChart, PredictionCard, Skeleton, EmptyState, TooltipDirective, RelativeTimePipe, CompactNumberPipe],
-  templateUrl: './stock-detail.html',
+  imports: [DecimalPipe, DatePipe],
+  template: `
+    @if (holding()) {
+      <div class="stock-detail">
+        <!-- Back -->
+        <button class="back-btn" (click)="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+          Back
+        </button>
+
+        <!-- Header -->
+        <div class="detail-header">
+          <div class="symbol-block">
+            <h1 class="symbol">{{ holding()!.symbol }}</h1>
+            <span class="company-name">{{ holding()!.companyName }}</span>
+            <span class="exchange-badge" [class.india]="holding()!.market === 'IN'">
+              {{ holding()!.market === 'IN' ? '🇮🇳 ' + holding()!.exchange : '🇺🇸 ' + holding()!.exchange }}
+            </span>
+          </div>
+
+          <div class="price-block">
+            @if (holding()!.currentPrice !== null) {
+              <span class="current-price">{{ formatVal(holding()!.currentPrice!, holding()!.currency) }}</span>
+              <span class="price-change"
+                [class.positive]="(holding()!.profitLossPct ?? 0) >= 0"
+                [class.negative]="(holding()!.profitLossPct ?? 0) < 0">
+                {{ (holding()!.profitLossPct ?? 0) >= 0 ? '+' : '' }}{{ holding()!.profitLossPct | number:'1.2-2' }}%
+              </span>
+            } @else {
+              <span class="current-price pending">Price unavailable</span>
+              <span class="api-note">Connect market data API to see live price</span>
+            }
+          </div>
+        </div>
+
+        <!-- Investment summary cards -->
+        <div class="cards-row">
+          <div class="info-card">
+            <span class="card-label">YOUR INVESTMENT</span>
+            <span class="card-value">{{ formatVal(holding()!.totalInvested, holding()!.currency) }}</span>
+            <span class="card-sub">{{ holding()!.shares | number:'1.0-4' }} shares @ {{ formatVal(holding()!.avgPurchasePrice, holding()!.currency) }} avg</span>
+          </div>
+
+          <div class="info-card">
+            <span class="card-label">CURRENT VALUE</span>
+            @if (holding()!.currentValue !== null) {
+              <span class="card-value">{{ formatVal(holding()!.currentValue!, holding()!.currency) }}</span>
+            } @else {
+              <span class="card-value pending">--</span>
+            }
+          </div>
+
+          <div class="info-card" [class.positive-card]="(holding()!.profitLoss ?? 0) > 0" [class.negative-card]="(holding()!.profitLoss ?? 0) < 0">
+            <span class="card-label">GAIN / LOSS</span>
+            @if (holding()!.profitLoss !== null) {
+              <span class="card-value" [class.positive]="holding()!.profitLoss! > 0" [class.negative]="holding()!.profitLoss! < 0">
+                {{ holding()!.profitLoss! >= 0 ? '+' : '' }}{{ formatVal(holding()!.profitLoss!, holding()!.currency) }}
+              </span>
+              <span class="card-sub">
+                {{ holding()!.profitLossPct! >= 0 ? '+' : '' }}{{ holding()!.profitLossPct! | number:'1.2-2' }}%
+              </span>
+            } @else {
+              <span class="card-value pending">--</span>
+            }
+          </div>
+        </div>
+
+        <!-- Ask AI Analyst -->
+        <div class="ai-cta">
+          <div class="ai-cta-left">
+            <div class="ai-cta-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div>
+              <h3>Ask AI Analyst</h3>
+              <p>Get current news, sentiment, and analysis for {{ holding()!.symbol }}.</p>
+            </div>
+          </div>
+          <button class="btn-ask-ai" (click)="openAiAnalyst()" id="stock-detail-ask-ai">
+            Ask AI
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Transaction history -->
+        <div class="section">
+          <h2 class="section-title">Purchase History</h2>
+          <div class="tx-list">
+            @for (tx of transactions(); track tx.id) {
+              <div class="tx-row">
+                <div class="tx-type" [class.buy]="tx.type === 'BUY'">{{ tx.type }}</div>
+                <div class="tx-detail">
+                  <span class="tx-shares">{{ tx.shares | number:'1.0-4' }} shares</span>
+                  <span class="tx-price">@ {{ formatVal(tx.price, tx.currency) }} per share</span>
+                </div>
+                <div class="tx-right">
+                  <span class="tx-total">{{ formatVal(tx.shares * tx.price, tx.currency) }}</span>
+                  <span class="tx-date">{{ tx.date | date:'MMM d, y' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Alert history for this stock -->
+        @if (stockAlerts().length > 0) {
+          <div class="section">
+            <h2 class="section-title">Price Alerts</h2>
+            <div class="alert-list">
+              @for (n of stockAlerts(); track n.id) {
+                <div class="alert-row">
+                  <div class="alert-icon" [class.up]="n.direction === 'UP'" [class.down]="n.direction === 'DOWN'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                      @if (n.direction === 'UP') {
+                        <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                      } @else {
+                        <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                      }
+                    </svg>
+                  </div>
+                  <span class="alert-msg">{{ n.message }}</span>
+                  <span class="alert-time">{{ n.createdAt | date:'MMM d, h:mm a' }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Delete -->
+        <div class="danger-zone">
+          <button class="btn-remove-stock" (click)="confirmDelete()" id="remove-stock-btn">
+            Remove {{ holding()!.symbol }} from portfolio
+          </button>
+        </div>
+      </div>
+    } @else {
+      <div class="not-found">
+        <h2>Stock not found</h2>
+        <p>This stock is not in your portfolio.</p>
+        <button class="btn-back" (click)="goBack()">Back to portfolio</button>
+      </div>
+    }
+
+    <!-- Delete confirm -->
+    @if (showDeleteConfirm()) {
+      <div class="modal-overlay" (click)="showDeleteConfirm.set(false)">
+        <div class="confirm-dialog" (click)="$event.stopPropagation()">
+          <h3>Remove {{ holding()?.symbol }}?</h3>
+          <p>This will stop monitoring and notifications for {{ holding()?.companyName }}.</p>
+          <div class="confirm-actions">
+            <button class="btn-cancel" (click)="showDeleteConfirm.set(false)">Cancel</button>
+            <button class="btn-remove" (click)="doDelete()">Remove</button>
+          </div>
+        </div>
+      </div>
+    }
+  `,
   styleUrl: './stock-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StockDetailPage implements OnDestroy {
-  private readonly stockService = inject(StockService);
-  private readonly analyticsService = inject(AnalyticsService);
-  private readonly newsService = inject(NewsService);
-  private readonly predictionService = inject(PredictionService);
+export class StockDetailPage {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly portfolioService = inject(PortfolioService);
-  protected readonly ui = inject(UiStateService);
+  private readonly notifService = inject(NotificationService);
 
-  readonly symbol = input.required<string>();
+  protected readonly showDeleteConfirm = signal(false);
 
-  protected readonly tabs = TABS;
-  protected readonly activeTab = signal('overview');
-  protected readonly chartRanges = CHART_RANGES;
-  protected readonly chartRange = signal<TimeRange>('3M');
-  protected readonly indicators = signal<PriceChartIndicatorState>({ sma20: true, sma50: false, sma200: false, ema: false, bollinger: false, volume: true });
+  protected readonly holding = computed(() => {
+    const symbol = this.route.snapshot.paramMap.get('symbol') ?? '';
+    return this.portfolioService.getHoldingBySymbol(symbol) ?? null;
+  });
 
-  protected readonly quote = signal<StockQuote | null>(null);
-  protected readonly profile = signal<StockProfile | null>(null);
-  protected readonly technical = signal<TechnicalIndicators | null>(null);
-  protected readonly fundamentals = signal<Fundamentals | null>(null);
-  protected readonly news = signal<NewsArticle[]>([]);
-  protected readonly events = signal<CorporateEvent[]>([]);
-  protected readonly prediction = signal<PredictionOutlook | null>(null);
-  protected readonly position = signal<Position | null>(null);
-  protected readonly candles = signal<Candle[]>([]);
-  protected readonly loading = signal(true);
-  protected readonly candlesLoading = signal(true);
+  protected readonly transactions = computed(() => {
+    const h = this.holding();
+    if (!h) return [];
+    return this.portfolioService.getTransactionsForHolding(h.id)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  });
 
-  private quoteSub: Subscription | null = null;
+  protected readonly stockAlerts = computed(() => {
+    const h = this.holding();
+    if (!h) return [];
+    return this.notifService.getForSymbol(h.symbol)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 10);
+  });
 
-  constructor() {
-    effect(() => {
-      const sym = this.symbol();
-      this.activeTab.set('overview');
-      this.loadAll(sym);
-    });
+  goBack(): void { this.router.navigate(['/money']); }
 
-    effect(() => {
-      const sym = this.symbol();
-      const range = this.chartRange();
-      this.candlesLoading.set(true);
-      this.stockService.getPriceHistory(sym, range).subscribe((res) => {
-        this.candles.set(res.candles);
-        this.candlesLoading.set(false);
-      });
-    });
+  openAiAnalyst(): void {
+    const h = this.holding();
+    if (!h) return;
+    this.router.navigate(['/money/ai-analyst'], { queryParams: { symbol: h.symbol } });
   }
 
-  private loadAll(symbol: string): void {
-    this.loading.set(true);
-    this.quoteSub?.unsubscribe();
-    this.quoteSub = this.stockService.quote$(symbol).subscribe((q) => this.quote.set(q));
+  confirmDelete(): void { this.showDeleteConfirm.set(true); }
 
-    forkJoin({
-      profile: this.stockService.getProfile(symbol),
-      technical: this.analyticsService.getTechnicalIndicators(symbol),
-      fundamentals: this.analyticsService.getFundamentals(symbol),
-      news: this.newsService.getForSymbol(symbol),
-      events: this.stockService.getEvents(symbol),
-      prediction: this.predictionService.getOutlook(symbol),
-      positions: this.portfolioService.getPositions(),
-    }).subscribe(({ profile, technical, fundamentals, news, events, prediction, positions }) => {
-      this.profile.set(profile);
-      this.technical.set(technical);
-      this.fundamentals.set(fundamentals);
-      this.news.set(news);
-      this.events.set(events);
-      this.prediction.set(prediction);
-      this.position.set(positions.find((p) => p.symbol === symbol) ?? null);
-      this.loading.set(false);
-    });
+  doDelete(): void {
+    const h = this.holding();
+    if (!h) return;
+    this.portfolioService.deleteHolding(h.id);
+    this.showDeleteConfirm.set(false);
+    this.router.navigate(['/money']);
   }
 
-  toggleIndicator(key: keyof PriceChartIndicatorState): void {
-    this.indicators.update((s) => ({ ...s, [key]: !s[key] }));
-  }
-
-  askAiAboutStock(): void {
-    this.ui.aiPanelOpen.set(true);
-  }
-
-  ngOnDestroy(): void {
-    this.quoteSub?.unsubscribe();
+  formatVal(val: number, currency: CurrencyCode = 'USD'): string {
+    const sym = currency === 'INR' ? '₹' : '$';
+    return `${sym}${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }

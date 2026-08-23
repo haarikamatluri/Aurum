@@ -1,80 +1,210 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { UserService } from '../../core/services/user.service';
-import { ThemeService } from '../../core/services/theme.service';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
-import { InvestorObjectiveOptions, InvestmentHorizonOptions, RiskToleranceOptions } from './settings.constants';
-import { NotificationSettings, ThemePreference } from '../../core/models/user.model';
-import { Icon } from '../../shared/ui/icon/icon';
-
-const THEME_OPTIONS: { id: ThemePreference; label: string; icon: string }[] = [
-  { id: 'dark', label: 'Dark', icon: 'moon' },
-  { id: 'light', label: 'Light', icon: 'sun' },
-  { id: 'system', label: 'System', icon: 'monitor' },
-];
-
-const NOTIFICATION_ROWS: { key: keyof NotificationSettings; label: string; description: string }[] = [
-  { key: 'priceAlerts', label: 'Price Alerts', description: 'Notify me when a holding crosses a price threshold.' },
-  { key: 'marketAlerts', label: 'Market Alerts', description: 'Notify me about significant index or volatility moves.' },
-  { key: 'portfolioAlerts', label: 'Portfolio Alerts', description: 'Notify me about concentration, drawdown, and risk changes.' },
-  { key: 'dailyBriefing', label: 'Daily Briefing', description: 'Send a daily AI-generated summary of my portfolio and the market.' },
-  { key: 'aiAlerts', label: 'AI Alerts', description: 'Notify me when the AI Analyst detects a noteworthy pattern.' },
-];
+import { AiAnalystService } from '../../core/services/ai-analyst.service';
 
 @Component({
-  selector: 'app-settings-page',
+  selector: 'app-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, Icon],
-  templateUrl: './settings.html',
+  imports: [FormsModule],
+  template: `
+    <div class="settings-page">
+      <div class="page-header">
+        <h1>Settings</h1>
+      </div>
+
+      <!-- Realtime Gemini AI Configuration -->
+      <section class="settings-section">
+        <h2 class="section-title">Google Gemini AI (Realtime Analysis)</h2>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="label-with-badge">
+                <span class="setting-label">Gemini API Key</span>
+                @if (aiService.hasApiKey()) {
+                  <span class="status-badge active">🟢 Connected</span>
+                } @else {
+                  <span class="status-badge inactive">⚪ Not Configured</span>
+                }
+              </div>
+              <span class="setting-desc">
+                Enables real-time market analysis, company news sentiment, and risk evaluation via Google Gemini.
+              </span>
+            </div>
+          </div>
+
+          <div class="api-key-box">
+            <div class="api-input-wrap">
+              <input
+                [type]="showKey() ? 'text' : 'password'"
+                class="api-input"
+                [(ngModel)]="apiKeyInput"
+                placeholder="Paste your Gemini API key (e.g. AIzaSy...)"
+                autocomplete="off"
+              >
+              <button type="button" class="btn-toggle-view" (click)="showKey.set(!showKey())" aria-label="Toggle key visibility">
+                {{ showKey() ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+
+            <div class="api-key-actions">
+              <button type="button" class="btn-save-key" (click)="saveApiKey()" [disabled]="!apiKeyInput.trim()">
+                Save & Connect
+              </button>
+              @if (aiService.hasApiKey()) {
+                <button type="button" class="btn-remove-key" (click)="removeApiKey()">
+                  Remove Key
+                </button>
+              }
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-get-key"
+              >
+                <span>Get Free Gemini Key</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            </div>
+
+            @if (savedNotice()) {
+              <div class="key-success-notice">
+                ✓ Gemini API Key saved successfully! Real-time AI Analyst is active.
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Account -->
+      <section class="settings-section">
+        <h2 class="section-title">Account</h2>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Display Name</span>
+              <span class="setting-desc">How your name appears in the app.</span>
+            </div>
+            @if (editingName()) {
+              <div class="edit-inline">
+                <input class="inline-input" type="text" [(ngModel)]="nameInput" (keyup.enter)="saveName()" (keyup.escape)="editingName.set(false)" placeholder="Your name" autofocus>
+                <button class="btn-save" (click)="saveName()">Save</button>
+                <button class="btn-cancel" (click)="editingName.set(false)">Cancel</button>
+              </div>
+            } @else {
+              <div class="edit-row">
+                <span class="setting-value">{{ auth.currentUser().name }}</span>
+                <button class="btn-edit" (click)="startEditName()">Edit</button>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Notifications -->
+      <section class="settings-section">
+        <h2 class="section-title">Notifications</h2>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">5% Movement Alerts</span>
+              <span class="setting-desc">Notify when stocks cross 5% thresholds (up or down).</span>
+            </div>
+            <div class="toggle" [class.on]="notifAlerts()" (click)="notifAlerts.set(!notifAlerts())" role="switch" [attr.aria-checked]="notifAlerts()">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Privacy -->
+      <section class="settings-section">
+        <h2 class="section-title">Privacy</h2>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Data Storage</span>
+              <span class="setting-desc">All stock data & API keys are stored locally in your browser.</span>
+            </div>
+            <span class="setting-badge">Local only</span>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Clear All Data</span>
+              <span class="setting-desc">Remove all portfolio holdings and settings from this device.</span>
+            </div>
+            <button class="btn-danger" (click)="clearData()" id="clear-data-btn">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- App info -->
+      <div class="app-info">
+        <span>Money — Personal Investment Monitor</span>
+        <span>·</span>
+        <span>Google Gemini 2.0 Real-time Analysis</span>
+      </div>
+    </div>
+  `,
   styleUrl: './settings.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsPage {
-  private readonly fb = inject(FormBuilder);
-  private readonly userService = inject(UserService);
-  protected readonly theme = inject(ThemeService);
   protected readonly auth = inject(AuthService);
+  protected readonly aiService = inject(AiAnalystService);
 
-  protected readonly riskToleranceOptions = RiskToleranceOptions;
-  protected readonly horizonOptions = InvestmentHorizonOptions;
-  protected readonly objectiveOptions = InvestorObjectiveOptions;
-  protected readonly themeOptions = THEME_OPTIONS;
-  protected readonly notificationRows = NOTIFICATION_ROWS;
+  protected readonly editingName = signal(false);
+  protected nameInput = '';
 
-  protected readonly savedProfile = signal(false);
-  protected readonly savedNotifications = signal(false);
+  protected apiKeyInput = this.aiService.getApiKey();
+  protected readonly showKey = signal(false);
+  protected readonly savedNotice = signal(false);
 
-  protected readonly profileForm = this.fb.nonNullable.group({
-    riskTolerance: [this.userService.investorProfile().riskTolerance, Validators.required],
-    investmentHorizon: [this.userService.investorProfile().investmentHorizon, Validators.required],
-    primaryObjective: [this.userService.investorProfile().primaryObjective, Validators.required],
-    maxDrawdownTolerancePct: [this.userService.investorProfile().maxDrawdownTolerancePct, [Validators.required, Validators.min(1), Validators.max(90)]],
-  });
+  protected readonly notifAlerts = signal(true);
 
-  protected readonly notifications = signal<NotificationSettings>(this.userService.notifications());
-  protected readonly targetAllocations = this.userService.investorProfile().targetAllocations;
+  startEditName(): void {
+    this.nameInput = this.auth.currentUser().name;
+    this.editingName.set(true);
+  }
 
-  saveProfile(): void {
-    if (this.profileForm.invalid) {
-      this.profileForm.markAllAsTouched();
-      return;
+  saveName(): void {
+    const name = this.nameInput.trim();
+    if (name) this.auth.updateUser(name);
+    this.editingName.set(false);
+  }
+
+  saveApiKey(): void {
+    this.aiService.setApiKey(this.apiKeyInput);
+    this.savedNotice.set(true);
+    setTimeout(() => this.savedNotice.set(false), 4000);
+  }
+
+  removeApiKey(): void {
+    this.apiKeyInput = '';
+    this.aiService.setApiKey('');
+    this.savedNotice.set(false);
+  }
+
+  clearData(): void {
+    if (confirm('Are you sure? This will remove all your portfolio data and API key from this browser.')) {
+      [
+        'money.holdings',
+        'money.transactions',
+        'money.alertStates',
+        'money.notifications',
+        'money.user',
+        'money.gemini_api_key',
+      ].forEach((k) => {
+        try {
+          localStorage.removeItem(k);
+        } catch {
+          /* ignore */
+        }
+      });
+      window.location.reload();
     }
-    const raw = this.profileForm.getRawValue();
-    this.userService.saveInvestorProfile({ ...this.userService.investorProfile(), ...raw }).subscribe(() => {
-      this.savedProfile.set(true);
-      setTimeout(() => this.savedProfile.set(false), 2200);
-    });
-  }
-
-  toggleNotification(key: keyof NotificationSettings): void {
-    this.notifications.update((n) => ({ ...n, [key]: !n[key] }));
-    this.userService.saveNotificationSettings(this.notifications()).subscribe(() => {
-      this.savedNotifications.set(true);
-      setTimeout(() => this.savedNotifications.set(false), 1600);
-    });
-  }
-
-  setTheme(pref: ThemePreference): void {
-    this.theme.setPreference(pref);
   }
 }

@@ -1,14 +1,19 @@
-import { Severity } from './common.model';
+// ============================================================================
+// Money — Notification Models
+// ============================================================================
 
-export type AlertCategory = 'Price' | 'Technical' | 'Portfolio' | 'Market' | 'News' | 'Events' | 'Prediction';
+export type NotificationDirection = 'UP' | 'DOWN';
 
-export interface AlertItem {
+export interface MoneyNotification {
   id: string;
-  severity: Severity;
-  category: AlertCategory;
-  subject: string;
+  holdingId: string;
+  symbol: string;
+  companyName: string;
+  direction: NotificationDirection;
+  thresholdPct: number;       // e.g. 5, 10, -5, -10
+  price: number;              // Price when alert fired
+  referencePrice: number;     // Reference price used for calculation
   message: string;
-  timestamp: string;
-  symbol?: string;
-  read: boolean;
+  isRead: boolean;
+  createdAt: string;
 }
