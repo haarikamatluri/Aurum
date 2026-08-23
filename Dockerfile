@@ -16,12 +16,12 @@ FROM nginx:alpine
 # Copy build artifacts to Nginx html root
 COPY --from=build /app/dist/portfolio-intelligence/browser /usr/share/nginx/html
 
-# Use official Nginx template mechanism to automatically inject $PORT at runtime
+# Use official Nginx template mechanism
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
-# Default PORT fallback if Railway doesn't specify one
+# CRITICAL: Tell envsubst to ONLY replace $PORT, preventing $uri from being erased
+ENV NGINX_ENVSUBST_VARS='$PORT'
 ENV PORT=80
 EXPOSE 80 4050 8080
 
-# Nginx official image entrypoint automatically runs envsubst on /etc/nginx/templates/*.template
 CMD ["nginx", "-g", "daemon off;"]
