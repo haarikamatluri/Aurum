@@ -5,6 +5,11 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const DIST_DIR = path.join(__dirname, 'dist', 'portfolio-intelligence', 'browser');
 
+// Health check endpoint for Railway & monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy', uptime: process.uptime() });
+});
+
 // Serve static files from Angular build output
 app.use(express.static(DIST_DIR, {
   maxAge: '1y',

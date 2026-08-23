@@ -1,27 +1,28 @@
-# Stage 1: Build Angular application
+# Stage 1: Build the Angular application
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Copy dependency manifests and install dependencies
 COPY package*.json ./
 RUN npm ci
 
-# Copy application source and build production bundle
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve static files with Nginx
-FROM nginx:alpine
+# Stage 2: Run with lightweight Node.js Express server
+FROM node:22-alpine AS runner
+WORKDIR /app
 
-# Copy build artifacts to Nginx html root
-COPY --from=build /app/dist/portfolio-intelligence/browser /usr/share/nginx/html
+ENV NODE_ENV=production
 
-# Use official Nginx template mechanism
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Install only production dependencies (Express)
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# CRITICAL: Tell envsubst to ONLY replace $PORT, preventing $uri from being erased
-ENV NGINX_ENVSUBST_VARS='$PORT'
-ENV PORT=80
-EXPOSE 80 4050 8080
+# Copy compiled Angular distribution bundle & server
+COPY --from=build /app/dist ./dist
+COPY server.js ./
 
-CMD ["nginx", "-g", "daemon off;"]
+# Railway sets PORT dynamically (defaults to 8080 if not set)
+EXPOSE 8080 4050 80
+
+CMD ["node", "server.js"]
