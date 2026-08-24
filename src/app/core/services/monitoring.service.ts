@@ -11,11 +11,11 @@ const THRESHOLD_STEP = 5; // Every 5% triggers an alert
  * Monitoring service — the 5% threshold engine.
  *
  * Architecture:
- *   - Maintains AlertState independently from portfolio gain/loss display.
- *   - When real market data API is connected, call `processPriceUpdate(symbol, price)`.
- *   - Never fires the same threshold twice (deduplication built-in).
- *   - Handles direction changes correctly (up then down scenario).
- *   - Consolidated notifications for multi-threshold jumps.
+ *   - Automatically polls live market quotes every 5 minutes.
+ *   - Queries real-time prices for US and Indian (NSE/BSE) stocks via /api/market/quotes.
+ *   - Compares live price against purchase/reference price.
+ *   - Fires alerts whenever a 5% threshold boundary (+5%, -5%, +10%, -10%, ...) is crossed.
+ *   - Deduplicates alerts so the same threshold level is never fired twice.
  */
 @Injectable({ providedIn: 'root' })
 export class MonitoringService implements OnDestroy {
@@ -28,11 +28,15 @@ export class MonitoringService implements OnDestroy {
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
+  constructor() {
+    // Automatically start live price monitoring cycle upon app startup
+    this.startMonitoring(5 * 60 * 1000);
+    // Trigger an initial price fetch cycle immediately
+    setTimeout(() => this.runPriceCycle(), 500);
+  }
+
   /**
-   * Start polling — call this when real price data becomes available.
-   * Replace the body of `fetchCurrentPrices()` with your API calls.
-   *
-   * @param intervalMs Poll interval in milliseconds (default: 5 minutes)
+   * Start polling every intervalMs (default: 5 minutes).
    */
   startMonitoring(intervalMs = 5 * 60 * 1000): void {
     this.stopMonitoring();
@@ -47,12 +51,18 @@ export class MonitoringService implements OnDestroy {
   }
 
   /**
+   * Manually trigger an immediate price refresh for all holdings.
+   */
+  async refreshPrices(): Promise<void> {
+    await this.runPriceCycle();
+  }
+
+  /**
    * Process a price update for a single symbol.
-   * Called by the real API adapter when a fresh price arrives.
    */
   processPriceUpdate(symbol: string, newPrice: number): void {
     const holding = this.portfolio.getHoldingBySymbol(symbol);
-    if (!holding) return;
+    if (!holding || typeof newPrice !== 'number' || isNaN(newPrice) || newPrice <= 0) return;
 
     // Update displayed price in portfolio
     this.portfolio.updatePrice(symbol, newPrice);
@@ -63,7 +73,7 @@ export class MonitoringService implements OnDestroy {
       state = this.initAlertState(holding.id, symbol, holding.avgPurchasePrice, holding.market, holding.currency);
     }
 
-    // Calculate current movement percentage from reference price
+    // Calculate current movement percentage from reference price (bought price)
     const movementPct = ((newPrice - state.referencePrice) / state.referencePrice) * 100;
 
     // Determine current threshold level (floor to nearest 5%)
@@ -114,11 +124,6 @@ export class MonitoringService implements OnDestroy {
    * Threshold algorithm:
    * - movement = ((currentPrice - referencePrice) / referencePrice) * 100
    * - thresholdLevel = floor(|movement| / 5) * 5 * sign(movement)
-   *
-   * Examples:
-   *   movement = +16%  → level = +15
-   *   movement = -17%  → level = -15
-   *   movement = +4.9% → level =  0 (no alert)
    */
   computeThresholdLevel(movementPct: number): number {
     if (Math.abs(movementPct) < THRESHOLD_STEP) return 0;
@@ -134,32 +139,28 @@ export class MonitoringService implements OnDestroy {
     newPrice: number,
     currentLevel: number
   ): void {
-    if (currentLevel === 0) return; // No threshold reached yet
+    if (currentLevel === 0) return; // No 5% threshold reached yet
 
     if (currentLevel > 0) {
       // Upward movement
       if (currentLevel > state.lastUpThreshold) {
-        // Crossed one or more new upward thresholds
         const crossedLevels: number[] = [];
         for (let l = state.lastUpThreshold + THRESHOLD_STEP; l <= currentLevel; l += THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, crossedLevels, 'UP');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'UP');
         state.lastUpThreshold = currentLevel;
-        // Reset down threshold when moving up significantly
         if (currentLevel > 0) state.lastDownThreshold = 0;
       }
     } else {
       // Downward movement
       if (currentLevel < state.lastDownThreshold) {
-        // Crossed one or more new downward thresholds
         const crossedLevels: number[] = [];
         for (let l = state.lastDownThreshold - THRESHOLD_STEP; l >= currentLevel; l -= THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, crossedLevels, 'DOWN');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'DOWN');
         state.lastDownThreshold = currentLevel;
-        // Reset up threshold when moving down significantly
         if (currentLevel < 0) state.lastUpThreshold = 0;
       }
     }
@@ -171,18 +172,20 @@ export class MonitoringService implements OnDestroy {
     companyName: string,
     price: number,
     referencePrice: number,
+    currency: CurrencyCode,
     levels: number[],
     direction: 'UP' | 'DOWN'
   ): void {
     const thresholdPct = Math.abs(levels[levels.length - 1]);
     const directionWord = direction === 'UP' ? 'increased' : 'dropped';
     const levelStr = levels.map((l) => (l > 0 ? `+${l}%` : `${l}%`)).join(', ');
+    const currSymbol = currency === 'INR' ? '₹' : '$';
 
     let message: string;
     if (levels.length === 1) {
-      message = `${symbol} ${directionWord} ${thresholdPct}% from your reference price of $${referencePrice.toFixed(2)}.`;
+      message = `${symbol} ${directionWord} ${thresholdPct}% from your reference price of ${currSymbol}${referencePrice.toFixed(2)}.`;
     } else {
-      message = `${symbol} moved through multiple thresholds (${levelStr}).`;
+      message = `${symbol} moved through multiple thresholds (${levelStr}) from ${currSymbol}${referencePrice.toFixed(2)}.`;
     }
 
     const notification: MoneyNotification = {
@@ -203,15 +206,13 @@ export class MonitoringService implements OnDestroy {
   }
 
   /**
-   * Called by poll interval — fetch prices for all unique symbols.
-   * Replace fetchCurrentPrices() with real API calls.
+   * Poll cycle — queries real-time quotes for all portfolio holdings.
    */
   private async runPriceCycle(): Promise<void> {
     const holdings = this.portfolio.holdings();
     if (holdings.length === 0) return;
 
-    const symbols = [...new Set(holdings.map((h) => h.symbol))];
-    const prices = await this.fetchCurrentPrices(symbols);
+    const prices = await this.fetchCurrentPrices(holdings);
 
     for (const [symbol, price] of Object.entries(prices)) {
       this.processPriceUpdate(symbol, price);
@@ -219,18 +220,37 @@ export class MonitoringService implements OnDestroy {
   }
 
   /**
-   * REPLACE THIS METHOD with real API calls when ready.
-   *
-   * Example integration:
-   *   const res = await fetch(`/api/market/quotes?symbols=${symbols.join(',')}`);
-   *   const data = await res.json();
-   *   return data; // { AAPL: 195.40, TSLA: 250.00, ... }
+   * Fetches live market prices from the backend /api/market/quotes endpoint.
    */
-  private async fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
-    // API not yet connected — return empty so components show "--"
-    // TODO: Replace with real market data API call
-    console.info('[MonitoringService] Price fetch not yet connected. Symbols:', symbols);
-    return {};
+  private async fetchCurrentPrices(
+    holdings: { symbol: string; market: MarketRegion }[]
+  ): Promise<Record<string, number>> {
+    try {
+      const queryParam = holdings
+        .map((h) => `${encodeURIComponent(h.symbol)}:${h.market}`)
+        .join(',');
+
+      const res = await fetch(`/api/market/quotes?symbols=${queryParam}`);
+      if (!res.ok) {
+        console.warn('[MonitoringService] /api/market/quotes returned status', res.status);
+        return {};
+      }
+
+      const json = await res.json();
+      const quotes = json.quotes || {};
+      const priceMap: Record<string, number> = {};
+
+      for (const [sym, quoteData] of Object.entries<any>(quotes)) {
+        if (quoteData && typeof quoteData.price === 'number') {
+          priceMap[sym] = quoteData.price;
+        }
+      }
+
+      return priceMap;
+    } catch (err: any) {
+      console.warn('[MonitoringService] Failed to fetch live prices:', err?.message || err);
+      return {};
+    }
   }
 
   // ---- persistence ----

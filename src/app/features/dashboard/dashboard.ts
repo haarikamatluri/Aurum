@@ -344,6 +344,7 @@ export class Dashboard {
   onStockAdded(req: AddHoldingRequest): void {
     const holding = this.portfolio.addHolding(req);
     this.monitoring.initAlertState(holding.id, holding.symbol, holding.avgPurchasePrice, holding.market, holding.currency);
+    this.monitoring.refreshPrices();
     this.showAddModal.set(false);
   }
 
