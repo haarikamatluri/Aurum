@@ -318,6 +318,55 @@ export class PortfolioService {
     return resultHolding;
   }
 
+  /**
+   * Edit/Update an existing holding's shares and average purchase price.
+   */
+  updateHolding(
+    holdingId: string,
+    updates: { shares: number; avgPurchasePrice: number; companyName?: string }
+  ): Holding | null {
+    const existing = this.getHoldingById(holdingId);
+    if (!existing) return null;
+
+    const sh = Number(updates.shares);
+    const pr = Number(updates.avgPurchasePrice);
+    const now = new Date().toISOString();
+    const totalInvested = sh * pr;
+    const currentValue = existing.currentPrice ? sh * existing.currentPrice : null;
+    const profitLoss = currentValue !== null ? currentValue - totalInvested : null;
+    const profitLossPct = existing.currentPrice ? ((existing.currentPrice - pr) / pr) * 100 : null;
+
+    const updated: Holding = {
+      ...existing,
+      shares: sh,
+      avgPurchasePrice: pr,
+      totalInvested,
+      currentValue,
+      profitLoss,
+      profitLossPct,
+      companyName: updates.companyName || existing.companyName,
+      updatedAt: now,
+    };
+
+    this._holdings.update((hs) => hs.map((h) => (h.id === holdingId ? updated : h)));
+    this.saveHoldings();
+
+    // Persist to MongoDB backend
+    fetch(`/api/portfolio/holdings/${encodeURIComponent(holdingId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shares: sh,
+        avgPurchasePrice: pr,
+        companyName: updates.companyName,
+      }),
+    }).catch((err) => {
+      console.warn('[PortfolioService] Could not update holding in MongoDB backend:', err.message);
+    });
+
+    return updated;
+  }
+
   /** Delete a holding and all associated transactions. */
   deleteHolding(holdingId: string): void {
     this._holdings.update((hs) => hs.filter((h) => h.id !== holdingId));

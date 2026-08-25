@@ -423,6 +423,32 @@
   }
 }
 
+.card-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-edit {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast);
+
+  &:hover {
+    background: rgba(0, 245, 155, 0.12);
+    color: #00F59B;
+    border-color: rgba(0, 245, 155, 0.25);
+  }
+}
+
 .btn-delete {
   width: 26px;
   height: 26px;

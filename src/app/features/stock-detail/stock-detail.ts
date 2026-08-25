@@ -3,12 +3,13 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { PortfolioService } from '../../core/services/portfolio.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { CurrencyCode } from '../../core/models/portfolio.model';
+import { CurrencyCode, Holding } from '../../core/models/portfolio.model';
+import { EditStockModal } from '../dashboard/edit-stock-modal/edit-stock-modal';
 
 @Component({
   selector: 'app-stock-detail',
   standalone: true,
-  imports: [DecimalPipe, DatePipe],
+  imports: [DecimalPipe, DatePipe, EditStockModal],
   template: `
     @if (holding()) {
       <div class="stock-detail">
@@ -68,65 +69,72 @@ import { CurrencyCode } from '../../core/models/portfolio.model';
               <span class="card-value" [class.positive]="holding()!.profitLoss! > 0" [class.negative]="holding()!.profitLoss! < 0">
                 {{ holding()!.profitLoss! >= 0 ? '+' : '' }}{{ formatVal(holding()!.profitLoss!, holding()!.currency) }}
               </span>
-              <span class="card-sub">
+              <span class="card-sub" [class.positive]="holding()!.profitLoss! > 0" [class.negative]="holding()!.profitLoss! < 0">
                 {{ holding()!.profitLossPct! >= 0 ? '+' : '' }}{{ holding()!.profitLossPct! | number:'1.2-2' }}%
               </span>
             } @else {
               <span class="card-value pending">--</span>
             }
           </div>
+
+          <div class="info-card">
+            <span class="card-label">5% ALERT REFERENCE</span>
+            <span class="card-value">{{ formatVal(holding()!.avgPurchasePrice, holding()!.currency) }}</span>
+            <span class="card-sub">Alerts trigger at ±5%, ±10%</span>
+          </div>
         </div>
 
-        <!-- Ask AI Analyst -->
+        <!-- AI Analyst Callout -->
         <div class="ai-cta">
           <div class="ai-cta-left">
-            <div class="ai-cta-icon">
+            <div class="ai-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
               </svg>
             </div>
             <div>
-              <h3>Ask AI Analyst</h3>
-              <p>Get current news, sentiment, and analysis for {{ holding()!.symbol }}.</p>
+              <h3>AI Market Intelligence for {{ holding()!.symbol }}</h3>
+              <p>Ask about valuation, technical trends, risk metrics, and scenarios.</p>
             </div>
           </div>
-          <button class="btn-ask-ai" (click)="openAiAnalyst()" id="stock-detail-ask-ai">
-            Ask AI
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-            </svg>
+          <button class="btn-ask-ai" (click)="openAiAnalyst()" id="ask-ai-detail-btn">
+            Open AI Analyst
           </button>
         </div>
 
         <!-- Transaction history -->
         <div class="section">
           <h2 class="section-title">Purchase History</h2>
-          <div class="tx-list">
-            @for (tx of transactions(); track tx.id) {
-              <div class="tx-row">
-                <div class="tx-type" [class.buy]="tx.type === 'BUY'">{{ tx.type }}</div>
-                <div class="tx-detail">
-                  <span class="tx-shares">{{ tx.shares | number:'1.0-4' }} shares</span>
-                  <span class="tx-price">@ {{ formatVal(tx.price, tx.currency) }} per share</span>
+          @if (transactions().length > 0) {
+            <div class="tx-list">
+              @for (t of transactions(); track t.id) {
+                <div class="tx-row">
+                  <div class="tx-type" [class.buy]="t.type === 'BUY'">{{ t.type }}</div>
+                  <div class="tx-detail">
+                    <span class="tx-shares">{{ t.shares | number:'1.0-4' }} shares</span>
+                    <span class="tx-price">@ {{ formatVal(t.price, t.currency) }} per share</span>
+                  </div>
+                  <div class="tx-right">
+                    <span class="tx-total">{{ formatVal(t.shares * t.price, t.currency) }}</span>
+                    <span class="tx-date">{{ t.date }}</span>
+                  </div>
                 </div>
-                <div class="tx-right">
-                  <span class="tx-total">{{ formatVal(tx.shares * tx.price, tx.currency) }}</span>
-                  <span class="tx-date">{{ tx.date | date:'MMM d, y' }}</span>
-                </div>
-              </div>
-            }
-          </div>
+              }
+            </div>
+          } @else {
+            <p class="no-data">No transactions recorded.</p>
+          }
         </div>
 
-        <!-- Alert history for this stock -->
+        <!-- 5% Alert history -->
         @if (stockAlerts().length > 0) {
           <div class="section">
-            <h2 class="section-title">Price Alerts</h2>
-            <div class="alert-list">
+            <h2 class="section-title">5% Threshold Alert History</h2>
+            <div class="alerts-list">
               @for (n of stockAlerts(); track n.id) {
-                <div class="alert-row">
-                  <div class="alert-icon" [class.up]="n.direction === 'UP'" [class.down]="n.direction === 'DOWN'">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                <div class="alert-row" [class.up]="n.direction === 'UP'" [class.down]="n.direction === 'DOWN'">
+                  <div class="alert-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
                       @if (n.direction === 'UP') {
                         <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
                       } @else {
@@ -142,10 +150,17 @@ import { CurrencyCode } from '../../core/models/portfolio.model';
           </div>
         }
 
-        <!-- Delete -->
-        <div class="danger-zone">
+        <!-- Actions -->
+        <div class="stock-action-zone">
+          <button class="btn-edit-stock" (click)="showEditModal.set(true)" id="edit-stock-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Edit Holding (Shares & Cost)
+          </button>
           <button class="btn-remove-stock" (click)="confirmDelete()" id="remove-stock-btn">
-            Remove {{ holding()!.symbol }} from portfolio
+            Remove from portfolio
           </button>
         </div>
       </div>
@@ -155,6 +170,15 @@ import { CurrencyCode } from '../../core/models/portfolio.model';
         <p>This stock is not in your portfolio.</p>
         <button class="btn-back" (click)="goBack()">Back to portfolio</button>
       </div>
+    }
+
+    <!-- Edit Modal -->
+    @if (showEditModal() && holding()) {
+      <app-edit-stock-modal
+        [holding]="holding()!"
+        (close)="showEditModal.set(false)"
+        (updated)="showEditModal.set(false)"
+      />
     }
 
     <!-- Delete confirm -->
@@ -181,6 +205,7 @@ export class StockDetailPage {
   private readonly notifService = inject(NotificationService);
 
   protected readonly showDeleteConfirm = signal(false);
+  protected readonly showEditModal = signal(false);
 
   protected readonly holding = computed(() => {
     const symbol = this.route.snapshot.paramMap.get('symbol') ?? '';

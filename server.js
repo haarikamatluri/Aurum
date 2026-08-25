@@ -209,6 +209,80 @@ app.post('/api/portfolio/holdings', async (req, res) => {
   }
 });
 
+// PUT /api/portfolio/holdings/:id (Edit holding shares and purchase price)
+app.put('/api/portfolio/holdings/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { shares, avgPurchasePrice, companyName } = req.body;
+    const sh = Number(shares);
+    const pr = Number(avgPurchasePrice);
+    if (!sh || sh <= 0 || !pr || pr <= 0) {
+      return res.status(400).json({ error: 'Valid shares and avgPurchasePrice are required' });
+    }
+
+    const now = new Date().toISOString();
+    let savedHolding = null;
+
+    if (isMongoConnected && db) {
+      const existing = await db.collection('holdings').findOne({ id });
+      if (!existing) {
+        return res.status(404).json({ error: 'Holding not found' });
+      }
+
+      const totalInvested = sh * pr;
+      const currentValue = existing.currentPrice ? sh * existing.currentPrice : null;
+      const profitLoss = currentValue !== null ? currentValue - totalInvested : null;
+      const profitLossPct = existing.currentPrice ? ((existing.currentPrice - pr) / pr) * 100 : null;
+
+      const updated = {
+        ...existing,
+        shares: sh,
+        avgPurchasePrice: pr,
+        totalInvested,
+        currentValue,
+        profitLoss,
+        profitLossPct,
+        companyName: companyName || existing.companyName,
+        updatedAt: now,
+      };
+      delete updated._id;
+
+      await db.collection('holdings').updateOne({ id }, { $set: updated });
+      await db.collection('alert_states').updateOne(
+        { holdingId: id },
+        { $set: { referencePrice: pr, lastUpThreshold: 0, lastDownThreshold: 0, updatedAt: now } }
+      );
+      savedHolding = updated;
+    } else {
+      const existing = memoryHoldings.find((h) => h.id === id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Holding not found' });
+      }
+      existing.shares = sh;
+      existing.avgPurchasePrice = pr;
+      existing.totalInvested = sh * pr;
+      if (existing.currentPrice) {
+        existing.currentValue = sh * existing.currentPrice;
+        existing.profitLoss = existing.currentValue - existing.totalInvested;
+        existing.profitLossPct = ((existing.currentPrice - pr) / pr) * 100;
+      }
+      if (companyName) existing.companyName = companyName;
+      existing.updatedAt = now;
+
+      if (memoryAlertStates[id]) {
+        memoryAlertStates[id].referencePrice = pr;
+        memoryAlertStates[id].lastUpThreshold = 0;
+        memoryAlertStates[id].lastDownThreshold = 0;
+      }
+      savedHolding = existing;
+    }
+
+    return res.json({ holding: savedHolding });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/portfolio/holdings/:id
 app.delete('/api/portfolio/holdings/:id', async (req, res) => {
   try {

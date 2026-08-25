@@ -113,6 +113,21 @@ export class MonitoringService implements OnDestroy {
   }
 
   /**
+   * Update reference price when a holding's buy price is edited.
+   */
+  updateReferencePrice(holdingId: string, newReferencePrice: number): void {
+    let state = this.alertStates.get(holdingId);
+    if (state) {
+      state.referencePrice = newReferencePrice;
+      state.lastUpThreshold = 0;
+      state.lastDownThreshold = 0;
+      state.updatedAt = new Date().toISOString();
+      this.alertStates.set(holdingId, state);
+      this.saveAlertStates();
+    }
+  }
+
+  /**
    * Remove alert state when a holding is deleted.
    */
   removeAlertState(holdingId: string): void {
