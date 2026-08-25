@@ -5,7 +5,7 @@ const STORAGE_KEY = 'money.notifications';
 
 /**
  * Notification service — manages the in-app notification center.
- * Persists to localStorage. Ready for WebSocket/SSE push later.
+ * Persists to MongoDB cloud database with localStorage offline fallback.
  */
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
@@ -17,9 +17,36 @@ export class NotificationService {
     this._notifications().filter((n) => !n.isRead).length
   );
 
+  constructor() {
+    this.syncFromDatabase();
+  }
+
+  async syncFromDatabase(): Promise<void> {
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        const serverNotifs: MoneyNotification[] = data.notifications || [];
+        if (serverNotifs.length > 0 || this._notifications().length === 0) {
+          this._notifications.set(serverNotifs);
+          this.save();
+        }
+      }
+    } catch {
+      // offline fallback
+    }
+  }
+
   addNotification(n: MoneyNotification): void {
     this._notifications.update((ns) => [n, ...ns]);
     this.save();
+
+    // Persist to MongoDB
+    fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(n),
+    }).catch(() => {});
   }
 
   markAsRead(id: string): void {
@@ -27,11 +54,21 @@ export class NotificationService {
       ns.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
     this.save();
+
+    // Persist to MongoDB
+    fetch(`/api/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'PATCH',
+    }).catch(() => {});
   }
 
   markAllRead(): void {
     this._notifications.update((ns) => ns.map((n) => ({ ...n, isRead: true })));
     this.save();
+
+    // Persist to MongoDB
+    fetch('/api/notifications/read-all', {
+      method: 'POST',
+    }).catch(() => {});
   }
 
   /** Remove all notifications for a holding (called on holding delete). */

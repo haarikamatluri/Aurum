@@ -12,7 +12,7 @@ const STORAGE_KEY_HOLDINGS = 'money.holdings';
 const STORAGE_KEY_TRANSACTIONS = 'money.transactions';
 
 // ============================================================================
-// Curated Stocks Database (US & Indian Markets)
+// Curated Stocks Database (US & Indian Markets) - Instant offline autocomplete
 // ============================================================================
 const US_STOCKS: StockSearchResult[] = [
   { symbol: 'AAPL', companyName: 'Apple Inc.', exchange: 'NASDAQ', market: 'US', currency: 'USD' },
@@ -38,9 +38,13 @@ const US_STOCKS: StockSearchResult[] = [
   { symbol: 'AVGO', companyName: 'Broadcom Inc.', exchange: 'NASDAQ', market: 'US', currency: 'USD' },
   { symbol: 'UBER', companyName: 'Uber Technologies Inc.', exchange: 'NYSE', market: 'US', currency: 'USD' },
   { symbol: 'DIS', companyName: 'The Walt Disney Company', exchange: 'NYSE', market: 'US', currency: 'USD' },
+  { symbol: 'INTC', companyName: 'Intel Corporation', exchange: 'NASDAQ', market: 'US', currency: 'USD' },
+  { symbol: 'QCOM', companyName: 'QUALCOMM Incorporated', exchange: 'NASDAQ', market: 'US', currency: 'USD' },
+  { symbol: 'COIN', companyName: 'Coinbase Global Inc.', exchange: 'NASDAQ', market: 'US', currency: 'USD' },
 ];
 
 const INDIA_STOCKS: StockSearchResult[] = [
+  // Nifty 50 Heavyweights
   { symbol: 'RELIANCE', companyName: 'Reliance Industries Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'TCS', companyName: 'Tata Consultancy Services Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'HDFCBANK', companyName: 'HDFC Bank Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
@@ -63,12 +67,57 @@ const INDIA_STOCKS: StockSearchResult[] = [
   { symbol: 'NTPC', companyName: 'NTPC Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'ONGC', companyName: 'Oil & Natural Gas Corporation Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'POWERGRID', companyName: 'Power Grid Corporation of India Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
-  { symbol: 'ZOMATO', companyName: 'Zomato Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
-  { symbol: 'JIOFIN', companyName: 'Jio Financial Services Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
-  { symbol: 'ADANIENT', companyName: 'Adani Enterprises Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
-  { symbol: 'TATACONSUM', companyName: 'Tata Consumer Products Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'TECHM', companyName: 'Tech Mahindra Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
   { symbol: 'HCLTECH', companyName: 'HCL Technologies Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'BAJAJFINSV', companyName: 'Bajaj Finserv Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'NESTLEIND', companyName: 'Nestle India Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ULTRACEMCO', companyName: 'UltraTech Cement Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'GRASIM', companyName: 'Grasim Industries Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'JSWSTEEL', companyName: 'JSW Steel Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'TATASTEEL', companyName: 'Tata Steel Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ADANIENT', companyName: 'Adani Enterprises Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ADANIPORTS', companyName: 'Adani Ports and Special Economic Zone Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'COALINDIA', companyName: 'Coal India Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'TATACONSUM', companyName: 'Tata Consumer Products Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'DRREDDY', companyName: 'Dr. Reddys Laboratories Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'CIPLA', companyName: 'Cipla Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'APOLLOHOSP', companyName: 'Apollo Hospitals Enterprise Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'EICHERMOT', companyName: 'Eicher Motors Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'HEROMOTOCO', companyName: 'Hero MotoCorp Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'DIVISLAB', companyName: 'Divis Laboratories Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'BPCL', companyName: 'Bharat Petroleum Corp Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'IOC', companyName: 'Indian Oil Corporation Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'SBILIFE', companyName: 'SBI Life Insurance Company Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'HDFCLIFE', companyName: 'HDFC Life Insurance Co Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+
+  // High Growth, Defense, Railway, PSU, Energy & New Age
+  { symbol: 'TATAPOWER', companyName: 'Tata Power Company Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'HAL', companyName: 'Hindustan Aeronautics Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'BEL', companyName: 'Bharat Electronics Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'IRFC', companyName: 'Indian Railway Finance Corp Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'RVNL', companyName: 'Rail Vikas Nigam Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'MAZDOCK', companyName: 'Mazagon Dock Shipbuilders Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'SUZLON', companyName: 'Suzlon Energy Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'BHEL', companyName: 'Bharat Heavy Electricals Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'VEDL', companyName: 'Vedanta Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'PAYTM', companyName: 'One 97 Communications (Paytm)', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ZOMATO', companyName: 'Zomato Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'JIOFIN', companyName: 'Jio Financial Services Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'CDSL', companyName: 'Central Depository Services Ltd', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'BSE', companyName: 'BSE Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'TRENT', companyName: 'Trent Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'YESBANK', companyName: 'Yes Bank Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'IREDA', companyName: 'Indian Renewable Energy Dev Agency', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'NHPC', companyName: 'NHPC Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'SJVN', companyName: 'SJVN Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'GAIL', companyName: 'GAIL (India) Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'POLYCAB', companyName: 'Polycab India Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'HAVELLS', companyName: 'Havells India Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ADANIPOWER', companyName: 'Adani Power Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'ADANIGREEN', companyName: 'Adani Green Energy Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'NYKAA', companyName: 'FSN E-Commerce Ventures (Nykaa)', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'DMART', companyName: 'Avenue Supermarts (DMart)', exchange: 'NSE', market: 'IN', currency: 'INR' },
+  { symbol: 'AEQUS', companyName: 'Aequs Limited', exchange: 'NSE', market: 'IN', currency: 'INR' },
 ];
 
 const ALL_STOCKS = [...US_STOCKS, ...INDIA_STOCKS];
@@ -80,7 +129,43 @@ export class PortfolioService {
 
   readonly holdings = this._holdings.asReadonly();
 
-  /** Search for a stock symbol across US, Indian, or specific market. */
+  constructor() {
+    this.syncFromDatabase();
+  }
+
+  /**
+   * Asynchronously sync portfolio data from MongoDB backend
+   */
+  async syncFromDatabase(): Promise<void> {
+    try {
+      const [holdingsRes, txsRes] = await Promise.all([
+        fetch('/api/portfolio/holdings'),
+        fetch('/api/portfolio/transactions'),
+      ]);
+
+      if (holdingsRes.ok) {
+        const data = await holdingsRes.json();
+        const serverHoldings: Holding[] = data.holdings || [];
+        if (serverHoldings.length > 0 || (this._holdings().length === 0)) {
+          this._holdings.set(serverHoldings);
+          this.saveHoldings();
+        }
+      }
+
+      if (txsRes.ok) {
+        const txData = await txsRes.json();
+        const serverTxs: StockTransaction[] = txData.transactions || [];
+        if (serverTxs.length > 0 || (this._transactions().length === 0)) {
+          this._transactions.set(serverTxs);
+          this.saveTransactions();
+        }
+      }
+    } catch {
+      // offline / local mode fallback
+    }
+  }
+
+  /** Synchronous local fast-search across curated stocks */
   searchStocks(query: string, marketFilter?: MarketRegion): StockSearchResult[] {
     if (!query || query.trim().length < 1) return [];
     const q = query.trim().toUpperCase();
@@ -91,8 +176,31 @@ export class PortfolioService {
     return pool.filter(
       (s) =>
         s.symbol.startsWith(q) ||
+        s.symbol.includes(q) ||
         s.companyName.toUpperCase().includes(q)
-    ).slice(0, 8);
+    ).slice(0, 10);
+  }
+
+  /** Remote live search querying live market ticker databases (NSE/BSE & US) */
+  async searchStocksRemote(query: string, marketFilter?: MarketRegion): Promise<StockSearchResult[]> {
+    if (!query || query.trim().length < 1) return [];
+    const q = query.trim();
+    const market = marketFilter || 'IN';
+
+    try {
+      const res = await fetch(`/api/market/search?q=${encodeURIComponent(q)}&market=${market}`);
+      if (res.ok) {
+        const data = await res.json();
+        const results: StockSearchResult[] = data.results || [];
+        if (results.length > 0) {
+          return results;
+        }
+      }
+    } catch {
+      // fallback to local search on network failure
+    }
+
+    return this.searchStocks(q, marketFilter);
   }
 
   /** Compute portfolio summary for a specific market filter or global. */
@@ -108,43 +216,45 @@ export class PortfolioService {
       ? h.reduce((s, x) => s + (x.currentValue ?? 0), 0)
       : null;
     const totalGain = currentValue !== null ? currentValue - totalInvested : null;
-    const totalGainPct = totalGain !== null && totalInvested > 0
+    const totalGainPct = (totalGain !== null && totalInvested > 0)
       ? (totalGain / totalInvested) * 100
       : null;
 
     const currency = market === 'IN' ? 'INR' : 'USD';
-    return { totalInvested, currentValue, totalGain, totalGainPct, holdingCount: h.length, currency };
+
+    return {
+      totalInvested,
+      currentValue,
+      totalGain,
+      totalGainPct,
+      holdingCount: h.length,
+      currency,
+    };
   }
 
-  readonly portfolioSummary = computed<PortfolioSummary>(() => this.getSummaryForMarket('ALL'));
-
-  /** Add a new holding (or additional purchase of an existing one). */
+  /**
+   * Add a stock position. Persists to MongoDB backend and updates local signals.
+   */
   addHolding(req: AddHoldingRequest): Holding {
-    const existing = this._holdings().find(
-      (h) => h.symbol.toUpperCase() === req.symbol.toUpperCase() && h.market === req.market
-    );
-
     const now = new Date().toISOString();
+    const existing = this.getHoldingBySymbol(req.symbol);
     const txId = `tx-${Date.now()}`;
 
+    let resultHolding: Holding;
+
     if (existing) {
-      // Additional purchase — recalculate weighted average cost
       const newTotalShares = existing.shares + req.shares;
       const newTotalInvested = existing.totalInvested + req.shares * req.purchasePrice;
-      const newAvgCost = newTotalInvested / newTotalShares;
+      const newAvgPrice = newTotalInvested / newTotalShares;
 
       const updated: Holding = {
         ...existing,
         shares: newTotalShares,
-        avgPurchasePrice: newAvgCost,
+        avgPurchasePrice: newAvgPrice,
         totalInvested: newTotalInvested,
-        currentValue: existing.currentPrice !== null ? newTotalShares * existing.currentPrice : null,
-        profitLoss: existing.currentPrice !== null
-          ? newTotalShares * existing.currentPrice - newTotalInvested
-          : null,
-        profitLossPct: existing.currentPrice !== null
-          ? ((existing.currentPrice - newAvgCost) / newAvgCost) * 100
-          : null,
+        currentValue: existing.currentPrice ? newTotalShares * existing.currentPrice : null,
+        profitLoss: existing.currentPrice ? (newTotalShares * existing.currentPrice) - newTotalInvested : null,
+        profitLossPct: existing.currentPrice ? ((existing.currentPrice - newAvgPrice) / newAvgPrice) * 100 : null,
         updatedAt: now,
       };
 
@@ -160,42 +270,52 @@ export class PortfolioService {
       this._transactions.update((ts) => [tx, ...ts]);
       this.saveTransactions();
 
-      return updated;
+      resultHolding = updated;
+    } else {
+      const id = `holding-${Date.now()}`;
+      const newHolding: Holding = {
+        id,
+        symbol: req.symbol.toUpperCase(),
+        companyName: req.companyName,
+        exchange: req.exchange,
+        market: req.market,
+        currency: req.currency,
+        shares: req.shares,
+        avgPurchasePrice: req.purchasePrice,
+        totalInvested: req.shares * req.purchasePrice,
+        currentPrice: null,
+        currentValue: null,
+        profitLoss: null,
+        profitLossPct: null,
+        addedAt: now,
+        updatedAt: now,
+      };
+
+      this._holdings.update((hs) => [newHolding, ...hs]);
+      this.saveHoldings();
+
+      const tx: StockTransaction = {
+        id: txId, holdingId: id, type: 'BUY',
+        shares: req.shares, price: req.purchasePrice,
+        currency: req.currency,
+        date: req.purchaseDate ?? now.split('T')[0], createdAt: now,
+      };
+      this._transactions.update((ts) => [tx, ...ts]);
+      this.saveTransactions();
+
+      resultHolding = newHolding;
     }
 
-    // New holding
-    const id = `holding-${Date.now()}`;
-    const newHolding: Holding = {
-      id,
-      symbol: req.symbol.toUpperCase(),
-      companyName: req.companyName,
-      exchange: req.exchange,
-      market: req.market,
-      currency: req.currency,
-      shares: req.shares,
-      avgPurchasePrice: req.purchasePrice,
-      totalInvested: req.shares * req.purchasePrice,
-      currentPrice: null,
-      currentValue: null,
-      profitLoss: null,
-      profitLossPct: null,
-      addedAt: now,
-      updatedAt: now,
-    };
+    // Asynchronously save to MongoDB database
+    fetch('/api/portfolio/holdings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    }).catch((err) => {
+      console.warn('[PortfolioService] Could not persist to MongoDB backend:', err.message);
+    });
 
-    this._holdings.update((hs) => [newHolding, ...hs]);
-    this.saveHoldings();
-
-    const tx: StockTransaction = {
-      id: txId, holdingId: id, type: 'BUY',
-      shares: req.shares, price: req.purchasePrice,
-      currency: req.currency,
-      date: req.purchaseDate ?? now.split('T')[0], createdAt: now,
-    };
-    this._transactions.update((ts) => [tx, ...ts]);
-    this.saveTransactions();
-
-    return newHolding;
+    return resultHolding;
   }
 
   /** Delete a holding and all associated transactions. */
@@ -204,6 +324,13 @@ export class PortfolioService {
     this._transactions.update((ts) => ts.filter((t) => t.holdingId !== holdingId));
     this.saveHoldings();
     this.saveTransactions();
+
+    // Asynchronously delete from MongoDB database
+    fetch(`/api/portfolio/holdings/${encodeURIComponent(holdingId)}`, {
+      method: 'DELETE',
+    }).catch((err) => {
+      console.warn('[PortfolioService] Could not delete from MongoDB backend:', err.message);
+    });
   }
 
   /**
@@ -239,7 +366,6 @@ export class PortfolioService {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_HOLDINGS);
       const holdings: Holding[] = raw ? JSON.parse(raw) : [];
-      // backward compatibility: add market/currency if missing
       return holdings.map((h) => ({
         ...h,
         market: h.market || (h.exchange === 'NSE' || h.exchange === 'BSE' ? 'IN' : 'US'),

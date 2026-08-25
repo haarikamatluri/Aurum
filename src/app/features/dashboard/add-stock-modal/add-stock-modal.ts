@@ -47,21 +47,24 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
           <!-- Stock symbol search -->
           <div class="field">
             <label for="symbol-input" class="field-label">
-              {{ selectedMarket() === 'IN' ? 'Indian Stock (NSE / BSE)' : 'US Stock (NASDAQ / NYSE)' }}
+              {{ selectedMarket() === 'IN' ? 'Search Any Indian Stock (NSE / BSE / Nifty)' : 'Search US Stock (NASDAQ / NYSE)' }}
+              @if (isSearching()) {
+                <span class="searching-badge">Searching live market...</span>
+              }
             </label>
             <div class="search-wrap">
               <input
                 id="symbol-input"
                 type="text"
                 class="field-input"
-                [placeholder]="selectedMarket() === 'IN' ? 'Search e.g. RELIANCE, TCS, INFY, TATA...' : 'Search e.g. AAPL, NVDA, MSFT, TSLA...'"
+                [placeholder]="selectedMarket() === 'IN' ? 'Search e.g. TATA POWER, IRFC, HAL, SUZLON, RELIANCE, BEL...' : 'Search e.g. AAPL, NVDA, MSFT, TSLA, PLTR...'"
                 [ngModel]="symbolQuery()"
                 (ngModelChange)="onSymbolChange($event)"
                 name="symbol"
                 autocomplete="off"
                 required
               >
-              @if (searchResults().length > 0 && !selectedStock()) {
+              @if (showDropdown() && !selectedStock()) {
                 <div class="search-dropdown">
                   @for (result of searchResults(); track result.symbol) {
                     <button type="button" class="search-result" (click)="selectStock(result)">
@@ -70,6 +73,18 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
                         <span class="result-exchange">{{ result.exchange }}</span>
                       </div>
                       <span class="result-name">{{ result.companyName }}</span>
+                    </button>
+                  }
+
+                  <!-- Always present custom stock creation option for any typed query -->
+                  @if (customStockCandidate(); as custom) {
+                    <button type="button" class="search-result search-result-custom" (click)="selectCustomStock(custom)">
+                      <div class="result-left">
+                        <span class="custom-badge">+ Custom</span>
+                        <span class="result-symbol">{{ custom.symbol }}</span>
+                        <span class="result-exchange">{{ custom.exchange }}</span>
+                      </div>
+                      <span class="result-name">Add as custom {{ custom.market === 'IN' ? 'NSE' : 'US' }} stock</span>
                     </button>
                   }
                 </div>
@@ -86,19 +101,23 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
                 <span class="selected-name">{{ selectedStock()!.companyName }}</span>
                 <button type="button" class="clear-btn" (click)="clearSelection()">Change</button>
               </div>
-            }
 
-            @if (symbolQuery().length > 0 && searchResults().length === 0 && !selectedStock()) {
-              <p class="field-error">
-                No matching {{ selectedMarket() === 'IN' ? 'Indian' : 'US' }} stock found. Check the symbol or switch market tab above.
-              </p>
+              <!-- Live market price indicator if fetched -->
+              @if (livePrice() !== null) {
+                <div class="live-price-pill">
+                  <span class="live-indicator"></span>
+                  <span class="live-label">Current Live Price:</span>
+                  <strong class="live-val">{{ currencySymbol() }}{{ livePrice() | number:'1.2-2' }}</strong>
+                  <button type="button" class="apply-live-btn" (click)="useLivePrice()">Use as Buy Price</button>
+                </div>
+              }
             }
           </div>
 
           <!-- Quick suggestions if empty -->
           @if (!selectedStock() && symbolQuery().length === 0) {
             <div class="quick-picks">
-              <span class="quick-label">Popular in {{ selectedMarket() === 'IN' ? 'India' : 'US' }}:</span>
+              <span class="quick-label">Trending in {{ selectedMarket() === 'IN' ? 'India' : 'US' }}:</span>
               <div class="quick-tags">
                 @for (item of quickPicks(); track item.symbol) {
                   <button type="button" class="quick-tag" (click)="selectStock(item)">
@@ -198,7 +217,7 @@ export class AddStockModal {
 
   private readonly portfolioService = inject(PortfolioService);
 
-  protected readonly selectedMarket = signal<MarketRegion>('US');
+  protected readonly selectedMarket = signal<MarketRegion>('IN');
   protected readonly symbolQuery = signal('');
   protected readonly shares = signal<number | null>(null);
   protected readonly purchasePrice = signal<number | null>(null);
@@ -207,12 +226,34 @@ export class AddStockModal {
 
   protected readonly selectedStock = signal<StockSearchResult | null>(null);
   protected readonly searchResults = signal<StockSearchResult[]>([]);
+  protected readonly isSearching = signal(false);
+  protected readonly livePrice = signal<number | null>(null);
+
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly currencySymbol = computed(() => (this.selectedMarket() === 'IN' ? '₹' : '$'));
   protected readonly currencyCode = computed(() => (this.selectedMarket() === 'IN' ? 'INR' : 'USD'));
 
   protected readonly quickPicks = computed(() => {
-    return this.portfolioService.searchStocks('', this.selectedMarket()).slice(0, 5);
+    return this.portfolioService.searchStocks('', this.selectedMarket()).slice(0, 6);
+  });
+
+  protected readonly customStockCandidate = computed<StockSearchResult | null>(() => {
+    const q = this.symbolQuery().trim().toUpperCase();
+    if (q.length < 1) return null;
+    const exists = this.searchResults().some((r) => r.symbol === q);
+    if (exists) return null;
+    return {
+      symbol: q,
+      companyName: `${q} (${this.selectedMarket() === 'IN' ? 'India' : 'US'})`,
+      exchange: this.selectedMarket() === 'IN' ? 'NSE' : 'NASDAQ',
+      market: this.selectedMarket(),
+      currency: this.selectedMarket() === 'IN' ? 'INR' : 'USD',
+    };
+  });
+
+  protected readonly showDropdown = computed(() => {
+    return this.searchResults().length > 0 || this.customStockCandidate() !== null;
   });
 
   protected readonly existingHolding = computed(() => {
@@ -248,12 +289,31 @@ export class AddStockModal {
   onSymbolChange(val: string): void {
     this.symbolQuery.set(val);
     if (this.selectedStock()) this.selectedStock.set(null);
+    this.livePrice.set(null);
+
     const q = val.trim();
     if (q.length < 1) {
       this.searchResults.set([]);
+      this.isSearching.set(false);
       return;
     }
+
+    // Fast local match first
     this.searchResults.set(this.portfolioService.searchStocks(q, this.selectedMarket()));
+
+    // Debounced live market search
+    if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
+    this.isSearching.set(true);
+    this.searchDebounceTimer = setTimeout(async () => {
+      try {
+        const remoteResults = await this.portfolioService.searchStocksRemote(q, this.selectedMarket());
+        if (this.symbolQuery().trim() === q) {
+          this.searchResults.set(remoteResults);
+        }
+      } finally {
+        this.isSearching.set(false);
+      }
+    }, 250);
   }
 
   selectStock(result: StockSearchResult): void {
@@ -261,12 +321,45 @@ export class AddStockModal {
     this.selectedStock.set(result);
     this.symbolQuery.set(result.symbol);
     this.searchResults.set([]);
+    this.fetchLiveQuoteForStock(result);
+  }
+
+  selectCustomStock(custom: StockSearchResult): void {
+    this.selectStock(custom);
+  }
+
+  private async fetchLiveQuoteForStock(stock: StockSearchResult): Promise<void> {
+    try {
+      const res = await fetch(`/api/market/quotes?symbols=${encodeURIComponent(stock.symbol)}:${stock.market}`);
+      if (res.ok) {
+        const data = await res.json();
+        const quote = data.quotes?.[stock.symbol];
+        if (quote && typeof quote.price === 'number') {
+          this.livePrice.set(quote.price);
+          // If purchase price is empty, prefill with current live price
+          if (this.purchasePrice() === null || this.purchasePrice() === 0) {
+            this.purchasePrice.set(quote.price);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  useLivePrice(): void {
+    const p = this.livePrice();
+    if (p !== null) {
+      this.purchasePrice.set(p);
+    }
   }
 
   clearSelection(): void {
     this.selectedStock.set(null);
     this.symbolQuery.set('');
     this.searchResults.set([]);
+    this.livePrice.set(null);
+    this.isSearching.set(false);
   }
 
   submit(): void {
