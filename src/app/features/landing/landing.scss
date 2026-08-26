@@ -222,6 +222,13 @@
   font-size: 11.5px;
   color: var(--text-tertiary);
   margin: 0;
+
+  a {
+    color: var(--brand);
+    font-weight: 600;
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
+  }
 }
 
 // Compact Feature Cards (fits in horizontal row)

@@ -46,6 +46,12 @@ import { NotificationService } from '../../core/services/notification.service';
                 </svg>
                 Settings
               </a>
+              <button type="button" class="dropdown-item" role="menuitem" (click)="logout()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign Out
+              </button>
             </div>
           }
         </div>
@@ -84,4 +90,10 @@ export class Topbar {
     const last = parts[parts.length - 1] ?? 'money';
     return this.titleMap[last] ?? 'Money';
   });
+
+  async logout(): Promise<void> {
+    this.menuOpen.set(false);
+    await this.auth.logout();
+    this.router.navigateByUrl('/login');
+  }
 }

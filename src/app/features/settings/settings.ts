@@ -172,7 +172,9 @@ export class SettingsPage {
 
   saveName(): void {
     const name = this.nameInput.trim();
-    if (name) this.auth.updateUser(name);
+    if (name) {
+      this.auth.updateUser(name).catch((err) => console.warn('[Settings] Could not save name:', err.message));
+    }
     this.editingName.set(false);
   }
 

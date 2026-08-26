@@ -1,13 +1,29 @@
+if (process.env.NODE_ENV !== 'production') {
+  try { require('dotenv').config(); } catch { /* dotenv not installed in prod build — fine */ }
+}
+
 const express = require('express');
 const path = require('path');
 const { MongoClient } = require('mongodb');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const DIST_DIR = path.join(__dirname, 'dist', 'portfolio-intelligence', 'browser');
 const MONGODB_URI = process.env.MONGODB_URI || '';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+if (JWT_SECRET === 'dev-insecure-secret-change-me') {
+  console.warn('[auth] JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
+}
+
 app.use(express.json());
+app.use(cookieParser());
 
 // In-memory cache for market quotes and searches
 const quoteCache = new Map();
@@ -16,10 +32,14 @@ const QUOTE_TTL_MS = 60 * 1000;
 const SEARCH_TTL_MS = 5 * 60 * 1000;
 
 // In-memory fallback stores if MongoDB is not connected
-let memoryHoldings = [];
-let memoryTransactions = [];
-let memoryNotifications = [];
-let memoryAlertStates = {};
+let memoryUsers = [];
+const memoryStores = new Map(); // userId -> { holdings, transactions, notifications, alertStates }
+function getMemoryStore(userId) {
+  if (!memoryStores.has(userId)) {
+    memoryStores.set(userId, { holdings: [], transactions: [], notifications: [], alertStates: {} });
+  }
+  return memoryStores.get(userId);
+}
 
 // MongoDB Client Initialization
 let mongoClient = null;
@@ -40,10 +60,11 @@ async function initMongoDB() {
     console.log('[MongoDB] Successfully connected to MongoDB Atlas / Cloud database');
 
     // Create indexes for efficient querying
-    await db.collection('holdings').createIndex({ symbol: 1 });
-    await db.collection('transactions').createIndex({ holdingId: 1 });
-    await db.collection('notifications').createIndex({ createdAt: -1 });
-    await db.collection('alert_states').createIndex({ holdingId: 1 }, { unique: true });
+    await db.collection('users').createIndex({ email: 1 }, { unique: true });
+    await db.collection('holdings').createIndex({ userId: 1, symbol: 1 });
+    await db.collection('transactions').createIndex({ userId: 1, holdingId: 1 });
+    await db.collection('notifications').createIndex({ userId: 1, createdAt: -1 });
+    await db.collection('alert_states').createIndex({ holdingId: 1, userId: 1 }, { unique: true });
   } catch (err) {
     console.error('[MongoDB] Connection error:', err.message);
     isMongoConnected = false;
@@ -69,6 +90,241 @@ app.get('/api/db/status', (req, res) => {
 });
 
 // ============================================================================
+// Auth Endpoints
+// ============================================================================
+
+function toInitials(name) {
+  return (name || '')
+    .split(' ')
+    .map((p) => p[0] ?? '')
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function publicUser(u) {
+  if (!u) return null;
+  const { passwordHash, googleId, _id, ...rest } = u;
+  return rest;
+}
+
+function signToken(userId) {
+  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '30d' });
+}
+
+function setAuthCookie(res, token) {
+  res.cookie('token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie('token', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+}
+
+async function findUserByEmail(email) {
+  if (isMongoConnected && db) return db.collection('users').findOne({ email });
+  return memoryUsers.find((u) => u.email === email) || null;
+}
+
+async function findUserById(id) {
+  if (isMongoConnected && db) return db.collection('users').findOne({ id });
+  return memoryUsers.find((u) => u.id === id) || null;
+}
+
+async function insertUser(user) {
+  if (isMongoConnected && db) {
+    await db.collection('users').insertOne({ ...user });
+    return user;
+  }
+  memoryUsers.push(user);
+  return user;
+}
+
+async function updateUserRecord(id, patch) {
+  if (isMongoConnected && db) {
+    await db.collection('users').updateOne({ id }, { $set: patch });
+    return findUserById(id);
+  }
+  const u = memoryUsers.find((x) => x.id === id);
+  if (u) Object.assign(u, patch);
+  return u || null;
+}
+
+function requireAuth(req, res, next) {
+  const token = req.cookies ? req.cookies.token : null;
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    req.userId = jwt.verify(token, JWT_SECRET).sub;
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+}
+
+// GET /api/auth/config — tells the frontend whether Google Sign-In is available
+app.get('/api/auth/config', (req, res) => {
+  res.json({ googleEnabled: !!googleClient, googleClientId: GOOGLE_CLIENT_ID || null });
+});
+
+// POST /api/auth/signup
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'name, email, and password are required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = {
+      id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      email,
+      name,
+      passwordHash,
+      googleId: null,
+      avatarInitials: toInitials(name),
+      accountTier: 'Free',
+      provider: 'password',
+      createdAt: new Date().toISOString(),
+    };
+    await insertUser(user);
+    setAuthCookie(res, signToken(user.id));
+    return res.status(201).json({ user: publicUser(user) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email and password are required' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    setAuthCookie(res, signToken(user.id));
+    return res.json({ user: publicUser(user) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/google — verifies a Google Identity Services ID token
+app.post('/api/auth/google', async (req, res) => {
+  if (!googleClient) {
+    return res.status(501).json({ error: 'Google sign-in is not configured' });
+  }
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'credential is required' });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      payload = ticket.getPayload();
+    } catch {
+      return res.status(401).json({ error: 'Invalid Google credential' });
+    }
+
+    const email = (payload.email || '').toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Google account has no email' });
+    }
+
+    let user = await findUserByEmail(email);
+    if (user) {
+      if (!user.googleId) {
+        user = await updateUserRecord(user.id, { googleId: payload.sub });
+      }
+    } else {
+      user = {
+        id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        email,
+        name: payload.name || email,
+        passwordHash: null,
+        googleId: payload.sub,
+        avatarInitials: toInitials(payload.name || email),
+        accountTier: 'Free',
+        provider: 'google',
+        createdAt: new Date().toISOString(),
+      };
+      await insertUser(user);
+    }
+
+    setAuthCookie(res, signToken(user.id));
+    return res.json({ user: publicUser(user) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  return res.json({ success: true });
+});
+
+// GET /api/auth/me
+app.get('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    return res.json({ user: publicUser(user) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/auth/me
+app.patch('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const updated = await updateUserRecord(req.userId, { name, avatarInitials: toInitials(name) });
+    if (!updated) return res.status(401).json({ error: 'Not authenticated' });
+    return res.json({ user: publicUser(updated) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// All portfolio/notifications/monitoring data is per-user from here on.
+app.use('/api/portfolio', requireAuth);
+app.use('/api/notifications', requireAuth);
+app.use('/api/monitoring', requireAuth);
+
+// ============================================================================
 // Portfolio REST Endpoints (MongoDB Persistent)
 // ============================================================================
 
@@ -76,13 +332,13 @@ app.get('/api/db/status', (req, res) => {
 app.get('/api/portfolio/holdings', async (req, res) => {
   try {
     if (isMongoConnected && db) {
-      const holdings = await db.collection('holdings').find({}).toArray();
+      const holdings = await db.collection('holdings').find({ userId: req.userId }).toArray();
       const clean = holdings.map(({ _id, ...rest }) => rest);
       return res.json({ holdings: clean });
     }
-    return res.json({ holdings: memoryHoldings });
+    return res.json({ holdings: getMemoryStore(req.userId).holdings });
   } catch (err) {
-    return res.status(500).json({ error: err.message, holdings: memoryHoldings });
+    return res.status(500).json({ error: err.message, holdings: getMemoryStore(req.userId).holdings });
   }
 });
 
@@ -103,7 +359,7 @@ app.post('/api/portfolio/holdings', async (req, res) => {
     let savedHolding = null;
 
     if (isMongoConnected && db) {
-      const existing = await db.collection('holdings').findOne({ symbol: sym });
+      const existing = await db.collection('holdings').findOne({ symbol: sym, userId: req.userId });
 
       if (existing) {
         const newTotalShares = existing.shares + sh;
@@ -119,12 +375,13 @@ app.post('/api/portfolio/holdings', async (req, res) => {
         };
         delete updated._id;
 
-        await db.collection('holdings').updateOne({ symbol: sym }, { $set: updated });
+        await db.collection('holdings').updateOne({ symbol: sym, userId: req.userId }, { $set: updated });
         savedHolding = updated;
       } else {
         const id = `holding-${Date.now()}`;
         const newHolding = {
           id,
+          userId: req.userId,
           symbol: sym,
           companyName: companyName || sym,
           exchange: exchange || (market === 'IN' ? 'NSE' : 'NASDAQ'),
@@ -147,6 +404,7 @@ app.post('/api/portfolio/holdings', async (req, res) => {
       // Record transaction
       const tx = {
         id: txId,
+        userId: req.userId,
         holdingId: savedHolding.id,
         symbol: sym,
         type: 'BUY',
@@ -159,7 +417,8 @@ app.post('/api/portfolio/holdings', async (req, res) => {
       await db.collection('transactions').insertOne({ ...tx });
     } else {
       // In-memory fallback
-      const existing = memoryHoldings.find((h) => h.symbol === sym);
+      const store = getMemoryStore(req.userId);
+      const existing = store.holdings.find((h) => h.symbol === sym);
       if (existing) {
         const newTotalShares = existing.shares + sh;
         const newTotalInvested = existing.totalInvested + (sh * pr);
@@ -187,10 +446,10 @@ app.post('/api/portfolio/holdings', async (req, res) => {
           addedAt: now,
           updatedAt: now,
         };
-        memoryHoldings.unshift(newHolding);
+        store.holdings.unshift(newHolding);
         savedHolding = newHolding;
       }
-      memoryTransactions.unshift({
+      store.transactions.unshift({
         id: txId,
         holdingId: savedHolding.id,
         symbol: sym,
@@ -224,7 +483,7 @@ app.put('/api/portfolio/holdings/:id', async (req, res) => {
     let savedHolding = null;
 
     if (isMongoConnected && db) {
-      const existing = await db.collection('holdings').findOne({ id });
+      const existing = await db.collection('holdings').findOne({ id, userId: req.userId });
       if (!existing) {
         return res.status(404).json({ error: 'Holding not found' });
       }
@@ -247,14 +506,15 @@ app.put('/api/portfolio/holdings/:id', async (req, res) => {
       };
       delete updated._id;
 
-      await db.collection('holdings').updateOne({ id }, { $set: updated });
+      await db.collection('holdings').updateOne({ id, userId: req.userId }, { $set: updated });
       await db.collection('alert_states').updateOne(
-        { holdingId: id },
+        { holdingId: id, userId: req.userId },
         { $set: { referencePrice: pr, lastUpThreshold: 0, lastDownThreshold: 0, updatedAt: now } }
       );
       savedHolding = updated;
     } else {
-      const existing = memoryHoldings.find((h) => h.id === id);
+      const store = getMemoryStore(req.userId);
+      const existing = store.holdings.find((h) => h.id === id);
       if (!existing) {
         return res.status(404).json({ error: 'Holding not found' });
       }
@@ -269,10 +529,10 @@ app.put('/api/portfolio/holdings/:id', async (req, res) => {
       if (companyName) existing.companyName = companyName;
       existing.updatedAt = now;
 
-      if (memoryAlertStates[id]) {
-        memoryAlertStates[id].referencePrice = pr;
-        memoryAlertStates[id].lastUpThreshold = 0;
-        memoryAlertStates[id].lastDownThreshold = 0;
+      if (store.alertStates[id]) {
+        store.alertStates[id].referencePrice = pr;
+        store.alertStates[id].lastUpThreshold = 0;
+        store.alertStates[id].lastDownThreshold = 0;
       }
       savedHolding = existing;
     }
@@ -288,13 +548,14 @@ app.delete('/api/portfolio/holdings/:id', async (req, res) => {
   try {
     const id = req.params.id;
     if (isMongoConnected && db) {
-      await db.collection('holdings').deleteOne({ id });
-      await db.collection('transactions').deleteMany({ holdingId: id });
-      await db.collection('alert_states').deleteOne({ holdingId: id });
+      await db.collection('holdings').deleteOne({ id, userId: req.userId });
+      await db.collection('transactions').deleteMany({ holdingId: id, userId: req.userId });
+      await db.collection('alert_states').deleteOne({ holdingId: id, userId: req.userId });
     } else {
-      memoryHoldings = memoryHoldings.filter((h) => h.id !== id);
-      memoryTransactions = memoryTransactions.filter((t) => t.holdingId !== id);
-      delete memoryAlertStates[id];
+      const store = getMemoryStore(req.userId);
+      store.holdings = store.holdings.filter((h) => h.id !== id);
+      store.transactions = store.transactions.filter((t) => t.holdingId !== id);
+      delete store.alertStates[id];
     }
     return res.json({ success: true, id });
   } catch (err) {
@@ -306,13 +567,13 @@ app.delete('/api/portfolio/holdings/:id', async (req, res) => {
 app.get('/api/portfolio/transactions', async (req, res) => {
   try {
     if (isMongoConnected && db) {
-      const txs = await db.collection('transactions').find({}).sort({ createdAt: -1 }).toArray();
+      const txs = await db.collection('transactions').find({ userId: req.userId }).sort({ createdAt: -1 }).toArray();
       const clean = txs.map(({ _id, ...rest }) => rest);
       return res.json({ transactions: clean });
     }
-    return res.json({ transactions: memoryTransactions });
+    return res.json({ transactions: getMemoryStore(req.userId).transactions });
   } catch (err) {
-    return res.status(500).json({ error: err.message, transactions: memoryTransactions });
+    return res.status(500).json({ error: err.message, transactions: getMemoryStore(req.userId).transactions });
   }
 });
 
@@ -324,13 +585,13 @@ app.get('/api/portfolio/transactions', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   try {
     if (isMongoConnected && db) {
-      const notifs = await db.collection('notifications').find({}).sort({ createdAt: -1 }).limit(100).toArray();
+      const notifs = await db.collection('notifications').find({ userId: req.userId }).sort({ createdAt: -1 }).limit(100).toArray();
       const clean = notifs.map(({ _id, ...rest }) => rest);
       return res.json({ notifications: clean });
     }
-    return res.json({ notifications: memoryNotifications });
+    return res.json({ notifications: getMemoryStore(req.userId).notifications });
   } catch (err) {
-    return res.status(500).json({ error: err.message, notifications: memoryNotifications });
+    return res.status(500).json({ error: err.message, notifications: getMemoryStore(req.userId).notifications });
   }
 });
 
@@ -344,16 +605,17 @@ app.post('/api/notifications', async (req, res) => {
 
     if (isMongoConnected && db) {
       await db.collection('notifications').updateOne(
-        { id: notif.id },
+        { id: notif.id, userId: req.userId },
         { $set: notif },
         { upsert: true }
       );
     } else {
-      const idx = memoryNotifications.findIndex((n) => n.id === notif.id);
+      const store = getMemoryStore(req.userId);
+      const idx = store.notifications.findIndex((n) => n.id === notif.id);
       if (idx >= 0) {
-        memoryNotifications[idx] = notif;
+        store.notifications[idx] = notif;
       } else {
-        memoryNotifications.unshift(notif);
+        store.notifications.unshift(notif);
       }
     }
     return res.status(201).json({ notification: notif });
@@ -367,9 +629,9 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
   try {
     const id = req.params.id;
     if (isMongoConnected && db) {
-      await db.collection('notifications').updateOne({ id }, { $set: { isRead: true } });
+      await db.collection('notifications').updateOne({ id, userId: req.userId }, { $set: { isRead: true } });
     } else {
-      const n = memoryNotifications.find((x) => x.id === id);
+      const n = getMemoryStore(req.userId).notifications.find((x) => x.id === id);
       if (n) n.isRead = true;
     }
     return res.json({ success: true, id });
@@ -382,9 +644,9 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 app.post('/api/notifications/read-all', async (req, res) => {
   try {
     if (isMongoConnected && db) {
-      await db.collection('notifications').updateMany({}, { $set: { isRead: true } });
+      await db.collection('notifications').updateMany({ userId: req.userId }, { $set: { isRead: true } });
     } else {
-      memoryNotifications.forEach((n) => (n.isRead = true));
+      getMemoryStore(req.userId).notifications.forEach((n) => (n.isRead = true));
     }
     return res.json({ success: true });
   } catch (err) {
@@ -396,16 +658,16 @@ app.post('/api/notifications/read-all', async (req, res) => {
 app.get('/api/monitoring/alert-states', async (req, res) => {
   try {
     if (isMongoConnected && db) {
-      const list = await db.collection('alert_states').find({}).toArray();
+      const list = await db.collection('alert_states').find({ userId: req.userId }).toArray();
       const map = {};
       list.forEach(({ _id, holdingId, ...rest }) => {
         map[holdingId] = { holdingId, ...rest };
       });
       return res.json({ alertStates: map });
     }
-    return res.json({ alertStates: memoryAlertStates });
+    return res.json({ alertStates: getMemoryStore(req.userId).alertStates });
   } catch (err) {
-    return res.status(500).json({ error: err.message, alertStates: memoryAlertStates });
+    return res.status(500).json({ error: err.message, alertStates: getMemoryStore(req.userId).alertStates });
   }
 });
 
@@ -419,12 +681,12 @@ app.post('/api/monitoring/alert-states', async (req, res) => {
 
     if (isMongoConnected && db) {
       await db.collection('alert_states').updateOne(
-        { holdingId: state.holdingId },
+        { holdingId: state.holdingId, userId: req.userId },
         { $set: state },
         { upsert: true }
       );
     } else {
-      memoryAlertStates[state.holdingId] = state;
+      getMemoryStore(req.userId).alertStates[state.holdingId] = state;
     }
     return res.json({ success: true, state });
   } catch (err) {

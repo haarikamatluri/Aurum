@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [],
+  imports: [RouterLink],
   template: `
     <div class="landing">
       <!-- Background decoration -->
@@ -43,12 +43,12 @@ import { Router } from '@angular/router';
 
           <div class="cta-wrap">
             <button class="cta-btn" (click)="enter()" id="enter-money-btn">
-              <span>Money Creates Money</span>
+              <span>Get Started</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
-            <p class="cta-note">No account required. Start instantly.</p>
+            <p class="cta-note">Already have an account? <a routerLink="/login">Sign in</a></p>
           </div>
         </div>
 
@@ -105,6 +105,6 @@ export class LandingPage {
   constructor(private router: Router) {}
 
   enter(): void {
-    this.router.navigate(['/money']);
+    this.router.navigate(['/signup']);
   }
 }

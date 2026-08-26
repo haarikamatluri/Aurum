@@ -5,3 +5,6 @@ dist
 .vscode
 .system_generated
 *.log
+.env
+.env.*.local
+.env.local
