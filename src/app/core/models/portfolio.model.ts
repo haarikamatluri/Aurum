@@ -1,95 +1,83 @@
-import { SeriesPoint } from './common.model';
+// ============================================================================
+// Money — Portfolio Domain Models
+// Supports both US ($) and Indian (₹) Market Stocks
+// ============================================================================
 
-export interface PortfolioSummary {
-  totalValue: number;
-  todayPnlAbs: number;
-  todayPnlPct: number;
-  totalReturnAbs: number;
-  totalReturnPct: number;
-  benchmarkTodayPct: number;
-  benchmarkSymbol: string;
-  riskScore: number;
-  cashBalance: number;
-  valueSparkline: SeriesPoint[];
-}
+export type MarketRegion = 'US' | 'IN';
+export type CurrencyCode = 'USD' | 'INR';
 
-export type AssetType = 'Equity' | 'ETF' | 'Cash' | 'Crypto' | 'Bond';
-
-export interface Position {
-  symbol: string;
-  name: string;
-  sector: string;
-  assetType: AssetType;
-  shares: number;
-  avgCost: number;
-  currentPrice: number;
-  marketValue: number;
-  todayPnlAbs: number;
-  todayPnlPct: number;
-  totalPnlAbs: number;
-  totalPnlPct: number;
-  weightPct: number;
-  riskContribution: number;
-  targetWeightPct?: number;
-}
-
-export interface PerformancePoint {
-  t: string;
-  portfolioValue: number;
-  portfolioReturnPct: number;
-  benchmarkReturnPct: number;
-}
-
-export interface Contributor {
-  symbol: string;
-  name: string;
-  contributionAbs: number;
-  contributionPct: number;
-}
-
-export type AllocationDimension = 'sector' | 'stock' | 'assetType';
-
-export interface AllocationSlice {
-  key: string;
-  label: string;
-  valuePct: number;
-  valueAbs: number;
-  targetPct?: number;
-  holdings?: string[];
-}
-
-export type TransactionAction = 'Buy' | 'Sell' | 'Dividend' | 'Transfer';
-
-export interface Transaction {
+/** A single purchase transaction for a stock. */
+export interface StockTransaction {
   id: string;
-  date: string;
-  symbol: string;
-  action: TransactionAction;
-  quantity: number;
+  holdingId: string;
+  type: 'BUY' | 'SELL';
+  shares: number;
   price: number;
-  fees: number;
-  total: number;
-  notes?: string;
+  currency: CurrencyCode;
+  date: string; // ISO date string
+  createdAt: string;
 }
 
-export interface TransactionDraft {
-  date: string;
+/** A holding is a stock position in the user's portfolio. */
+export interface Holding {
+  id: string;
   symbol: string;
-  action: TransactionAction;
-  quantity: number;
-  price: number;
-  fees: number;
-  notes?: string;
+  companyName: string;
+  exchange: string;
+  market: MarketRegion;
+  currency: CurrencyCode;
+  shares: number;
+  avgPurchasePrice: number;
+  totalInvested: number;
+  /** Current market price — null if API not yet connected. */
+  currentPrice: number | null;
+  currentValue: number | null;
+  profitLoss: number | null;
+  profitLossPct: number | null;
+  addedAt: string;
+  updatedAt: string;
 }
 
-export interface PortfolioMover {
+/** Alert state for the 5% threshold engine — stored independently from portfolio performance. */
+export interface AlertState {
+  holdingId: string;
   symbol: string;
-  name: string;
-  currentPrice: number;
-  high52w: number;
-  low52w: number;
-  distanceFromHighPct: number;
-  distanceFromLowPct: number;
-  todayLow: number;
-  todayHigh: number;
+  market: MarketRegion;
+  currency: CurrencyCode;
+  referencePrice: number;       // The price thresholds are calculated against
+  lastUpThreshold: number;      // Last upward threshold level fired (e.g. 5, 10, 15)
+  lastDownThreshold: number;    // Last downward threshold level fired (e.g. -5, -10, -15)
+  lastCheckedPrice: number | null;
+  updatedAt: string;
+}
+
+/** Portfolio-level summary calculated from all holdings. */
+export interface PortfolioSummary {
+  totalInvested: number;
+  currentValue: number | null;
+  totalGain: number | null;
+  totalGainPct: number | null;
+  holdingCount: number;
+  currency: CurrencyCode;
+}
+
+/** Used when adding a new stock. */
+export interface AddHoldingRequest {
+  symbol: string;
+  companyName: string;
+  exchange: string;
+  market: MarketRegion;
+  currency: CurrencyCode;
+  shares: number;
+  purchasePrice: number;
+  purchaseDate?: string;
+}
+
+/** Used when searching for stocks in the add modal. */
+export interface StockSearchResult {
+  symbol: string;
+  companyName: string;
+  exchange: string;
+  market: MarketRegion;
+  currency: CurrencyCode;
 }

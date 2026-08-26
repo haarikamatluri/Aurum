@@ -1,66 +1,78 @@
 // ============================================================================
-// Design tokens — the single source of truth for color, spacing, radius, and
-// elevation. Components must consume these custom properties, never raw hex.
-// Dark is the default/native theme; [data-theme="light"] overrides for light mode.
+// Money — Dark Modern Aesthetic & Design Tokens
+// Deep obsidian surfaces, luminous emerald-cyan accents, glassmorphism borders.
 // ============================================================================
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 :root {
-  // ---- Color: surfaces ----
-  --bg: #0b0f14;
-  --bg-secondary: #11161d;
-  --surface: #151b23;
-  --surface-elevated: #1b222c;
-  --surface-hover: #1d2530;
-  --border: #252d38;
-  --border-subtle: #1c232d;
-  --border-strong: #34404e;
+  // ---- Dark Obsidian Surfaces ----
+  --bg:               #070A0F;
+  --bg-secondary:     #0D111A;
+  --surface:          #121824;
+  --surface-elevated: #182030;
+  --surface-hover:    #1E273A;
+  --surface-glass:    rgba(18, 24, 36, 0.75);
+  --border:           rgba(255, 255, 255, 0.08);
+  --border-subtle:    rgba(255, 255, 255, 0.04);
+  --border-strong:    rgba(255, 255, 255, 0.16);
+  --border-glow:      rgba(0, 245, 155, 0.35);
 
-  // ---- Color: text ----
-  --text-primary: #f5f7fa;
-  --text-secondary: #8b95a5;
-  --text-tertiary: #5b6472;
-  --text-inverse: #0b0f14;
+  // ---- Typography ----
+  --text-primary:   #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-tertiary:  #64748B;
+  --text-inverse:   #070A0F;
 
-  // ---- Color: semantic ----
-  --positive: #22c55e;
-  --positive-bg: rgba(34, 197, 94, 0.13);
-  --positive-border: rgba(34, 197, 94, 0.35);
-  --negative: #ef4444;
-  --negative-bg: rgba(239, 68, 68, 0.13);
-  --negative-border: rgba(239, 68, 68, 0.35);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.13);
-  --warning-border: rgba(245, 158, 11, 0.35);
-  --accent: #6366f1;
-  --accent-hover: #7678f5;
-  --accent-bg: rgba(99, 102, 241, 0.14);
-  --accent-border: rgba(99, 102, 241, 0.4);
-  --info: #38bdf8;
-  --info-bg: rgba(56, 189, 248, 0.13);
+  // ---- Unique Brand: Luminous Emerald / Cyber Mint ----
+  --brand:          #00F59B;
+  --brand-hover:    #00DC8C;
+  --brand-light:    rgba(0, 245, 155, 0.12);
+  --brand-border:   rgba(0, 245, 155, 0.28);
+  --brand-glow:     0 0 25px rgba(0, 245, 155, 0.35);
 
-  // ---- AI badge colors (fact / calculation / model / interpretation) ----
-  --ai-fact: #38bdf8;
-  --ai-fact-bg: rgba(56, 189, 248, 0.13);
-  --ai-calc: #a78bfa;
-  --ai-calc-bg: rgba(167, 139, 250, 0.14);
-  --ai-model: #f472b6;
-  --ai-model-bg: rgba(244, 114, 182, 0.14);
-  --ai-interpretation: #fbbf24;
-  --ai-interpretation-bg: rgba(251, 191, 36, 0.13);
+  // ---- Secondary Accent: Cyan Hologram ----
+  --accent-cyan:    #00E5FF;
+  --accent-cyan-bg: rgba(0, 229, 255, 0.12);
+
+  // ---- Semantic Status ----
+  --positive:        #00F59B;
+  --positive-bg:     rgba(0, 245, 155, 0.10);
+  --positive-border: rgba(0, 245, 155, 0.25);
+  --positive-text:   #00F59B;
+
+  --negative:        #FF3B5C;
+  --negative-bg:     rgba(255, 59, 92, 0.12);
+  --negative-border: rgba(255, 59, 92, 0.30);
+  --negative-text:   #FF5370;
+
+  --warning:        #FFB800;
+  --warning-bg:     rgba(255, 184, 0, 0.12);
+  --warning-border: rgba(255, 184, 0, 0.30);
+  --warning-text:   #FFC833;
+
+  // ---- AI Accent: Ethereal Aurora Purple/Cyan ----
+  --ai:         #A855F7;
+  --ai-hover:   #9333EA;
+  --ai-light:   rgba(168, 85, 247, 0.14);
+  --ai-border:  rgba(168, 85, 247, 0.35);
+  --ai-glow:    0 0 20px rgba(168, 85, 247, 0.35);
 
   // ---- Radius ----
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-full: 999px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   22px;
+  --radius-full: 9999px;
 
-  // ---- Shadow ----
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.42);
-  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.45);
+  // ---- Shadows & Glows ----
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --shadow-focus: 0 0 0 2px #070A0F, 0 0 0 4px #00F59B;
 
-  // ---- Spacing scale ----
+  // ---- Spacing ----
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -68,58 +80,34 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-7: 32px;
-  --space-8: 40px;
+  --space-8: 48px;
+  --space-9: 64px;
 
   // ---- Typography ----
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 
   // ---- Layout ----
-  --sidebar-width: 244px;
-  --sidebar-width-collapsed: 72px;
-  --topbar-height: 60px;
-  --bottom-nav-height: 60px;
+  --sidebar-width: 230px;
+  --sidebar-width-collapsed: 64px;
+  --topbar-height: 64px;
+  --bottom-nav-height: 64px;
+  --content-max-width: 1100px;
 
   // ---- Motion ----
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --duration-fast: 120ms;
-  --duration-base: 200ms;
+  --duration-fast:   140ms;
+  --duration-base:   220ms;
+  --duration-slow:   400ms;
 
-  // ---- Z-index scale ----
-  --z-topbar: 40;
-  --z-sidebar: 30;
+  // ---- Z-index ----
+  --z-topbar:   40;
+  --z-sidebar:  30;
   --z-dropdown: 50;
-  --z-modal: 100;
-  --z-toast: 110;
-  --z-tooltip: 120;
+  --z-modal:    100;
+  --z-toast:    110;
+  --z-tooltip:  120;
 
   color-scheme: dark;
-}
-
-:root[data-theme='light'] {
-  --bg: #f3f5f8;
-  --bg-secondary: #eaedf2;
-  --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --surface-hover: #f2f4f8;
-  --border: #e1e5eb;
-  --border-subtle: #ebeef2;
-  --border-strong: #c7ced9;
-
-  --text-primary: #10151c;
-  --text-secondary: #5b6472;
-  --text-tertiary: #8b95a5;
-  --text-inverse: #f5f7fa;
-
-  --positive-bg: rgba(22, 163, 74, 0.1);
-  --negative-bg: rgba(220, 38, 38, 0.1);
-  --warning-bg: rgba(217, 119, 6, 0.1);
-  --accent-bg: rgba(99, 102, 241, 0.1);
-
-  --shadow-sm: 0 1px 2px rgba(16, 21, 28, 0.06);
-  --shadow-md: 0 4px 16px rgba(16, 21, 28, 0.08);
-  --shadow-lg: 0 16px 40px rgba(16, 21, 28, 0.12);
-
-  color-scheme: light;
 }
