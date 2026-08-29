@@ -299,8 +299,16 @@
   font-weight: 600;
   color: var(--text-tertiary);
   background: #F1F5F9;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-sm);
+  transition: all var(--duration-fast);
+
+  &.badge-cloud {
+    background: rgba(0, 179, 126, 0.12);
+    color: #00B37E;
+    border: 1px solid rgba(0, 179, 126, 0.25);
+    font-weight: 700;
+  }
 }
 
 .btn-danger {

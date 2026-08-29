@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
@@ -130,22 +130,30 @@ import { AiAnalystService } from '../../core/services/ai-analyst.service';
         </div>
       </section>
 
-      <!-- Privacy -->
+      <!-- Privacy & Storage -->
       <section class="settings-section">
-        <h2 class="section-title">Privacy</h2>
+        <h2 class="section-title">Data Storage & Sync</h2>
         <div class="settings-card">
           <div class="setting-row">
             <div class="setting-info">
-              <span class="setting-label">Data Storage</span>
-              <span class="setting-desc">All stock data & API keys are stored locally in your browser.</span>
+              <span class="setting-label">Database Persistence</span>
+              <span class="setting-desc">
+                @if (dbConnected()) {
+                  Connected to cloud MongoDB database. Holdings, transactions, and alert states sync across your devices.
+                } @else {
+                  Running in local offline mode. Data is stored on this device.
+                }
+              </span>
             </div>
-            <span class="setting-badge">Local only</span>
+            <span class="setting-badge" [class.badge-cloud]="dbConnected()">
+              {{ dbConnected() ? 'Cloud Synced (MongoDB)' : 'Local Storage' }}
+            </span>
           </div>
 
           <div class="setting-row">
             <div class="setting-info">
               <span class="setting-label">Clear All Data</span>
-              <span class="setting-desc">Remove all portfolio holdings and settings from this device.</span>
+              <span class="setting-desc">Remove all portfolio holdings and cached settings from this device.</span>
             </div>
             <button class="btn-danger" (click)="clearData()" id="clear-data-btn">Clear</button>
           </div>
@@ -163,11 +171,12 @@ import { AiAnalystService } from '../../core/services/ai-analyst.service';
   styleUrl: './settings.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SettingsPage {
+export class SettingsPage implements OnInit {
   protected readonly auth = inject(AuthService);
   protected readonly aiService = inject(AiAnalystService);
   private readonly router = inject(Router);
 
+  protected readonly dbConnected = signal(false);
   protected readonly editingName = signal(false);
   protected nameInput = '';
 
@@ -176,6 +185,17 @@ export class SettingsPage {
   protected readonly savedNotice = signal(false);
 
   protected readonly notifAlerts = signal(true);
+
+  ngOnInit(): void {
+    fetch('/api/db/status')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.connected) {
+          this.dbConnected.set(true);
+        }
+      })
+      .catch(() => {});
+  }
 
   startEditName(): void {
     this.nameInput = this.auth.currentUser().name;
