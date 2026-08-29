@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, View
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { ForgotPasswordModal } from '../forgot-password/forgot-password-modal';
 
 declare const google: any;
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, ForgotPasswordModal],
   template: `
     <div class="auth-page">
       <div class="bg-orb bg-orb-1"></div>
@@ -28,6 +29,10 @@ declare const google: any;
         <h1>Welcome back</h1>
         <p class="subtitle">Sign in to keep watching your portfolio move.</p>
 
+        @if (resetSuccessNotice()) {
+          <div class="form-success" role="status">{{ resetSuccessNotice() }}</div>
+        }
+
         @if (errorMessage()) {
           <div class="form-error" role="alert">{{ errorMessage() }}</div>
         }
@@ -38,7 +43,12 @@ declare const google: any;
             <input id="email" type="email" class="input" formControlName="email" autocomplete="email" placeholder="you@example.com" />
           </div>
           <div class="field">
-            <label class="field-label" for="password">Password</label>
+            <div class="field-label-row">
+              <label class="field-label" for="password">Password</label>
+              <button type="button" class="btn-link-forgot" (click)="showForgotModal.set(true)">
+                Forgot password?
+              </button>
+            </div>
             <input id="password" type="password" class="input" formControlName="password" autocomplete="current-password" placeholder="••••••••" />
           </div>
           <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
@@ -55,6 +65,13 @@ declare const google: any;
           Don't have an account? <a routerLink="/signup">Create one</a>
         </p>
       </div>
+
+      @if (showForgotModal()) {
+        <app-forgot-password-modal
+          (close)="showForgotModal.set(false)"
+          (passwordReset)="onPasswordReset($event)"
+        />
+      }
     </div>
   `,
   styleUrl: './login.scss',
@@ -67,6 +84,8 @@ export class LoginPage implements OnInit, OnDestroy {
 
   @ViewChild('googleBtn') private googleBtn?: ElementRef<HTMLDivElement>;
 
+  protected readonly showForgotModal = signal(false);
+  protected readonly resetSuccessNotice = signal<string | null>(null);
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
 
@@ -128,5 +147,13 @@ export class LoginPage implements OnInit, OnDestroy {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  onPasswordReset(email: string): void {
+    if (email) {
+      this.form.patchValue({ email, password: '' });
+    }
+    this.resetSuccessNotice.set('✓ Password updated successfully! Please sign in with your new password.');
+    setTimeout(() => this.resetSuccessNotice.set(null), 6000);
   }
 }

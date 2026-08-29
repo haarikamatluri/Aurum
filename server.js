@@ -160,6 +160,33 @@ async function updateUserRecord(id, patch) {
   return u || null;
 }
 
+let memoryResets = [];
+
+async function insertResetCode(record) {
+  if (isMongoConnected && db) {
+    await db.collection('password_resets').insertOne({ ...record });
+    return record;
+  }
+  memoryResets.push(record);
+  return record;
+}
+
+async function findLatestResetCode(email, code) {
+  if (isMongoConnected && db) {
+    return db.collection('password_resets').findOne({ email, code, used: false });
+  }
+  return memoryResets.find((r) => r.email === email && r.code === code && !r.used) || null;
+}
+
+async function markResetCodeUsed(id) {
+  if (isMongoConnected && db) {
+    await db.collection('password_resets').updateOne({ id }, { $set: { used: true } });
+    return;
+  }
+  const r = memoryResets.find((x) => x.id === id);
+  if (r) r.used = true;
+}
+
 function requireAuth(req, res, next) {
   const token = req.cookies ? req.cookies.token : null;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -296,6 +323,85 @@ app.post('/api/auth/google', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearAuthCookie(res);
   return res.json({ success: true });
+});
+
+// POST /api/auth/forgot-password
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found with this email address' });
+    }
+
+    // Generate a 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetRecord = {
+      id: `reset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      email,
+      code,
+      used: false,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes
+      createdAt: new Date().toISOString(),
+    };
+
+    await insertResetCode(resetRecord);
+
+    console.log(`[Password Reset] Generated 6-digit code for ${email}: ${code}`);
+    return res.json({
+      success: true,
+      message: 'A 6-digit password reset code has been generated. It expires in 15 minutes.',
+      code,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/reset-password
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const code = (req.body.code || '').trim();
+    const newPassword = req.body.newPassword || '';
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, verification code, and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+    }
+
+    const resetRecord = await findLatestResetCode(email, code);
+    if (!resetRecord) {
+      return res.status(400).json({ error: 'Invalid or expired verification code' });
+    }
+
+    if (new Date() > new Date(resetRecord.expiresAt)) {
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await updateUserRecord(user.id, { passwordHash, provider: user.provider || 'password' });
+    await markResetCodeUsed(resetRecord.id);
+
+    return res.json({
+      success: true,
+      message: 'Password updated successfully. You can now sign in with your new password.',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/auth/me

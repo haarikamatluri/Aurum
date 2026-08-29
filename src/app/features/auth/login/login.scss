@@ -77,6 +77,16 @@ h1 {
   padding: var(--space-2) var(--space-3);
 }
 
+.form-success {
+  font-size: 12.5px;
+  color: #065F46;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 500;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -89,10 +99,32 @@ h1 {
   gap: 4px;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .field-label {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.btn-link-forgot {
+  font-size: 12px;
+  font-weight: 600;
+  color: #059669;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--duration-fast);
+
+  &:hover {
+    color: #00B37E;
+    text-decoration: underline;
+  }
 }
 
 .input {

@@ -156,4 +156,24 @@ export class AuthService {
     const { user } = await res.json();
     this._user.set(mapUser(user));
   }
+
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string; code?: string }> {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error(await readError(res, 'Could not send reset code'));
+    return res.json();
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+    if (!res.ok) throw new Error(await readError(res, 'Could not reset password'));
+    return res.json();
+  }
 }
