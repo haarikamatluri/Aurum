@@ -44,7 +44,7 @@ type MarketFilter = 'ALL' | 'US' | 'IN';
             (click)="selectedMarket.set('ALL')"
           >
             <span>All Stocks</span>
-            <span class="pill-badge">{{ portfolio.holdings().length }}</span>
+            <span class="pill-count">{{ portfolio.holdings().length }}</span>
           </button>
           <button
             class="market-pill"
@@ -53,7 +53,7 @@ type MarketFilter = 'ALL' | 'US' | 'IN';
           >
             <span class="flag">🇺🇸</span>
             <span>US Market</span>
-            <span class="pill-badge">{{ usHoldingsCount() }}</span>
+            <span class="pill-count">{{ usHoldingsCount() }}</span>
           </button>
           <button
             class="market-pill"
@@ -62,14 +62,14 @@ type MarketFilter = 'ALL' | 'US' | 'IN';
           >
             <span class="flag">🇮🇳</span>
             <span>India Market</span>
-            <span class="pill-badge">{{ inHoldingsCount() }}</span>
+            <span class="pill-count">{{ inHoldingsCount() }}</span>
           </button>
         </div>
       </div>
 
       @if (filteredHoldings().length > 0) {
         <!-- Portfolio summary metrics -->
-        <div class="portfolio-summary-row">
+        <div class="summary-row">
           <div class="summary-card">
             <span class="summary-label">TOTAL INVESTED</span>
             <span class="summary-value">

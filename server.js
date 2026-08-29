@@ -13,10 +13,10 @@ const { OAuth2Client } = require('google-auth-library');
 const app = express();
 const PORT = process.env.PORT || 8080;
 const DIST_DIR = path.join(__dirname, 'dist', 'portfolio-intelligence', 'browser');
-const MONGODB_URI = process.env.MONGODB_URI || '';
+const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const JWT_SECRET = (process.env.JWT_SECRET || 'dev-insecure-secret-change-me').trim();
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 if (JWT_SECRET === 'dev-insecure-secret-change-me') {
   console.warn('[auth] JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
@@ -253,8 +253,9 @@ app.post('/api/auth/google', async (req, res) => {
     try {
       const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
       payload = ticket.getPayload();
-    } catch {
-      return res.status(401).json({ error: 'Invalid Google credential' });
+    } catch (verifyErr) {
+      console.error('[Google Auth] Token verification failed:', verifyErr.message);
+      return res.status(401).json({ error: `Invalid Google credential: ${verifyErr.message}` });
     }
 
     const email = (payload.email || '').toLowerCase();
