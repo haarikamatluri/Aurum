@@ -121,7 +121,17 @@ export class LoginPage implements OnInit, OnDestroy {
       client_id: this.auth.googleClientId(),
       callback: (response: { credential: string }) => this.handleGoogleCredential(response.credential),
     });
-    google.accounts.id.renderButton(this.googleBtn.nativeElement, { theme: 'filled_black', size: 'large', width: 280 });
+    
+    const containerWidth = this.googleBtn.nativeElement.offsetWidth || 350;
+    google.accounts.id.renderButton(this.googleBtn.nativeElement, {
+      type: 'standard',
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width: Math.min(Math.max(containerWidth, 280), 380),
+    });
   }
 
   private async handleGoogleCredential(credential: string): Promise<void> {

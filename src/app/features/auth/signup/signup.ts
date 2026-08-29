@@ -126,7 +126,17 @@ export class SignupPage implements OnInit, OnDestroy {
       client_id: this.auth.googleClientId(),
       callback: (response: { credential: string }) => this.handleGoogleCredential(response.credential),
     });
-    google.accounts.id.renderButton(this.googleBtn.nativeElement, { theme: 'filled_black', size: 'large', width: 280, text: 'signup_with' });
+
+    const containerWidth = this.googleBtn.nativeElement.offsetWidth || 370;
+    google.accounts.id.renderButton(this.googleBtn.nativeElement, {
+      type: 'standard',
+      theme: 'outline',
+      size: 'large',
+      text: 'signup_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width: Math.min(Math.max(containerWidth, 280), 380),
+    });
   }
 
   private async handleGoogleCredential(credential: string): Promise<void> {
