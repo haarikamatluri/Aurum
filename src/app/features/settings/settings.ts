@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { AiAnalystService } from '../../core/services/ai-analyst.service';
@@ -100,6 +101,16 @@ import { AiAnalystService } from '../../core/services/ai-analyst.service';
               </div>
             }
           </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Email Address</span>
+              <span class="setting-desc">{{ auth.currentUser().email || 'Signed in as guest' }}</span>
+            </div>
+            <button type="button" class="btn-secondary" (click)="logout()">
+              Sign Out
+            </button>
+          </div>
         </div>
       </section>
 
@@ -155,6 +166,7 @@ import { AiAnalystService } from '../../core/services/ai-analyst.service';
 export class SettingsPage {
   protected readonly auth = inject(AuthService);
   protected readonly aiService = inject(AiAnalystService);
+  private readonly router = inject(Router);
 
   protected readonly editingName = signal(false);
   protected nameInput = '';
@@ -188,6 +200,11 @@ export class SettingsPage {
     this.apiKeyInput = '';
     this.aiService.setApiKey('');
     this.savedNotice.set(false);
+  }
+
+  async logout(): Promise<void> {
+    await this.auth.logout();
+    await this.router.navigateByUrl('/login');
   }
 
   clearData(): void {

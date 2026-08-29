@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed, input, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { PortfolioService } from '../../../core/services/portfolio.service';
@@ -212,12 +212,22 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddStockModal {
+  readonly defaultMarket = input<MarketRegion>('US');
   @Output() close = new EventEmitter<void>();
   @Output() added = new EventEmitter<AddHoldingRequest>();
 
   private readonly portfolioService = inject(PortfolioService);
 
   protected readonly selectedMarket = signal<MarketRegion>('IN');
+
+  constructor() {
+    effect(() => {
+      const m = this.defaultMarket();
+      if (m) {
+        this.selectedMarket.set(m);
+      }
+    });
+  }
   protected readonly symbolQuery = signal('');
   protected readonly shares = signal<number | null>(null);
   protected readonly purchasePrice = signal<number | null>(null);

@@ -19,17 +19,20 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4, h5, h6 {
   margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 p {
   margin: 0;
+  color: var(--text-secondary);
 }
 
 a {
@@ -64,27 +67,28 @@ table {
   width: 100%;
 }
 
-// Numeric alignment across the app — financial figures should never wobble in width.
+// Tabular numbers across financial metrics
 .num,
-.mono {
-  font-family: var(--font-mono);
+.mono,
+.tabular-nums {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 ::selection {
-  background: var(--accent);
-  color: #fff;
+  background: rgba(0, 179, 126, 0.15);
+  color: var(--text-primary);
 }
 
-// Scrollbars tuned for the dark terminal aesthetic (Firefox + WebKit).
+// Refined subtle scrollbars
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 *::-webkit-scrollbar-track {
@@ -96,11 +100,9 @@ table {
   border-radius: var(--radius-full);
 }
 
-// Focus visibility — never suppressed, styled consistently instead.
 :focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-  border-radius: var(--radius-sm);
 }
 
 .visually-hidden {
@@ -115,7 +117,6 @@ table {
   border: 0;
 }
 
-// Respect reduced-motion preferences globally.
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
