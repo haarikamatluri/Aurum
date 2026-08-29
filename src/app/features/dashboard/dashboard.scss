@@ -820,6 +820,11 @@
     color: var(--text-primary);
   }
 
+  &.btn-sell-action:hover {
+    background: #FEF2F2;
+    color: #DC2626;
+  }
+
   &.btn-del:hover {
     background: #FEF2F2;
     color: #DC2626;

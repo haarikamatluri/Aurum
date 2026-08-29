@@ -131,83 +131,73 @@
   box-sizing: border-box;
 }
 
-.company-name-bar {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12.5px;
-
-  .company-label {
-    color: var(--text-tertiary);
-    font-weight: 500;
-  }
-  .company-val {
-    color: var(--text-primary);
-    font-weight: 700;
-  }
-}
-
-// Live price banner
-.live-price-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #F0FDF4;
-  border: 1px solid #BBF7D0;
+// Position summary bar
+.position-info-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  background: #F8FAFC;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
-  gap: 10px;
+  padding: 10px 14px;
 }
 
-.live-info {
+.info-item {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12.5px;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #00B37E;
-  box-shadow: 0 0 0 2px rgba(0, 179, 126, 0.2);
-  animation: livePulse 2s infinite ease-in-out;
-}
-
-@keyframes livePulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.15); }
-}
-
-.live-text {
-  color: var(--text-secondary);
+.info-lbl {
+  font-size: 11px;
+  color: var(--text-tertiary);
   font-weight: 500;
 }
 
-.live-amount {
-  font-weight: 800;
-  color: #059669;
-  font-family: var(--font-mono);
+.info-val {
   font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+
+  &.live {
+    color: #059669;
+  }
 }
 
-.btn-use-live {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #059669;
+// Quick percentage buttons
+.pct-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.pct-btn {
+  flex: 1;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
   background: #FFFFFF;
-  border: 1px solid #A7F3D0;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--duration-fast);
-  white-space: nowrap;
 
   &:hover {
-    background: #00B37E;
-    color: #FFFFFF;
-    border-color: #00B37E;
+    background: #F1F5F9;
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+
+  &.pct-all {
+    color: #DC2626;
+    border-color: #FECACA;
+    background: #FEF2F2;
+
+    &:hover {
+      background: #FEE2E2;
+      border-color: #F87171;
+    }
   }
 }
 
@@ -215,6 +205,13 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .field-label {
@@ -226,88 +223,27 @@
   justify-content: space-between;
 }
 
-// ----------------------------------------------------------------------------
-// Stepper Number Control
-// ----------------------------------------------------------------------------
-.number-control-wrap {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: #FFFFFF;
-  transition: all var(--duration-fast);
-
-  &:focus-within {
-    border-color: var(--brand, #00B37E);
-    box-shadow: 0 0 0 3px rgba(0, 179, 126, 0.15);
-  }
-
-  .field-input {
-    flex: 1;
-    border: none;
-    box-shadow: none;
-    text-align: center;
-    height: 40px;
-    border-radius: 0;
-    font-size: 14px;
-    font-weight: 600;
-    
-    &:focus {
-      box-shadow: none;
-      border: none;
-    }
-  }
-}
-
-.btn-step {
-  width: 42px;
-  height: 40px;
-  background: #F8FAFC;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--duration-fast);
-  flex: none;
-  user-select: none;
-
-  &:first-child {
-    border-right: 1px solid var(--border);
-  }
-
-  &:last-child {
-    border-left: 1px solid var(--border);
-  }
-
-  &:hover:not(:disabled) {
-    background: #E2E8F0;
-    color: var(--text-primary);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-}
-
-.input-prefix-wrap {
-  position: relative;
-}
-
-.input-prefix {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 13.5px;
-  font-weight: 700;
+.max-hint {
+  font-size: 11px;
   color: var(--text-tertiary);
-  pointer-events: none;
+  font-weight: 500;
+}
+
+.btn-use-live {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+
+  &:hover {
+    background: #00B37E;
+    color: #FFFFFF;
+  }
 }
 
 .field-input {
@@ -325,8 +261,8 @@
   box-sizing: border-box;
 
   &:focus {
-    border-color: var(--brand, #00B37E);
-    box-shadow: 0 0 0 3px rgba(0, 179, 126, 0.15);
+    border-color: #DC2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
   }
 }
 
@@ -338,50 +274,92 @@
   padding-left: 28px !important;
 }
 
-// ----------------------------------------------------------------------------
-// Preview Card
-// ----------------------------------------------------------------------------
-.preview-box {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
+.input-prefix-wrap {
+  position: relative;
+}
+
+.input-prefix {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.field-error {
+  font-size: 12px;
+  color: #DC2626;
+  background: #FEF2F2;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-top: 2px;
+}
+
+// Realized P&L Preview Box
+.pnl-preview-card {
   background: #F8FAFC;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &.gain {
+    border-color: #A7F3D0;
+    background: #F0FDF4;
+  }
+
+  &.loss {
+    border-color: #FECACA;
+    background: #FEF2F2;
+  }
 }
 
 .preview-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
 }
 
-.preview-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-weight: 500;
+.prev-lbl {
+  color: var(--text-secondary);
 }
 
-.preview-val {
-  font-size: 14px;
-  font-weight: 700;
+.prev-val {
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-
-  &.positive {
-    color: #059669;
-  }
-
-  &.negative {
-    color: #DC2626;
-  }
 }
 
-// ----------------------------------------------------------------------------
-// Actions
-// ----------------------------------------------------------------------------
+.preview-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.total-row {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.pnl-val {
+  font-weight: 800;
+
+  &.positive { color: #059669; }
+  &.negative { color: #DC2626; }
+}
+
+.exit-notice {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #D97706;
+  padding-top: 4px;
+}
+
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -390,7 +368,7 @@
 }
 
 .btn-secondary {
-  padding: 9px 18px;
+  padding: 8px 16px;
   border-radius: var(--radius-md);
   background: #FFFFFF;
   border: 1px solid var(--border);
@@ -403,26 +381,24 @@
   &:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
-    border-color: var(--border-strong);
   }
 }
 
-.btn-primary {
-  padding: 9px 22px;
+.btn-sell {
+  padding: 8px 20px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #00B37E 0%, #059669 100%);
-  border: 1px solid #059669;
+  background: #DC2626;
+  border: 1px solid #DC2626;
   color: #FFFFFF;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 179, 126, 0.25);
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
   transition: all var(--duration-fast);
 
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #00C076 0%, #047857 100%);
+    background: #B91C1C;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 179, 126, 0.35);
   }
 
   &:disabled {
@@ -461,7 +437,7 @@
     flex-direction: column-reverse;
     gap: 8px;
 
-    .btn-primary,
+    .btn-sell,
     .btn-secondary {
       width: 100%;
       height: 42px;

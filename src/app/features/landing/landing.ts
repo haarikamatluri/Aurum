@@ -14,12 +14,11 @@ import { Router, RouterLink } from '@angular/router';
           <div class="logo">
             <div class="logo-mark">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
+                <path d="M12 3L3 20h4.5l2-4.5h5l2 4.5H21L12 3z"/>
+                <path d="M10 12h4"/>
               </svg>
             </div>
-            <span class="logo-text">Money</span>
+            <span class="logo-text">Aurum</span>
           </div>
 
           <!-- Nav Links -->

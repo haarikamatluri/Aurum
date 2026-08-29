@@ -162,7 +162,7 @@ import { AiAnalystService } from '../../core/services/ai-analyst.service';
 
       <!-- App info -->
       <div class="app-info">
-        <span>Money — Personal Investment Monitor</span>
+        <span>Aurum — Personal Investment Intelligence</span>
         <span>·</span>
         <span>Google Gemini 2.0 Real-time Analysis</span>
       </div>

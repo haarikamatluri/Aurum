@@ -7,6 +7,7 @@ import { Holding, AddHoldingRequest, MarketRegion } from '../../core/models/port
 import { NotificationService } from '../../core/services/notification.service';
 import { AddStockModal } from './add-stock-modal/add-stock-modal';
 import { EditStockModal } from './edit-stock-modal/edit-stock-modal';
+import { SellStockModal } from './sell-stock-modal/sell-stock-modal';
 import { MonitoringService } from '../../core/services/monitoring.service';
 
 type SortMode = 'gain-desc' | 'gain-asc' | 'alpha' | 'recent';
@@ -25,7 +26,7 @@ interface MarketIndex {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, AddStockModal, EditStockModal],
+  imports: [DecimalPipe, RouterLink, AddStockModal, EditStockModal, SellStockModal],
   template: `
     <div class="dashboard-container">
       <!-- Top Header Row -->
@@ -500,6 +501,17 @@ interface MarketIndex {
                           </button>
                           <button
                             type="button"
+                            class="row-action-btn btn-sell-action"
+                            (click)="openSellModal(h, $event)"
+                            title="Sell Shares"
+                            aria-label="Sell Shares"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
                             class="row-action-btn"
                             (click)="openEditModal(h, $event)"
                             title="Edit Holding"
@@ -625,6 +637,15 @@ interface MarketIndex {
           (updated)="onStockUpdated($event)"
         />
       }
+
+      <!-- Sell Stock Modal -->
+      @if (sellingHolding()) {
+        <app-sell-stock-modal
+          [holding]="sellingHolding()!"
+          (close)="sellingHolding.set(null)"
+          (sold)="onStockSold()"
+        />
+      }
     </div>
   `,
   styleUrl: './dashboard.scss',
@@ -641,6 +662,7 @@ export class Dashboard {
   protected readonly showAddModal = signal(false);
   protected readonly addModalMarket = signal<MarketRegion>('US');
   protected readonly editingHolding = signal<Holding | null>(null);
+  protected readonly sellingHolding = signal<Holding | null>(null);
   protected readonly deleteTarget = signal<Holding | null>(null);
   protected readonly sortMode = signal<SortMode>('recent');
   protected readonly selectedMarket = signal<MarketFilter>('ALL');
@@ -901,6 +923,15 @@ export class Dashboard {
   openEditModal(h: Holding, event: Event): void {
     event.stopPropagation();
     this.editingHolding.set(h);
+  }
+
+  openSellModal(h: Holding, event: Event): void {
+    event.stopPropagation();
+    this.sellingHolding.set(h);
+  }
+
+  onStockSold(): void {
+    this.sellingHolding.set(null);
   }
 
   confirmDelete(h: Holding, event: Event): void {

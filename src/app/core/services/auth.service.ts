@@ -18,22 +18,28 @@ const GUEST_USER: AppUser = {
   accountTier: 'Free',
 };
 
-function toInitials(name: string): string {
-  return name
-    .split(' ')
+function toInitials(name?: string): string {
+  if (!name) return 'I';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'I';
+  return parts
     .map((p) => p[0] ?? '')
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || 'I';
 }
 
 function mapUser(raw: any): AppUser {
+  if (!raw) return GUEST_USER;
+  const name = raw.name || raw.displayName || 'Investor';
+  const email = raw.email || '';
+  const initials = raw.avatarInitials || raw.initials || toInitials(name);
   return {
-    id: raw.id,
-    name: raw.name,
-    initials: raw.avatarInitials || toInitials(raw.name),
-    avatarInitials: raw.avatarInitials || toInitials(raw.name),
-    email: raw.email,
+    id: raw.id || raw._id || '',
+    name,
+    initials,
+    avatarInitials: initials,
+    email,
     accountTier: raw.accountTier || 'Free',
   };
 }

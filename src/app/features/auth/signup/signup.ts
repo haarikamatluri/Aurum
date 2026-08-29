@@ -23,11 +23,12 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
       <div class="auth-card card">
         <div class="brand-row">
           <div class="brand-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <path d="M12 3L3 20h4.5l2-4.5h5l2 4.5H21L12 3z"/>
+              <path d="M10 12h4"/>
             </svg>
           </div>
-          <span class="brand-name">Money</span>
+          <span class="brand-name">Aurum</span>
         </div>
 
         <h1>Create your account</h1>
@@ -53,7 +54,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
           <div class="field">
             <label class="field-label" for="confirmPassword">Confirm password</label>
             <input id="confirmPassword" type="password" class="input" formControlName="confirmPassword" autocomplete="new-password" placeholder="••••••••" />
-            @if (form.errors?.['mismatch'] && form.get('confirmPassword')?.touched) {
+            @if (hasPasswordMismatch) {
               <span class="field-error">Passwords don't match</span>
             }
           </div>
@@ -96,6 +97,10 @@ export class SignupPage implements OnInit, OnDestroy {
     { validators: passwordsMatch },
   );
 
+  protected get hasPasswordMismatch(): boolean {
+    return !!(this.form.errors?.['mismatch'] && this.form.get('confirmPassword')?.touched);
+  }
+
   private googleInitTimer: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
@@ -104,12 +109,18 @@ export class SignupPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.googleInitTimer) clearInterval(this.googleInitTimer);
+    if (this.googleInitTimer) {
+      clearInterval(this.googleInitTimer);
+      this.googleInitTimer = null;
+    }
   }
 
   private tryRenderGoogleButton(): void {
     if (typeof google === 'undefined' || !this.googleBtn) return;
-    if (this.googleInitTimer) clearInterval(this.googleInitTimer);
+    if (this.googleInitTimer) {
+      clearInterval(this.googleInitTimer);
+      this.googleInitTimer = null;
+    }
 
     google.accounts.id.initialize({
       client_id: this.auth.googleClientId(),

@@ -4,6 +4,7 @@ import {
   StockTransaction,
   PortfolioSummary,
   AddHoldingRequest,
+  SellHoldingRequest,
   StockSearchResult,
   MarketRegion,
 } from '../models/portfolio.model';
@@ -222,11 +223,17 @@ export class PortfolioService {
 
     const currency = market === 'IN' ? 'INR' : 'USD';
 
+    const transactions = this._transactions();
+    const totalRealizedGain = transactions
+      .filter((t) => t.type === 'SELL' && (!market || market === 'ALL' || t.currency === currency))
+      .reduce((s, t) => s + (t.realizedGain ?? 0), 0);
+
     return {
       totalInvested,
       currentValue,
       totalGain,
       totalGainPct,
+      totalRealizedGain,
       holdingCount: h.length,
       currency,
     };
@@ -316,6 +323,75 @@ export class PortfolioService {
     });
 
     return resultHolding;
+  }
+
+  /**
+   * Record a sell transaction. Reduces holding quantity or closes position,
+   * calculates realized profit/loss, and adds a SELL transaction record.
+   */
+  sellHolding(req: SellHoldingRequest): { updatedHolding: Holding | null; realizedGain: number; realizedGainPct: number } | null {
+    const existing = this.getHoldingById(req.holdingId);
+    if (!existing || req.shares <= 0 || req.shares > existing.shares) return null;
+
+    const now = new Date().toISOString();
+    const txId = `tx-${Date.now()}`;
+    const sharesSold = Number(req.shares);
+    const sellPrice = Number(req.sellPrice);
+    const avgCost = existing.avgPurchasePrice;
+
+    const costOfSold = sharesSold * avgCost;
+    const proceeds = sharesSold * sellPrice;
+    const realizedGain = proceeds - costOfSold;
+    const realizedGainPct = avgCost > 0 ? ((sellPrice - avgCost) / avgCost) * 100 : 0;
+
+    const remainingShares = existing.shares - sharesSold;
+    let updatedHolding: Holding | null = null;
+
+    if (remainingShares > 0) {
+      const newTotalInvested = remainingShares * avgCost;
+      const currentValue = existing.currentPrice ? remainingShares * existing.currentPrice : null;
+      const profitLoss = currentValue !== null ? currentValue - newTotalInvested : null;
+      const profitLossPct = existing.currentPrice && avgCost > 0 ? ((existing.currentPrice - avgCost) / avgCost) * 100 : null;
+
+      updatedHolding = {
+        ...existing,
+        shares: remainingShares,
+        totalInvested: newTotalInvested,
+        currentValue,
+        profitLoss,
+        profitLossPct,
+        updatedAt: now,
+      };
+      this._holdings.update((hs) => hs.map((h) => (h.id === existing.id ? updatedHolding! : h)));
+    } else {
+      // Fully sold out: remove from active holdings
+      this._holdings.update((hs) => hs.filter((h) => h.id !== existing.id));
+    }
+    this.saveHoldings();
+
+    const tx: StockTransaction = {
+      id: txId,
+      holdingId: existing.id,
+      type: 'SELL',
+      shares: sharesSold,
+      price: sellPrice,
+      currency: existing.currency,
+      date: req.sellDate ?? now.split('T')[0],
+      createdAt: now,
+      realizedGain,
+      realizedGainPct,
+    };
+    this._transactions.update((ts) => [tx, ...ts]);
+    this.saveTransactions();
+
+    // Async persist to MongoDB backend if running
+    fetch(`/api/portfolio/holdings/${encodeURIComponent(existing.id)}/sell`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    }).catch(() => {});
+
+    return { updatedHolding, realizedGain, realizedGainPct };
   }
 
   /**

@@ -30,7 +30,7 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
             (click)="setMarket('US')"
           >
             <span class="flag">🇺🇸</span>
-            <span>US Market (USD $)</span>
+            <span>US (USD $)</span>
           </button>
           <button
             type="button"
@@ -39,7 +39,7 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
             (click)="setMarket('IN')"
           >
             <span class="flag">🇮🇳</span>
-            <span>India Market (INR ₹)</span>
+            <span>India (INR ₹)</span>
           </button>
         </div>
 

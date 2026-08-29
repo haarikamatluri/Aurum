@@ -5,11 +5,12 @@ import { PortfolioService } from '../../core/services/portfolio.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CurrencyCode, Holding } from '../../core/models/portfolio.model';
 import { EditStockModal } from '../dashboard/edit-stock-modal/edit-stock-modal';
+import { SellStockModal } from '../dashboard/sell-stock-modal/sell-stock-modal';
 
 @Component({
   selector: 'app-stock-detail',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, EditStockModal],
+  imports: [DecimalPipe, DatePipe, EditStockModal, SellStockModal],
   template: `
     @if (holding()) {
       <div class="stock-detail">
@@ -104,15 +105,23 @@ import { EditStockModal } from '../dashboard/edit-stock-modal/edit-stock-modal';
 
         <!-- Transaction history -->
         <div class="section">
-          <h2 class="section-title">Purchase History</h2>
+          <h2 class="section-title">Transaction History (Buy & Sell)</h2>
           @if (transactions().length > 0) {
             <div class="tx-list">
               @for (t of transactions(); track t.id) {
-                <div class="tx-row">
-                  <div class="tx-type" [class.buy]="t.type === 'BUY'">{{ t.type }}</div>
+                <div class="tx-row" [class.sell-row]="t.type === 'SELL'">
+                  <div class="tx-type" [class.buy]="t.type === 'BUY'" [class.sell]="t.type === 'SELL'">{{ t.type }}</div>
                   <div class="tx-detail">
                     <span class="tx-shares">{{ t.shares | number:'1.0-4' }} shares</span>
                     <span class="tx-price">@ {{ formatVal(t.price, t.currency) }} per share</span>
+                    @if (t.type === 'SELL' && t.realizedGain !== undefined && t.realizedGain !== null) {
+                      <span class="tx-realized" [class.positive]="t.realizedGain >= 0" [class.negative]="t.realizedGain < 0">
+                        Booked: {{ t.realizedGain >= 0 ? '+' : '' }}{{ formatVal(t.realizedGain, t.currency) }}
+                        @if (t.realizedGainPct !== undefined && t.realizedGainPct !== null) {
+                          ({{ t.realizedGain >= 0 ? '+' : '' }}{{ t.realizedGainPct | number:'1.2-2' }}%)
+                        }
+                      </span>
+                    }
                   </div>
                   <div class="tx-right">
                     <span class="tx-total">{{ formatVal(t.shares * t.price, t.currency) }}</span>
@@ -152,6 +161,12 @@ import { EditStockModal } from '../dashboard/edit-stock-modal/edit-stock-modal';
 
         <!-- Actions -->
         <div class="stock-action-zone">
+          <button class="btn-sell-stock" (click)="showSellModal.set(true)" id="sell-stock-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            Sell Shares
+          </button>
           <button class="btn-edit-stock" (click)="showEditModal.set(true)" id="edit-stock-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -181,6 +196,15 @@ import { EditStockModal } from '../dashboard/edit-stock-modal/edit-stock-modal';
       />
     }
 
+    <!-- Sell Modal -->
+    @if (showSellModal() && holding()) {
+      <app-sell-stock-modal
+        [holding]="holding()!"
+        (close)="showSellModal.set(false)"
+        (sold)="onStockSold()"
+      />
+    }
+
     <!-- Delete confirm -->
     @if (showDeleteConfirm()) {
       <div class="modal-overlay" (click)="showDeleteConfirm.set(false)">
@@ -206,6 +230,7 @@ export class StockDetailPage {
 
   protected readonly showDeleteConfirm = signal(false);
   protected readonly showEditModal = signal(false);
+  protected readonly showSellModal = signal(false);
 
   protected readonly holding = computed(() => {
     const symbol = this.route.snapshot.paramMap.get('symbol') ?? '';
@@ -233,6 +258,15 @@ export class StockDetailPage {
     const h = this.holding();
     if (!h) return;
     this.router.navigate(['/money/ai-analyst'], { queryParams: { symbol: h.symbol } });
+  }
+
+  onStockSold(): void {
+    this.showSellModal.set(false);
+    const symbol = this.route.snapshot.paramMap.get('symbol') ?? '';
+    const updated = this.portfolioService.getHoldingBySymbol(symbol);
+    if (!updated) {
+      this.router.navigate(['/money']);
+    }
   }
 
   confirmDelete(): void { this.showDeleteConfirm.set(true); }

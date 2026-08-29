@@ -1,12 +1,12 @@
 // ============================================================================
-// Money — Portfolio Domain Models
+// Aurum — Portfolio Domain Models
 // Supports both US ($) and Indian (₹) Market Stocks
 // ============================================================================
 
 export type MarketRegion = 'US' | 'IN';
 export type CurrencyCode = 'USD' | 'INR';
 
-/** A single purchase transaction for a stock. */
+/** A single buy or sell transaction for a stock. */
 export interface StockTransaction {
   id: string;
   holdingId: string;
@@ -16,6 +16,8 @@ export interface StockTransaction {
   currency: CurrencyCode;
   date: string; // ISO date string
   createdAt: string;
+  realizedGain?: number | null;
+  realizedGainPct?: number | null;
 }
 
 /** A holding is a stock position in the user's portfolio. */
@@ -51,17 +53,18 @@ export interface AlertState {
   updatedAt: string;
 }
 
-/** Portfolio-level summary calculated from all holdings. */
+/** Portfolio-level summary calculated from all holdings and closed transactions. */
 export interface PortfolioSummary {
   totalInvested: number;
   currentValue: number | null;
   totalGain: number | null;
   totalGainPct: number | null;
+  totalRealizedGain: number;
   holdingCount: number;
   currency: CurrencyCode;
 }
 
-/** Used when adding a new stock. */
+/** Used when adding a new stock position or buying additional shares. */
 export interface AddHoldingRequest {
   symbol: string;
   companyName: string;
@@ -71,6 +74,14 @@ export interface AddHoldingRequest {
   shares: number;
   purchasePrice: number;
   purchaseDate?: string;
+}
+
+/** Used when selling shares of an existing holding. */
+export interface SellHoldingRequest {
+  holdingId: string;
+  shares: number;
+  sellPrice: number;
+  sellDate?: string;
 }
 
 /** Used when searching for stocks in the add modal. */

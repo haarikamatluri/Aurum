@@ -34,11 +34,12 @@ const NAV_ITEMS = [
         <div class="brand-logo">
           <svg viewBox="0 0 28 28" fill="none" width="28" height="28">
             <rect width="28" height="28" rx="8" fill="#00B37E" />
-            <path d="M7 14.5L12 19.5L21 8.5" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 5L5 23h4.5l2-4.5h5l2 4.5H23L14 5z" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 14h4" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
           </svg>
         </div>
         @if (!ui.sidebarCollapsed()) {
-          <span class="brand-text">Money</span>
+          <span class="brand-text">Aurum</span>
         }
       </div>
 
@@ -98,7 +99,6 @@ const NAV_ITEMS = [
           @if (!ui.sidebarCollapsed()) {
             <div class="user-details">
               <span class="user-name">{{ auth.currentUser().name }}</span>
-              <span class="user-tier">Premium Plan</span>
             </div>
             <button
               type="button"
