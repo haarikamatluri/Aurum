@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ForgotPasswordModal } from '../forgot-password/forgot-password-modal';
@@ -9,7 +9,7 @@ declare const google: any;
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, ForgotPasswordModal],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink, ForgotPasswordModal],
   template: `
     <div class="auth-page">
       <div class="bg-orb bg-orb-1"></div>
@@ -37,33 +37,74 @@ declare const google: any;
           <div class="form-error" role="alert">{{ errorMessage() }}</div>
         }
 
-        <form [formGroup]="form" (ngSubmit)="submit()" class="auth-form">
-          <div class="field">
-            <label class="field-label" for="email">Email</label>
-            <input id="email" type="email" class="input" formControlName="email" autocomplete="email" placeholder="you@example.com" />
-          </div>
-          <div class="field">
-            <div class="field-label-row">
-              <label class="field-label" for="password">Password</label>
-              <button type="button" class="btn-link-forgot" (click)="showForgotModal.set(true)">
-                Forgot password?
-              </button>
+        @if (!twoFactorStep()) {
+          <form [formGroup]="form" (ngSubmit)="submit()" class="auth-form">
+            <div class="field">
+              <label class="field-label" for="email">Email</label>
+              <input id="email" type="email" class="input" formControlName="email" autocomplete="email" placeholder="you@example.com" />
             </div>
-            <input id="password" type="password" class="input" formControlName="password" autocomplete="current-password" placeholder="••••••••" />
+            <div class="field">
+              <div class="field-label-row">
+                <label class="field-label" for="password">Password</label>
+                <button type="button" class="btn-link-forgot" (click)="showForgotModal.set(true)">
+                  Forgot password?
+                </button>
+              </div>
+              <input id="password" type="password" class="input" formControlName="password" autocomplete="current-password" placeholder="••••••••" />
+            </div>
+            <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
+              {{ submitting() ? 'Signing in…' : 'Sign in' }}
+            </button>
+          </form>
+
+          @if (auth.googleEnabled()) {
+            <div class="divider"><span>or</span></div>
+            <div #googleBtn class="google-btn-container"></div>
+          }
+
+          <p class="fine-print">
+            Don't have an account? <a routerLink="/signup">Create one</a>
+          </p>
+        } @else {
+          <div class="two-factor-box">
+            <div class="two-factor-header">
+              <div class="security-shield-icon">🛡️</div>
+              <h3>Two-Factor Authentication</h3>
+              <p>Enter the 6-digit verification code from your Authenticator app (Google Authenticator, Authy, etc.).</p>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="totpCode">6-Digit Code</label>
+              <input
+                id="totpCode"
+                type="text"
+                class="input totp-input"
+                [(ngModel)]="totpCode"
+                maxlength="6"
+                placeholder="123456"
+                autocomplete="one-time-code"
+                (keyup.enter)="verifyTotp()"
+              />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary submit-btn"
+              [disabled]="totpCode.length < 6 || submitting()"
+              (click)="verifyTotp()"
+            >
+              {{ submitting() ? 'Verifying…' : 'Verify & Continue' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn-link-back"
+              (click)="cancel2fa()"
+            >
+              &larr; Back to sign in
+            </button>
           </div>
-          <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
-            {{ submitting() ? 'Signing in…' : 'Sign in' }}
-          </button>
-        </form>
-
-        @if (auth.googleEnabled()) {
-          <div class="divider"><span>or</span></div>
-          <div #googleBtn class="google-btn-container"></div>
         }
-
-        <p class="fine-print">
-          Don't have an account? <a routerLink="/signup">Create one</a>
-        </p>
       </div>
 
       @if (showForgotModal()) {
@@ -144,19 +185,50 @@ export class LoginPage implements OnInit, OnDestroy {
     }
   }
 
+  protected readonly twoFactorStep = signal(false);
+  protected tempToken: string | null = null;
+  totpCode = '';
+
   async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) return;
     this.submitting.set(true);
     this.errorMessage.set(null);
     const { email, password } = this.form.getRawValue();
     try {
-      await this.auth.login(email, password);
+      const res = await this.auth.login(email, password);
+      if (res.twoFactorRequired && res.tempToken) {
+        this.tempToken = res.tempToken;
+        this.twoFactorStep.set(true);
+        this.totpCode = '';
+        return;
+      }
       this.router.navigateByUrl('/money');
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  async verifyTotp(): Promise<void> {
+    if (!this.tempToken || this.totpCode.length < 6 || this.submitting()) return;
+    this.submitting.set(true);
+    this.errorMessage.set(null);
+    try {
+      await this.auth.login2fa(this.tempToken, this.totpCode.trim());
+      this.router.navigateByUrl('/money');
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Invalid 6-digit verification code');
+    } finally {
+      this.submitting.set(false);
+    }
+  }
+
+  cancel2fa(): void {
+    this.twoFactorStep.set(false);
+    this.tempToken = null;
+    this.totpCode = '';
+    this.errorMessage.set(null);
   }
 
   onPasswordReset(email: string): void {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, ElementRef, HostListener } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, ElementRef, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { PortfolioService } from '../../core/services/portfolio.service';
@@ -8,7 +8,10 @@ import { NotificationService } from '../../core/services/notification.service';
 import { AddStockModal } from './add-stock-modal/add-stock-modal';
 import { EditStockModal } from './edit-stock-modal/edit-stock-modal';
 import { SellStockModal } from './sell-stock-modal/sell-stock-modal';
+import { ImportSheetsModal } from './import-sheets-modal/import-sheets-modal';
 import { MonitoringService } from '../../core/services/monitoring.service';
+import { AiAnalystService, MorningBriefing } from '../../core/services/ai-analyst.service';
+import { BrokerSyncModalComponent } from './broker-sync-modal/broker-sync-modal';
 
 type SortMode = 'gain-desc' | 'gain-asc' | 'alpha' | 'recent';
 type MarketFilter = 'ALL' | 'US' | 'IN';
@@ -26,7 +29,7 @@ interface MarketIndex {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, AddStockModal, EditStockModal, SellStockModal],
+  imports: [DecimalPipe, RouterLink, AddStockModal, EditStockModal, SellStockModal, ImportSheetsModal, BrokerSyncModalComponent],
   template: `
     <div class="dashboard-container">
       <!-- Top Header Row -->
@@ -100,6 +103,22 @@ interface MarketIndex {
                     <span class="desc">NSE & BSE (INR)</span>
                   </div>
                 </button>
+                <div class="dropdown-divider"></div>
+                <button type="button" class="add-dropdown-item" (click)="openImportModal()">
+                  <span class="flag">📊</span>
+                  <div class="add-item-text">
+                    <span class="title">Upload Excel / CSV</span>
+                    <span class="desc">Import multiple stocks from spreadsheet</span>
+                  </div>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button type="button" class="add-dropdown-item" (click)="openBrokerSyncModal()">
+                  <span class="flag">🔗</span>
+                  <div class="add-item-text">
+                    <span class="title">Sync Broker Account</span>
+                    <span class="desc">Direct Zerodha Kite & Webull sync</span>
+                  </div>
+                </button>
               </div>
             }
           </div>
@@ -115,6 +134,114 @@ interface MarketIndex {
           </a>
         </div>
       </header>
+
+      <!-- Morning Bell Executive Briefing Card -->
+      @if (morningBriefing()) {
+        <section class="morning-bell-banner" aria-label="Morning Bell Executive Briefing">
+          <!-- Top Row: Badge, Date, and Actions -->
+          <div class="morning-bell-top">
+            <div class="bell-meta-wrap">
+              <span class="live-bell-pulse">
+                <span class="bell-icon">🔔</span>
+                <span>MORNING BELL BRIEFING</span>
+              </span>
+              <span class="briefing-date">{{ morningBriefing()?.date }}</span>
+            </div>
+
+            <div class="bell-actions">
+              <button
+                type="button"
+                class="btn-briefing-toggle"
+                [class.active]="briefingExpanded()"
+                (click)="briefingExpanded.set(!briefingExpanded())"
+                aria-expanded="briefingExpanded()"
+              >
+                <span>Holdings Impact</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  width="13"
+                  height="13"
+                  class="toggle-chevron"
+                  [class.rotated]="briefingExpanded()"
+                >
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <a routerLink="/money/ai-analyst" class="btn-briefing-deepdive" title="Open AI Analyst">
+                <span>Deep Analysis</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Middle Row: Global Cues Micro-Grid -->
+          <div class="global-cues-strip">
+            <div class="cue-item">
+              <span class="cue-label">S&P 500 Fut</span>
+              <span class="cue-value cue-up">{{ morningBriefing()?.globalCues?.sp500Futures }}</span>
+            </div>
+            <div class="cue-item">
+              <span class="cue-label">GIFT Nifty</span>
+              <span class="cue-value cue-up">{{ morningBriefing()?.globalCues?.giftNifty }}</span>
+            </div>
+            <div class="cue-item">
+              <span class="cue-label">Brent Crude</span>
+              <span class="cue-value">{{ morningBriefing()?.globalCues?.crudeOil }}</span>
+            </div>
+            <div class="cue-item">
+              <span class="cue-label">US 10Y Yield</span>
+              <span class="cue-value">{{ morningBriefing()?.globalCues?.us10yYield }}</span>
+            </div>
+          </div>
+
+          <!-- Macro Catalyst Row -->
+          <div class="morning-theme-line">
+            <span class="theme-badge">Macro Catalyst</span>
+            <p class="theme-text">{{ morningBriefing()?.keyTheme }}</p>
+          </div>
+
+          <!-- Collapsible Holdings Breakdown & Action Plan -->
+          @if (briefingExpanded()) {
+            <div class="briefing-expanded-content">
+              <div class="holdings-impact-grid">
+                @for (imp of morningBriefing()?.holdingsImpact; track imp.symbol) {
+                  <div class="holding-impact-card" [class.impact-up]="imp.expectedMovement === 'UP'" [class.impact-down]="imp.expectedMovement === 'DOWN'">
+                    <div class="impact-top">
+                      <span class="imp-sym">{{ imp.symbol }}</span>
+                      <span class="imp-dir" [class.dir-up]="imp.expectedMovement === 'UP'" [class.dir-down]="imp.expectedMovement === 'DOWN'">
+                        {{ imp.expectedMovement === 'UP' ? '▲ Bullish Bias' : imp.expectedMovement === 'DOWN' ? '▼ Cautious' : '◼ Rangebound' }}
+                      </span>
+                    </div>
+                    <p class="imp-catalyst">{{ imp.catalyst }}</p>
+                    <small class="imp-reason">{{ imp.reason }}</small>
+                  </div>
+                }
+              </div>
+
+              <div class="briefing-action-plan">
+                <div class="action-plan-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                    <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                  <span>Strategic Takeaways For Today</span>
+                </div>
+                <ul>
+                  @for (action of morningBriefing()?.actionPlan; track action) {
+                    <li>{{ action }}</li>
+                  }
+                </ul>
+              </div>
+            </div>
+          }
+        </section>
+      }
 
       <!-- 4-Column KPI Summary Cards -->
       <section class="kpi-grid" aria-label="Portfolio Key Metrics">
@@ -394,24 +521,41 @@ interface MarketIndex {
         <div class="content-card holdings-table-card">
           <div class="card-header-row">
             <h2 class="card-title">Top Holdings</h2>
-            <div class="sort-selector">
-              <span class="sort-prefix">Sort:</span>
-              <select class="sort-native-select" [value]="sortMode()" (change)="onSortChange($event)">
-                @for (opt of sortOptions; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </select>
+            <div class="holdings-header-actions">
+              <button
+                type="button"
+                class="btn-import-sheet"
+                (click)="openImportModal()"
+                title="Upload Excel (.xlsx, .xls) or CSV sheet to import stock list"
+                id="btn-import-sheet"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+                <span>Upload Excel / CSV</span>
+              </button>
+
+              <div class="sort-selector">
+                <span class="sort-prefix">Sort:</span>
+                <select class="sort-native-select" [value]="sortMode()" (change)="onSortChange($event)">
+                  @for (opt of sortOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
             </div>
           </div>
 
           @if (filteredHoldings().length > 0) {
-            <div class="table-responsive">
+            <!-- Desktop / Tablet Table View -->
+            <div class="table-responsive desktop-holdings-table">
               <table class="holdings-table">
                 <thead>
                   <tr>
                     <th class="th-name">Name</th>
                     <th class="th-market">Market</th>
                     <th class="th-num">Invested</th>
+                    <th class="th-num">Bought Price</th>
                     <th class="th-num">Current Price</th>
                     <th class="th-num">P&L</th>
                     <th class="th-num">P&L (%)</th>
@@ -420,7 +564,7 @@ interface MarketIndex {
                   </tr>
                 </thead>
                 <tbody>
-                  @for (h of sortedHoldings(); track h.id) {
+                  @for (h of sortedHoldings(); track h.id; let last = $last) {
                     <tr class="holding-row" (click)="openStock(h.symbol)">
                       <!-- Company Logo / Avatar & Name -->
                       <td class="td-name">
@@ -445,6 +589,13 @@ interface MarketIndex {
                       <!-- Invested -->
                       <td class="td-num">
                         <span class="tabular-nums font-semibold">{{ formatCurrency(h.totalInvested, h.currency) }}</span>
+                      </td>
+
+                      <!-- Bought Price -->
+                      <td class="td-num">
+                        <span class="tabular-nums font-medium text-secondary">
+                          {{ formatCurrency(h.avgPurchasePrice, h.currency) }}
+                        </span>
                       </td>
 
                       <!-- Current Price -->
@@ -485,60 +636,217 @@ interface MarketIndex {
                         <span class="tabular-nums text-secondary">{{ calculateWeight(h) | number:'1.1-1' }}%</span>
                       </td>
 
-                      <!-- Row Action Buttons -->
+                      <!-- Row Action Menu (3-dots) -->
                       <td class="td-actions" (click)="$event.stopPropagation()">
-                        <div class="row-actions-group">
+                        <div class="row-menu-wrap">
                           <button
                             type="button"
-                            class="row-action-btn"
-                            (click)="openAiAnalyst(h.symbol, $event)"
-                            title="Ask AI Analyst"
-                            aria-label="AI Analyst"
+                            class="row-menu-trigger-btn"
+                            [class.active]="activeRowMenuId() === h.id"
+                            (click)="toggleRowMenu(h.id, $event)"
+                            title="Actions"
+                            aria-label="Actions"
+                            [attr.aria-expanded]="activeRowMenuId() === h.id"
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                              <circle cx="12" cy="12" r="1.3" fill="currentColor"/>
+                              <circle cx="12" cy="5" r="1.3" fill="currentColor"/>
+                              <circle cx="12" cy="19" r="1.3" fill="currentColor"/>
                             </svg>
                           </button>
-                          <button
-                            type="button"
-                            class="row-action-btn btn-sell-action"
-                            (click)="openSellModal(h, $event)"
-                            title="Sell Shares"
-                            aria-label="Sell Shares"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="row-action-btn"
-                            (click)="openEditModal(h, $event)"
-                            title="Edit Holding"
-                            aria-label="Edit Holding"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="row-action-btn btn-del"
-                            (click)="confirmDelete(h, $event)"
-                            title="Remove Holding"
-                            aria-label="Remove Holding"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                            </svg>
-                          </button>
+
+                          @if (activeRowMenuId() === h.id) {
+                            <div class="row-action-dropdown" [class.dropup]="last && sortedHoldings().length > 1" role="menu">
+                              <button
+                                type="button"
+                                class="row-action-dropdown-item"
+                                (click)="openAiAnalyst(h.symbol, $event); closeRowMenu()"
+                                role="menuitem"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                                </svg>
+                                <span>Ask AI Analyst</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                class="row-action-dropdown-item"
+                                (click)="openSellModal(h, $event); closeRowMenu()"
+                                role="menuitem"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                                </svg>
+                                <span>Sell Shares</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                class="row-action-dropdown-item"
+                                (click)="openEditModal(h, $event); closeRowMenu()"
+                                role="menuitem"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                <span>Edit Holding</span>
+                              </button>
+
+                              <div class="dropdown-divider"></div>
+
+                              <button
+                                type="button"
+                                class="row-action-dropdown-item danger"
+                                (click)="confirmDelete(h, $event); closeRowMenu()"
+                                role="menuitem"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                </svg>
+                                <span>Remove Holding</span>
+                              </button>
+                            </div>
+                          }
                         </div>
                       </td>
                     </tr>
                   }
                 </tbody>
               </table>
+            </div>
+
+            <!-- Mobile Holdings Card List (Clean, Touch-Friendly, No Horizontal Scroll) -->
+            <div class="mobile-holdings-list" aria-label="Holdings List">
+              @for (h of sortedHoldings(); track h.id; let last = $last) {
+                <div class="m-holding-card" (click)="openStock(h.symbol)">
+                  <div class="m-holding-top">
+                    <div class="m-identity">
+                      <div class="company-logo" [class.logo-in]="h.market === 'IN'">
+                        {{ getCompanyInitial(h.symbol) }}
+                      </div>
+                      <div class="m-identity-text">
+                        <div class="m-title-line">
+                          <span class="m-symbol">{{ h.symbol }}</span>
+                          <span class="market-pill-badge" [class.badge-in]="h.market === 'IN'">
+                            {{ h.market === 'IN' ? 'IN' : 'US' }}
+                          </span>
+                        </div>
+                        <span class="m-company-name">{{ h.companyName }}</span>
+                      </div>
+                    </div>
+
+                    <div class="m-top-right-group">
+                      <div class="m-price-box">
+                        <span class="m-current-price">
+                          @if (h.currentPrice !== null) {
+                            {{ formatCurrency(h.currentPrice, h.currency) }}
+                          } @else {
+                            --
+                          }
+                        </span>
+                        <span class="pnl-pill" [class.positive]="(h.profitLossPct ?? 0) >= 0" [class.negative]="(h.profitLossPct ?? 0) < 0">
+                          @if (h.profitLossPct !== null) {
+                            {{ (h.profitLossPct ?? 0) >= 0 ? '+' : '' }}{{ h.profitLossPct | number:'1.2-2' }}%
+                          } @else {
+                            --
+                          }
+                        </span>
+                      </div>
+
+                      <div class="row-menu-wrap" (click)="$event.stopPropagation()">
+                        <button
+                          type="button"
+                          class="row-menu-trigger-btn"
+                          [class.active]="activeRowMenuId() === ('m-' + h.id)"
+                          (click)="toggleRowMenu('m-' + h.id, $event)"
+                          title="Actions"
+                          aria-label="Actions"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                            <circle cx="12" cy="12" r="1.3" fill="currentColor"/>
+                            <circle cx="12" cy="5" r="1.3" fill="currentColor"/>
+                            <circle cx="12" cy="19" r="1.3" fill="currentColor"/>
+                          </svg>
+                        </button>
+
+                        @if (activeRowMenuId() === ('m-' + h.id)) {
+                          <div class="row-action-dropdown" [class.dropup]="last && sortedHoldings().length > 1" role="menu">
+                            <button
+                              type="button"
+                              class="row-action-dropdown-item"
+                              (click)="openAiAnalyst(h.symbol, $event); closeRowMenu()"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                              </svg>
+                              <span>Ask AI Analyst</span>
+                            </button>
+                            <button
+                              type="button"
+                              class="row-action-dropdown-item"
+                              (click)="openSellModal(h, $event); closeRowMenu()"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="15" height="15">
+                                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                              </svg>
+                              <span>Sell Shares</span>
+                            </button>
+                            <button
+                              type="button"
+                              class="row-action-dropdown-item"
+                              (click)="openEditModal(h, $event); closeRowMenu()"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                              <span>Edit Holding</span>
+                            </button>
+                            <div class="dropdown-divider"></div>
+                            <button
+                              type="button"
+                              class="row-action-dropdown-item danger"
+                              (click)="confirmDelete(h, $event); closeRowMenu()"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                              </svg>
+                              <span>Remove Holding</span>
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="m-holding-details">
+                    <div class="m-detail-col">
+                      <span class="m-detail-lbl">Invested</span>
+                      <span class="m-detail-val">{{ formatCurrency(h.totalInvested, h.currency) }}</span>
+                    </div>
+                    <div class="m-detail-col">
+                      <span class="m-detail-lbl">Bought Price</span>
+                      <span class="m-detail-val">{{ formatCurrency(h.avgPurchasePrice, h.currency) }}</span>
+                    </div>
+                    <div class="m-detail-col">
+                      <span class="m-detail-lbl">P&L</span>
+                      <span class="m-detail-val" [class.positive]="(h.profitLoss ?? 0) >= 0" [class.negative]="(h.profitLoss ?? 0) < 0">
+                        @if (h.profitLoss !== null) {
+                          {{ (h.profitLoss ?? 0) >= 0 ? '+' : '' }}{{ formatCurrency(h.profitLoss, h.currency) }}
+                        } @else {
+                          --
+                        }
+                      </span>
+                    </div>
+                    <div class="m-detail-col">
+                      <span class="m-detail-lbl">Weight</span>
+                      <span class="m-detail-val">{{ calculateWeight(h) | number:'1.1-1' }}%</span>
+                    </div>
+                  </div>
+                </div>
+              }
             </div>
 
             <div class="table-card-footer">
@@ -559,6 +867,9 @@ interface MarketIndex {
                 </button>
                 <button type="button" class="btn btn-outline" (click)="openAddModal('IN')">
                   <span>🇮🇳 Add India Stock</span>
+                </button>
+                <button type="button" class="btn btn-outline" (click)="openImportModal()">
+                  <span>📊 Upload Excel / CSV</span>
                 </button>
               </div>
             </div>
@@ -646,30 +957,63 @@ interface MarketIndex {
           (sold)="onStockSold()"
         />
       }
+
+      <!-- Import Sheets Modal -->
+      @if (importModalOpen()) {
+        <app-import-sheets-modal
+          (close)="closeImportModal()"
+          (imported)="onStocksImported($event)"
+        />
+      }
+
+      <!-- Broker Sync Modal -->
+      @if (showBrokerSyncModal()) {
+        <app-broker-sync-modal
+          (closeModal)="showBrokerSyncModal.set(false)"
+          (holdingsImported)="onBrokerHoldingsImported($event)"
+        />
+      }
+
+      <!-- Toast Notification Banner -->
+      @if (toastMessage()) {
+        <div class="toast-notification-banner">
+          <span class="toast-icon">✓</span>
+          <span class="toast-text">{{ toastMessage() }}</span>
+        </div>
+      }
     </div>
   `,
   styleUrl: './dashboard.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Dashboard {
+export class Dashboard implements OnInit, OnDestroy {
   protected readonly portfolio = inject(PortfolioService);
   protected readonly auth = inject(AuthService);
   protected readonly notifService = inject(NotificationService);
   protected readonly monitoring = inject(MonitoringService);
+  protected readonly aiAnalystService = inject(AiAnalystService);
   private readonly router = inject(Router);
   private readonly elementRef = inject(ElementRef);
+
+  protected readonly morningBriefing = signal<MorningBriefing | null>(null);
+  protected readonly briefingExpanded = signal<boolean>(false);
+  protected readonly showBrokerSyncModal = signal<boolean>(false);
+  private sseSource: EventSource | null = null;
 
   protected readonly showAddModal = signal(false);
   protected readonly addModalMarket = signal<MarketRegion>('US');
   protected readonly editingHolding = signal<Holding | null>(null);
   protected readonly sellingHolding = signal<Holding | null>(null);
   protected readonly deleteTarget = signal<Holding | null>(null);
+  protected readonly importModalOpen = signal(false);
+  protected readonly toastMessage = signal<string | null>(null);
   protected readonly sortMode = signal<SortMode>('recent');
   protected readonly selectedMarket = signal<MarketFilter>('ALL');
   protected readonly selectedTimeframe = signal<Timeframe>('1M');
 
   protected readonly marketMenuOpen = signal(false);
   protected readonly addMenuOpen = signal(false);
+  protected readonly activeRowMenuId = signal<string | null>(null);
 
   readonly timeframes: Timeframe[] = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 
@@ -892,8 +1236,18 @@ export class Dashboard {
     this.marketMenuOpen.set(false);
   }
 
+  toggleRowMenu(id: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeRowMenuId.set(this.activeRowMenuId() === id ? null : id);
+  }
+
+  closeRowMenu(): void {
+    this.activeRowMenuId.set(null);
+  }
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
+    this.activeRowMenuId.set(null);
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.marketMenuOpen.set(false);
       this.addMenuOpen.set(false);
@@ -958,6 +1312,21 @@ export class Dashboard {
     this.showAddModal.set(false);
   }
 
+  openImportModal(): void {
+    this.importModalOpen.set(true);
+    this.addMenuOpen.set(false);
+  }
+
+  closeImportModal(): void {
+    this.importModalOpen.set(false);
+  }
+
+  onStocksImported(event: { count: number }): void {
+    this.monitoring.refreshPrices();
+    this.toastMessage.set(`Successfully imported ${event.count} stocks into Top Holdings!`);
+    setTimeout(() => this.toastMessage.set(null), 4500);
+  }
+
   onSortChange(event: Event): void {
     const val = (event.target as HTMLSelectElement).value as SortMode;
     this.sortMode.set(val);
@@ -970,6 +1339,64 @@ export class Dashboard {
 
   getCompanyInitial(symbol: string): string {
     return (symbol || 'S').slice(0, 3).toUpperCase();
+  }
+
+  ngOnInit(): void {
+    this.loadMorningBriefing();
+    this.initSseStream();
+  }
+
+  ngOnDestroy(): void {
+    if (this.sseSource) {
+      this.sseSource.close();
+      this.sseSource = null;
+    }
+  }
+
+  private async loadMorningBriefing(): Promise<void> {
+    try {
+      const holdings = this.portfolio.holdings();
+      const briefing = await this.aiAnalystService.generateMorningBriefing(holdings);
+      this.morningBriefing.set(briefing);
+    } catch (err) {
+      console.warn('[Dashboard] Could not load morning briefing:', err);
+    }
+  }
+
+  private initSseStream(): void {
+    if (typeof EventSource !== 'undefined') {
+      try {
+        this.sseSource = new EventSource('/api/market/stream');
+        this.sseSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'PRICE_TICK' && Array.isArray(data.quotes) && data.quotes.length > 0) {
+              // Real-time market tick received
+              this.monitoring.refreshPrices();
+            }
+          } catch {
+            // ignore malformed SSE payload
+          }
+        };
+        this.sseSource.onerror = () => {
+          // Connection dropped or server restarted; EventSource will auto-reconnect
+        };
+      } catch (err) {
+        console.warn('[Dashboard] SSE Stream connection unavailable:', err);
+      }
+    }
+  }
+
+  openBrokerSyncModal(): void {
+    this.showBrokerSyncModal.set(true);
+    this.addMenuOpen.set(false);
+  }
+
+  onBrokerHoldingsImported(count: number): void {
+    this.monitoring.refreshPrices();
+    this.loadMorningBriefing();
+    this.toastMessage.set(`Successfully synchronized ${count} positions from your broker!`);
+    setTimeout(() => this.toastMessage.set(null), 5000);
   }
 
   formatCurrency(value: number, currency: 'USD' | 'INR' = 'USD'): string {

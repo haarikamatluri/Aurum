@@ -7,6 +7,9 @@ export interface AppUser {
   avatarInitials: string;
   email: string;
   accountTier: string;
+  twoFactorEnabled?: boolean;
+  zerodhaConnected?: boolean;
+  webullConnected?: boolean;
 }
 
 const GUEST_USER: AppUser = {
@@ -16,6 +19,9 @@ const GUEST_USER: AppUser = {
   avatarInitials: 'I',
   email: '',
   accountTier: 'Free',
+  twoFactorEnabled: false,
+  zerodhaConnected: false,
+  webullConnected: false,
 };
 
 function toInitials(name?: string): string {
@@ -41,6 +47,9 @@ function mapUser(raw: any): AppUser {
     avatarInitials: initials,
     email,
     accountTier: raw.accountTier || 'Free',
+    twoFactorEnabled: !!raw.twoFactorEnabled,
+    zerodhaConnected: !!raw.zerodhaConnected,
+    webullConnected: !!raw.webullConnected,
   };
 }
 
@@ -116,15 +125,61 @@ export class AuthService {
     this._user.set(mapUser(user));
   }
 
-  async login(email: string, password: string): Promise<void> {
+  async login(email: string, password: string): Promise<{ twoFactorRequired?: boolean; tempToken?: string }> {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) throw new Error(await readError(res, 'Invalid email or password'));
+    const data = await res.json();
+    if (data.twoFactorRequired && data.tempToken) {
+      return { twoFactorRequired: true, tempToken: data.tempToken };
+    }
+    this._user.set(mapUser(data.user));
+    return { twoFactorRequired: false };
+  }
+
+  async login2fa(tempToken: string, code: string): Promise<void> {
+    const res = await fetch('/api/auth/login-2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tempToken, code }),
+    });
+    if (!res.ok) throw new Error(await readError(res, 'Invalid 6-digit verification code'));
     const { user } = await res.json();
     this._user.set(mapUser(user));
+  }
+
+  async generate2fa(): Promise<{ secret: string; qrCode: string }> {
+    const res = await fetch('/api/auth/2fa/generate', { method: 'POST' });
+    if (!res.ok) throw new Error(await readError(res, 'Could not generate 2FA secret'));
+    return res.json();
+  }
+
+  async verifyAndEnable2fa(secret: string, code: string): Promise<void> {
+    const res = await fetch('/api/auth/2fa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, code }),
+    });
+    if (!res.ok) throw new Error(await readError(res, 'Verification failed. Incorrect code.'));
+    // Update local user state
+    if (this._user()) {
+      this._user.set({ ...this._user()!, twoFactorEnabled: true });
+    }
+  }
+
+  async disable2fa(password: string): Promise<void> {
+    const res = await fetch('/api/auth/2fa/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) throw new Error(await readError(res, 'Could not disable 2FA'));
+    if (this._user()) {
+      this._user.set({ ...this._user()!, twoFactorEnabled: false });
+    }
   }
 
   async loginWithGoogle(credential: string): Promise<void> {

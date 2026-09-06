@@ -1,0 +1,17 @@
+{
+  "name": "Aurum - Portfolio Intelligence",
+  "short_name": "Aurum",
+  "description": "AI-Powered Real-time Portfolio Risk & Market Intelligence Engine",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d14",
+  "theme_color": "#d97706",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["finance", "business", "productivity"]
+}

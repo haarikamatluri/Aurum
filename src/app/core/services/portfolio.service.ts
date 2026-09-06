@@ -326,6 +326,103 @@ export class PortfolioService {
   }
 
   /**
+   * Bulk import stock holdings from Excel or CSV sheet.
+   */
+  addHoldingsBulk(reqs: AddHoldingRequest[]): Holding[] {
+    if (!reqs || reqs.length === 0) return [];
+    const now = new Date().toISOString();
+    const resultHoldings: Holding[] = [];
+    const currentList = [...this._holdings()];
+    const newTransactions: StockTransaction[] = [];
+
+    for (let i = 0; i < reqs.length; i++) {
+      const req = reqs[i];
+      const sym = req.symbol.toUpperCase();
+      const existingIndex = currentList.findIndex((h) => h.symbol === sym);
+      const txId = `tx-${Date.now()}-${i}`;
+
+      if (existingIndex !== -1) {
+        const existing = currentList[existingIndex];
+        const newTotalShares = existing.shares + req.shares;
+        const newTotalInvested = existing.totalInvested + req.shares * req.purchasePrice;
+        const newAvgPrice = newTotalInvested / newTotalShares;
+
+        const updated: Holding = {
+          ...existing,
+          shares: newTotalShares,
+          avgPurchasePrice: newAvgPrice,
+          totalInvested: newTotalInvested,
+          currentValue: existing.currentPrice ? newTotalShares * existing.currentPrice : null,
+          profitLoss: existing.currentPrice ? (newTotalShares * existing.currentPrice) - newTotalInvested : null,
+          profitLossPct: existing.currentPrice ? ((existing.currentPrice - newAvgPrice) / newAvgPrice) * 100 : null,
+          updatedAt: now,
+        };
+        currentList[existingIndex] = updated;
+        resultHoldings.push(updated);
+
+        newTransactions.push({
+          id: txId,
+          holdingId: existing.id,
+          type: 'BUY',
+          shares: req.shares,
+          price: req.purchasePrice,
+          currency: req.currency,
+          date: req.purchaseDate ?? now.split('T')[0],
+          createdAt: now,
+        });
+      } else {
+        const id = `holding-${Date.now()}-${i}`;
+        const newHolding: Holding = {
+          id,
+          symbol: sym,
+          companyName: req.companyName || sym,
+          exchange: req.exchange || (req.market === 'IN' ? 'NSE' : 'NASDAQ'),
+          market: req.market,
+          currency: req.currency,
+          shares: req.shares,
+          avgPurchasePrice: req.purchasePrice,
+          totalInvested: req.shares * req.purchasePrice,
+          currentPrice: null,
+          currentValue: null,
+          profitLoss: null,
+          profitLossPct: null,
+          addedAt: now,
+          updatedAt: now,
+        };
+        currentList.unshift(newHolding);
+        resultHoldings.push(newHolding);
+
+        newTransactions.push({
+          id: txId,
+          holdingId: id,
+          type: 'BUY',
+          shares: req.shares,
+          price: req.purchasePrice,
+          currency: req.currency,
+          date: req.purchaseDate ?? now.split('T')[0],
+          createdAt: now,
+        });
+      }
+    }
+
+    this._holdings.set(currentList);
+    this.saveHoldings();
+
+    this._transactions.update((ts) => [...newTransactions, ...ts]);
+    this.saveTransactions();
+
+    // Persist bulk payload to backend MongoDB database
+    fetch('/api/portfolio/holdings/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings: reqs }),
+    }).catch((err) => {
+    });
+
+    return resultHoldings;
+  }
+
+  /**
    * Record a sell transaction. Reduces holding quantity or closes position,
    * calculates realized profit/loss, and adds a SELL transaction record.
    */

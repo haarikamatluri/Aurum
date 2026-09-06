@@ -1,4 +1,10 @@
 {
+  "/api/market/stream": {
+    "target": "http://localhost:4000",
+    "secure": false,
+    "changeOrigin": true,
+    "timeout": 0
+  },
   "/api": {
     "target": "http://localhost:4000",
     "secure": false,

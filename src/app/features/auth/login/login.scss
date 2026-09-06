@@ -219,3 +219,58 @@ h1 {
     }
   }
 }
+
+.two-factor-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  .two-factor-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+
+    .security-shield-icon {
+      font-size: 2.25rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    p {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.4;
+    }
+  }
+
+  .totp-input {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-align: center;
+    font-family: monospace;
+    padding: 0.75rem;
+  }
+
+  .btn-link-back {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-align: center;
+    padding: 0.4rem;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+}
