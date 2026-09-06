@@ -1179,13 +1179,15 @@ const WEBULL_MOCK_HOLDINGS = [
 app.post('/api/broker/zerodha/connect', requireAuth, async (req, res) => {
   try {
     const { apiKey, apiSecret, requestToken, isSandbox } = req.body;
+    const finalApiKey = (apiKey || process.env.KITE_API_KEY || '').trim();
+    const finalApiSecret = (apiSecret || process.env.KITE_API_SECRET || '').trim();
     let accessToken = null;
     let kiteUserId = null;
 
     // Real Kite Connect API Authentication
-    if (isSandbox === false && apiKey && apiSecret && requestToken) {
+    if (isSandbox === false && finalApiKey && finalApiSecret && requestToken) {
       try {
-        const checksum = crypto.createHash('sha256').update(apiKey + requestToken + apiSecret).digest('hex');
+        const checksum = crypto.createHash('sha256').update(finalApiKey + requestToken + finalApiSecret).digest('hex');
         const tokenRes = await fetch('https://api.kite.trade/session/token', {
           method: 'POST',
           headers: {
@@ -1193,7 +1195,7 @@ app.post('/api/broker/zerodha/connect', requireAuth, async (req, res) => {
             'Content-Type': 'application/x-www-form-urlencoded'
           },
           body: new URLSearchParams({
-            api_key: apiKey,
+            api_key: finalApiKey,
             request_token: requestToken,
             checksum: checksum
           })
@@ -1214,10 +1216,10 @@ app.post('/api/broker/zerodha/connect', requireAuth, async (req, res) => {
       connected: true,
       broker: 'zerodha',
       isSandbox: isSandbox !== false && !accessToken,
-      apiKey: apiKey || null,
+      apiKey: finalApiKey || null,
       accessToken: accessToken || null,
       kiteUserId: kiteUserId || null,
-      maskedKey: apiKey ? `${apiKey.slice(0, 4)}••••` : 'DEMO_KITE',
+      maskedKey: finalApiKey ? `${finalApiKey.slice(0, 4)}••••` : 'DEMO_KITE',
       connectedAt: new Date().toISOString(),
     };
 
@@ -1233,14 +1235,15 @@ app.get('/api/broker/zerodha/holdings', requireAuth, async (req, res) => {
   try {
     const user = await findUserById(req.userId);
     const conn = user?.zerodhaConnection;
+    const finalApiKey = conn?.apiKey || process.env.KITE_API_KEY || null;
 
     // If connected with real Kite API access_token, fetch live holdings from Zerodha
-    if (conn && conn.accessToken && conn.apiKey) {
+    if (conn && conn.accessToken && finalApiKey) {
       try {
         const kiteRes = await fetch('https://api.kite.trade/portfolio/holdings', {
           headers: {
             'X-Kite-Version': '3',
-            'Authorization': `token ${conn.apiKey}:${conn.accessToken}`
+            'Authorization': `token ${finalApiKey}:${conn.accessToken}`
           }
         });
         const kiteJson = await kiteRes.json();
@@ -1294,12 +1297,14 @@ app.post('/api/broker/zerodha/disconnect', requireAuth, async (req, res) => {
 app.post('/api/broker/webull/connect', requireAuth, async (req, res) => {
   try {
     const { appKey, appSecret, accountId, isSandbox } = req.body;
+    const finalAppKey = (appKey || process.env.WEBULL_APP_KEY || '').trim();
+    const finalAccountId = (accountId || process.env.WEBULL_ACCOUNT_ID || 'DEMO_ACC_4491').trim();
     const connection = {
       connected: true,
       broker: 'webull',
       isSandbox: isSandbox !== false,
-      maskedKey: appKey ? `${appKey.slice(0, 4)}••••` : 'DEMO_WEBULL',
-      accountId: accountId || 'DEMO_ACC_4491',
+      maskedKey: finalAppKey ? `${finalAppKey.slice(0, 4)}••••` : 'DEMO_WEBULL',
+      accountId: finalAccountId,
       connectedAt: new Date().toISOString(),
     };
     await updateUserRecord(req.userId, { webullConnection: connection });
