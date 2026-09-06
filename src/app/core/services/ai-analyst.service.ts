@@ -391,7 +391,7 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
           throw new Error('Gemini API returned an empty text response.');
         }
 
-        const parsed = this.parseJsonResponse(candidateText);
+        const parsed = this.parseJsonResponse(candidateText) || {};
 
         const verdict: AiVerdict = ['BUY', 'HOLD', 'DO_NOT_BUY'].includes(parsed.verdict)
           ? parsed.verdict
@@ -453,37 +453,51 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
 
     let lastError: Error | null = null;
     for (const url of endpoints) {
-      try {
-        const body = {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            topP: 0.8,
-            maxOutputTokens: 2000,
-            responseMimeType: 'application/json',
-          },
-        };
+      // 1. Try with responseMimeType: 'application/json' if supported, fallback to plain JSON instruction
+      const configsToTry = [
+        { temperature: 0.2, topP: 0.8, maxOutputTokens: 2000, responseMimeType: 'application/json' },
+        { temperature: 0.2, topP: 0.8, maxOutputTokens: 2000 },
+      ];
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+      for (const generationConfig of configsToTry) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        if (!response.ok) {
-          const errBody = await response.json().catch(() => ({}));
-          const msg = errBody?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-          throw new Error(msg);
+          const body = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig,
+          };
+
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errBody = await response.json().catch(() => ({}));
+            const msg = errBody?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+            // If it failed because responseMimeType was rejected (400), loop to plain config
+            if (response.status === 400 && generationConfig.responseMimeType) {
+              continue;
+            }
+            throw new Error(msg);
+          }
+
+          const data = await response.json();
+          const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!candidateText) {
+            throw new Error('Gemini API returned an empty text response.');
+          }
+          return candidateText;
+        } catch (err: any) {
+          lastError = err;
+          // If aborted due to timeout, don't keep hammering the same URL
+          if (err.name === 'AbortError') break;
         }
-
-        const data = await response.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!candidateText) {
-          throw new Error('Gemini API returned an empty text response.');
-        }
-        return candidateText;
-      } catch (err: any) {
-        lastError = err;
       }
     }
 
@@ -572,21 +586,7 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
       }
     }
 
-    // 4. Fallback if response is plain text
-    return {
-      verdict: 'HOLD',
-      verdictReasoning: 'Review market news and financial reports before trading.',
-      marketPrediction: 'Price volatility expected in near term.',
-      sentiment: 'NEUTRAL',
-      confidence: 72,
-      whySummary: this.cleanText(rawText).slice(0, 300),
-      newsCatalysts: [],
-      positiveFactors: ['Analysis generated via AI engine.'],
-      negativeFactors: ['Verify company fundamentals before taking position.'],
-      potentialDirection: 'NEUTRAL',
-      keyRisks: 'Standard equity market volatility.',
-      summary: this.cleanText(rawText),
-    };
+    return null;
   }
 
   private cleanText(text: string): string {
@@ -745,67 +745,25 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
   }
 
   /**
-   * Morning Bell Executive Briefing:
-   * Analyzes pre-market global cues (S&P futures, GIFT Nifty, Crude, Yields)
-   * and maps overnight catalysts directly to the user's active holdings.
+   * Generates a grounded, high-intelligence fallback briefing synchronously or when AI calls are in-flight/failed.
    */
-  async generateMorningBriefing(holdings: { symbol: string; companyName: string; currentValue: number | null }[]): Promise<MorningBriefing> {
+  getFallbackMorningBriefing(holdings?: { symbol: string; companyName: string; currentValue: number | null }[]): MorningBriefing {
     const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
-    const ownedSymbols = holdings.map((h) => h.symbol).join(', ') || 'NIFTY50 & US Bluechips';
+    const topHoldings = (holdings && holdings.length > 0) ? holdings.slice(0, 5) : [];
 
-    // If Gemini key is present, we can request real-time synthesis
-    if (this.hasApiKey()) {
-      try {
-        const prompt = `You are a Chief Investment Officer preparing the morning executive bell briefing for an investor holding: ${ownedSymbols}.
-Today's Date: ${todayStr}.
-Provide an institutional pre-market briefing in strictly valid JSON:
-{
-  "date": "${todayStr}",
-  "globalCues": {
-    "sp500Futures": "+0.35% (Constructive)",
-    "giftNifty": "+48 pts (Positive open)",
-    "crudeOil": "$82.40/bbl (-0.6%)",
-    "us10yYield": "4.28% (Stable)",
-    "marketSentiment": "BULLISH"
-  },
-  "keyTheme": "One-line executive macro summary of the day",
-  "holdingsImpact": [
-    {
-      "symbol": "SYMBOL",
-      "catalyst": "Overnight catalyst or news",
-      "expectedMovement": "UP",
-      "reason": "Why this catalyst affects this specific holding"
-    }
-  ],
-  "actionPlan": [
-    "3 concise actionable points for today"
-  ],
-  "disclaimer": "Institutional briefing generated for informational purposes."
-}`;
-        const raw = await this.callGeminiRaw(prompt);
-        const parsed = this.parseJsonResponse(raw);
-        if (parsed && parsed.globalCues) {
-          return { ...parsed, date: todayStr };
-        }
-      } catch (err) {
-        console.warn('[AiAnalyst] Gemini Morning Briefing fallback:', err);
-      }
-    }
-
-    // High-intelligence grounded fallback
-    const topHoldings = holdings.slice(0, 5);
     const impacts = topHoldings.map((h, idx) => {
-      const isTech = ['NVDA', 'AAPL', 'MSFT', 'TCS', 'INFY', 'WIPRO', 'TECHM'].includes(h.symbol);
-      const isFin = ['HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'BAJFINANCE'].includes(h.symbol);
+      const sym = (h.symbol || '').toUpperCase();
+      const isTech = ['NVDA', 'AAPL', 'MSFT', 'TCS', 'INFY', 'WIPRO', 'TECHM'].includes(sym);
+      const isFin = ['HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'BAJFINANCE'].includes(sym);
       return {
-        symbol: h.symbol,
+        symbol: h.symbol || `ASSET_${idx + 1}`,
         catalyst: isTech
           ? 'Global tech semiconductor earnings and cloud demand strength overnight.'
           : isFin
           ? 'Credit growth trajectory and liquidity management in domestic interbank markets.'
           : 'Commodity price stabilization and supply chain volume throughput.',
         expectedMovement: (idx % 2 === 0 ? 'UP' : 'SIDEWAYS') as 'UP' | 'DOWN' | 'SIDEWAYS',
-        reason: `${h.companyName} exhibits resilient pricing power and favorable risk-reward positioning heading into today's market session.`,
+        reason: `${h.companyName || h.symbol} exhibits resilient pricing power and favorable risk-reward positioning heading into today's market session.`,
       };
     });
 
@@ -834,6 +792,123 @@ Provide an institutional pre-market briefing in strictly valid JSON:
       ],
       disclaimer: 'Institutional pre-market intelligence is algorithmic and for strategic planning purposes.',
     };
+  }
+
+  /**
+   * Normalizes AI response into a bulletproof MorningBriefing, handling camelCase, snake_case, or missing properties.
+   */
+  private normalizeMorningBriefing(parsed: any, fallback: MorningBriefing): MorningBriefing {
+    if (!parsed || typeof parsed !== 'object') {
+      return fallback;
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+    const gc = parsed.globalCues || parsed.global_cues || {};
+
+    const normalizedGlobalCues = {
+      sp500Futures: String(gc.sp500Futures || gc.sp500_futures || gc.sp500 || fallback.globalCues.sp500Futures),
+      giftNifty: String(gc.giftNifty || gc.gift_nifty || fallback.globalCues.giftNifty),
+      crudeOil: String(gc.crudeOil || gc.crude_oil || fallback.globalCues.crudeOil),
+      us10yYield: String(gc.us10yYield || gc.us10y_yield || gc.us_10y_yield || fallback.globalCues.us10yYield),
+      marketSentiment: (['BULLISH', 'BEARISH', 'NEUTRAL'].includes(String(gc.marketSentiment || gc.market_sentiment).toUpperCase())
+        ? String(gc.marketSentiment || gc.market_sentiment).toUpperCase()
+        : fallback.globalCues.marketSentiment) as 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+    };
+
+    const keyTheme = String(parsed.keyTheme || parsed.key_theme || parsed.theme || parsed.macroTheme || fallback.keyTheme);
+
+    const rawImpacts = Array.isArray(parsed.holdingsImpact)
+      ? parsed.holdingsImpact
+      : Array.isArray(parsed.holdings_impact)
+      ? parsed.holdings_impact
+      : [];
+
+    const normalizedImpacts = rawImpacts.length > 0
+      ? rawImpacts.map((item: any, idx: number) => {
+          const rawDir = String(item?.expectedMovement || item?.expected_movement || '').toUpperCase();
+          const expectedMovement: 'UP' | 'DOWN' | 'SIDEWAYS' =
+            rawDir === 'UP' || rawDir === 'BULLISH' ? 'UP' : rawDir === 'DOWN' || rawDir === 'BEARISH' ? 'DOWN' : 'SIDEWAYS';
+          return {
+            symbol: String(item?.symbol || `ASSET_${idx + 1}`),
+            catalyst: String(item?.catalyst || item?.news || 'Catalyst development observed.'),
+            expectedMovement,
+            reason: String(item?.reason || item?.rationale || 'Price momentum and fundamental alignment.'),
+          };
+        })
+      : fallback.holdingsImpact;
+
+    const rawActions = Array.isArray(parsed.actionPlan)
+      ? parsed.actionPlan
+      : Array.isArray(parsed.action_plan)
+      ? parsed.action_plan
+      : [];
+
+    const normalizedActionPlan = rawActions.length > 0
+      ? rawActions.map((a: any) => String(a))
+      : fallback.actionPlan;
+
+    return {
+      date: parsed.date || todayStr,
+      globalCues: normalizedGlobalCues,
+      keyTheme,
+      holdingsImpact: normalizedImpacts,
+      actionPlan: normalizedActionPlan,
+      disclaimer: parsed.disclaimer || fallback.disclaimer,
+    };
+  }
+
+  /**
+   * Morning Bell Executive Briefing:
+   * Analyzes pre-market global cues (S&P futures, GIFT Nifty, Crude, Yields)
+   * and maps overnight catalysts directly to the user's active holdings.
+   */
+  async generateMorningBriefing(holdings: { symbol: string; companyName: string; currentValue: number | null }[]): Promise<MorningBriefing> {
+    const fallback = this.getFallbackMorningBriefing(holdings);
+
+    // If Gemini key is present, request real-time synthesis
+    if (this.hasApiKey()) {
+      try {
+        const ownedSymbols = holdings.map((h) => h.symbol).join(', ') || 'NIFTY50 & US Bluechips';
+        const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+        const prompt = `You are a Chief Investment Officer preparing the morning executive bell briefing for an investor holding: ${ownedSymbols}.
+Today's Date: ${todayStr}.
+Provide an institutional pre-market briefing in strictly valid JSON:
+{
+  "date": "${todayStr}",
+  "globalCues": {
+    "sp500Futures": "+0.35% (Constructive)",
+    "giftNifty": "+48 pts (Positive open)",
+    "crudeOil": "$82.40/bbl (-0.6%)",
+    "us10yYield": "4.28% (Stable)",
+    "marketSentiment": "BULLISH"
+  },
+  "keyTheme": "One-line executive macro summary of the day",
+  "holdingsImpact": [
+    {
+      "symbol": "SYMBOL",
+      "catalyst": "Overnight catalyst or news",
+      "expectedMovement": "UP",
+      "reason": "Why this catalyst affects this specific holding"
+    }
+  ],
+  "actionPlan": [
+    "Action item 1",
+    "Action item 2",
+    "Action item 3"
+  ],
+  "disclaimer": "Institutional briefing generated for informational purposes."
+}`;
+        const raw = await this.callGeminiRaw(prompt);
+        const parsed = this.parseJsonResponse(raw);
+        if (parsed) {
+          return this.normalizeMorningBriefing(parsed, fallback);
+        }
+      } catch (err: any) {
+        console.warn('[AiAnalyst] Gemini Morning Briefing synthesis notice (using grounded fallback):', err.message || err);
+      }
+    }
+
+    return fallback;
   }
 
   /**

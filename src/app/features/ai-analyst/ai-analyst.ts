@@ -502,7 +502,7 @@ const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
                 <div class="catalysts-section">
                   <h3>Overnight Catalysts On Your Holdings</h3>
                   <div class="holdings-catalysts-grid">
-                    @for (item of morningBriefing()?.holdingsImpact; track item.symbol) {
+                    @for (item of (morningBriefing()?.holdingsImpact || []); track (item.symbol + '_' + $index)) {
                       <div class="holding-cat-card" [class.up-card]="item.expectedMovement === 'UP'" [class.down-card]="item.expectedMovement === 'DOWN'">
                         <div class="cat-top-row">
                           <span class="cat-sym">{{ item.symbol }}</span>
@@ -521,7 +521,7 @@ const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
                 <div class="action-plan-box">
                   <h3>Daily Tactical Action Directives</h3>
                   <ul>
-                    @for (act of morningBriefing()?.actionPlan; track act) {
+                    @for (act of (morningBriefing()?.actionPlan || []); track (act + '_' + $index)) {
                       <li>{{ act }}</li>
                     }
                   </ul>
@@ -772,7 +772,7 @@ export class AiAnalystPage implements OnInit {
   protected readonly activeTab = signal<'NEWS_VERDICT' | 'MORNING_BELL' | 'EARNINGS_FILINGS' | 'STRESS_TEST'>('NEWS_VERDICT');
 
   // Morning Bell Briefing state
-  protected readonly morningBriefing = signal<MorningBriefing | null>(null);
+  protected readonly morningBriefing = signal<MorningBriefing | null>(this.aiService.getFallbackMorningBriefing());
   protected readonly briefingLoading = signal<boolean>(false);
 
   // Corporate Earnings & Filings state

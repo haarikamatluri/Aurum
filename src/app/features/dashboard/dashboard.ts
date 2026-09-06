@@ -145,6 +145,11 @@ interface MarketIndex {
                 <span class="bell-icon">🔔</span>
                 <span>MORNING BELL BRIEFING</span>
               </span>
+              @if (briefingGenerating()) {
+                <span class="ai-pill pulse">⚡ Synthesizing Live AI...</span>
+              } @else if (isBriefingLive()) {
+                <span class="ai-pill live">✨ Gemini AI Live</span>
+              }
               <span class="briefing-date">{{ morningBriefing()?.date }}</span>
             </div>
 
@@ -211,7 +216,7 @@ interface MarketIndex {
           @if (briefingExpanded()) {
             <div class="briefing-expanded-content">
               <div class="holdings-impact-grid">
-                @for (imp of morningBriefing()?.holdingsImpact; track imp.symbol) {
+                @for (imp of (morningBriefing()?.holdingsImpact || []); track (imp.symbol + '_' + $index)) {
                   <div class="holding-impact-card" [class.impact-up]="imp.expectedMovement === 'UP'" [class.impact-down]="imp.expectedMovement === 'DOWN'">
                     <div class="impact-top">
                       <span class="imp-sym">{{ imp.symbol }}</span>
@@ -233,7 +238,7 @@ interface MarketIndex {
                   <span>Strategic Takeaways For Today</span>
                 </div>
                 <ul>
-                  @for (action of morningBriefing()?.actionPlan; track action) {
+                  @for (action of (morningBriefing()?.actionPlan || []); track (action + '_' + $index)) {
                     <li>{{ action }}</li>
                   }
                 </ul>
@@ -995,7 +1000,9 @@ export class Dashboard implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly elementRef = inject(ElementRef);
 
-  protected readonly morningBriefing = signal<MorningBriefing | null>(null);
+  protected readonly morningBriefing = signal<MorningBriefing | null>(this.aiAnalystService.getFallbackMorningBriefing());
+  protected readonly briefingGenerating = signal<boolean>(false);
+  protected readonly isBriefingLive = signal<boolean>(false);
   protected readonly briefingExpanded = signal<boolean>(false);
   protected readonly showBrokerSyncModal = signal<boolean>(false);
   private sseSource: EventSource | null = null;
@@ -1356,10 +1363,23 @@ export class Dashboard implements OnInit, OnDestroy {
   private async loadMorningBriefing(): Promise<void> {
     try {
       const holdings = this.portfolio.holdings();
+      if (!this.morningBriefing()) {
+        this.morningBriefing.set(this.aiAnalystService.getFallbackMorningBriefing(holdings));
+      }
+      if (this.aiAnalystService.hasApiKey()) {
+        this.briefingGenerating.set(true);
+      }
       const briefing = await this.aiAnalystService.generateMorningBriefing(holdings);
-      this.morningBriefing.set(briefing);
+      if (briefing) {
+        this.morningBriefing.set(briefing);
+        if (this.aiAnalystService.hasApiKey()) {
+          this.isBriefingLive.set(true);
+        }
+      }
     } catch (err) {
       console.warn('[Dashboard] Could not load morning briefing:', err);
+    } finally {
+      this.briefingGenerating.set(false);
     }
   }
 
