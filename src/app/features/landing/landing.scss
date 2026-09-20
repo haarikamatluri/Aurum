@@ -1,0 +1,523 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800&display=swap');
+
+.landing-page {
+  min-height: 100vh;
+  background: #FFFFFF;
+  color: #0F172A;
+  font-family: 'Plus Jakarta Sans', var(--font-sans), sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  position: relative;
+}
+
+// ----------------------------------------------------
+// Top Navigation Bar
+// ----------------------------------------------------
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  height: 72px;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-container {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #00B37E;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0F172A;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-link {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #475569;
+  text-decoration: none;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: #0F172A;
+  }
+}
+
+.nav-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #475569;
+
+  &:hover {
+    color: #0F172A;
+  }
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-login {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #0F172A;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+  }
+}
+
+.btn-get-started {
+  padding: 9px 20px;
+  border-radius: 8px;
+  background: #00B37E;
+  border: none;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 179, 126, 0.2);
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #009E6E;
+    box-shadow: 0 4px 12px rgba(0, 179, 126, 0.3);
+  }
+}
+
+// ----------------------------------------------------
+// Hero Section
+// ----------------------------------------------------
+.hero-section {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px 60px;
+  overflow: hidden;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+// Background Trend Line & Floating Stock Badges
+.hero-chart-bg {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  height: 420px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.chart-svg-line {
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+}
+
+// Floating Stock Cards
+.floating-stock-card {
+  position: absolute;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 124px;
+  pointer-events: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.stock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stock-symbol {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.01em;
+}
+
+.stock-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-exchange {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94A3B8;
+}
+
+.stock-pnl {
+  font-size: 12px;
+  font-weight: 700;
+
+  &.positive {
+    color: #00B37E;
+  }
+  &.negative {
+    color: #DC2626;
+  }
+}
+
+// Specific Positions matching Figma design
+.card-reliance {
+  top: 140px;
+  left: 60px;
+}
+
+.card-aapl {
+  top: 250px;
+  left: 240px;
+}
+
+.card-tcs {
+  top: 80px;
+  right: 120px;
+}
+
+.card-msft {
+  top: 240px;
+  right: 140px;
+}
+
+// Center Hero Typography & CTA
+.hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+  margin-top: 10px;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #059669;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #059669;
+}
+
+.hero-headline {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 58px;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #0F172A;
+  margin: 0 0 18px 0;
+
+  .accent-text {
+    color: #00B37E;
+    font-weight: 800;
+  }
+}
+
+.hero-description {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #64748B;
+  margin: 0 0 28px 0;
+}
+
+.cta-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.btn-hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 34px;
+  border-radius: 8px;
+  background: #00B37E;
+  border: none;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 179, 126, 0.3);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #009E6E;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 179, 126, 0.4);
+  }
+}
+
+.sign-in-prompt {
+  font-size: 13.5px;
+  color: #64748B;
+  margin: 0;
+}
+
+.sign-in-link {
+  color: #00B37E;
+  font-weight: 700;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ----------------------------------------------------
+// 3 Horizontal Feature Cards
+// ----------------------------------------------------
+.features-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1060px;
+  width: 100%;
+  margin-top: 64px;
+}
+
+.feature-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 24px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #CBD5E1;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+  }
+}
+
+.feature-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+
+  &.icon-green {
+    background: #ECFDF5;
+    color: #00B37E;
+  }
+  &.icon-blue {
+    background: #EFF6FF;
+    color: #3B82F6;
+  }
+  &.icon-purple {
+    background: #FAF5FF;
+    color: #A855F7;
+  }
+}
+
+.feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feature-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.feature-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748B;
+  margin: 0;
+}
+
+// ----------------------------------------------------
+// Global Markets / Exchanges Trust Bar
+// ----------------------------------------------------
+.trust-bar-section {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1060px;
+  margin-top: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.trust-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94A3B8;
+  font-size: 12.5px;
+  font-weight: 500;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #E2E8F0;
+  }
+
+  &::before {
+    margin-right: 20px;
+  }
+
+  &::after {
+    margin-left: 20px;
+  }
+}
+
+.trust-label {
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.logos-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+}
+
+.market-logo-item {
+  display: flex;
+  align-items: center;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+.market-logo-svg {
+  height: 26px;
+  width: auto;
+}
+
+// Responsive Design
+@media (max-width: 1024px) {
+  .hero-headline {
+    font-size: 44px;
+  }
+  .card-reliance { left: 20px; top: 110px; }
+  .card-tcs { right: 20px; top: 70px; }
+  .card-aapl { left: 100px; top: 220px; }
+  .card-msft { right: 80px; top: 210px; }
+}
+
+@media (max-width: 768px) {
+  .nav-links {
+    display: none;
+  }
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .hero-chart-bg {
+    display: none;
+  }
+  .hero-headline {
+    font-size: 36px;
+  }
+  .logos-row {
+    gap: 28px;
+  }
+}

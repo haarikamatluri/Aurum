@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.angular
+.vscode
+.system_generated
+*.log
+.env
+.env.*.local
+.env.local

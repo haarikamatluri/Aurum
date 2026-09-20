@@ -1,0 +1,36 @@
+<div class="ai-page">
+  <aside class="history" [class.open]="historyOpen()">
+    <div class="history-head">
+      <span class="history-title">Conversations</span>
+      <button type="button" class="btn btn-sm btn-outline" (click)="startNew()">
+        <app-icon name="plus" [size]="12" /> New
+      </button>
+    </div>
+    <div class="history-list">
+      @for (group of groups(); track group.label) {
+        <div class="history-group">
+          <span class="group-label">{{ group.label }}</span>
+          @for (c of group.items; track c.id) {
+            <button type="button" class="history-item" [class.active]="activeId() === c.id" (click)="selectConversation(c.id)">
+              {{ c.title }}
+            </button>
+          }
+        </div>
+      }
+      @if (!conversations().length) {
+        <p class="history-empty">No conversations yet — ask something to get started.</p>
+      }
+    </div>
+  </aside>
+
+  @if (historyOpen()) {
+    <div class="history-scrim" (click)="historyOpen.set(false)"></div>
+  }
+
+  <div class="chat-area card">
+    <button type="button" class="history-toggle" (click)="historyOpen.set(true)" aria-label="Show conversation history">
+      <app-icon name="list" [size]="14" /> History
+    </button>
+    <app-ai-chat [conversationId]="activeId()" (conversationIdChange)="onConversationIdChange($event)" />
+  </div>
+</div>
