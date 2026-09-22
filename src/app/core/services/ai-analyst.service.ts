@@ -31,22 +31,111 @@ export interface AiAnalysisRequest {
   } | null;
 }
 
+export interface AiEvidence {
+  claim: string;
+  evidence: string;
+  sourceTitle: string;
+  sourceUrl: string;
+  date: string;
+}
+
+export interface StockChartPoint {
+  timestamp: string;
+  price: number;
+}
+
+export interface StockChartData {
+  symbol: string;
+  ticker: string;
+  currency: string;
+  currentPrice: number | null;
+  previousClose: number | null;
+  change: number | null;
+  changePercent: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  volume: number;
+  marketStatus: string;
+  marketTime: string;
+  points: StockChartPoint[];
+  error?: string;
+}
+
+export interface AiRisk {
+  item: string;
+  whyItMatters: string;
+}
+
+export interface AiScenario {
+  trigger: string;
+  outcome: string;
+}
+
 export interface AiAnalysis {
   symbol: string;
   question: string;
-  verdict: AiVerdict;
-  verdictReasoning: string;
-  marketPrediction: string;
-  sentiment: AiSentiment;
-  confidence: number; // 0-100
-  whySummary: string;
-  newsCatalysts: AiNewsCatalyst[];
-  positiveFactors: string[];
-  negativeFactors: string[];
-  potentialDirection: AiDirection;
-  keyRisks: string;
-  summary: string;
+  
+  // Legacy fields (kept optional for backward compatibility)
+  verdict?: AiVerdict;
+  verdictReasoning?: string;
+  marketPrediction?: string;
+  sentiment?: AiSentiment;
+  confidence?: number;
+  whySummary?: string;
+  newsCatalysts?: AiNewsCatalyst[];
+  positiveFactors?: string[];
+  negativeFactors?: string[];
+  potentialDirection?: AiDirection;
+  keyRisks?: string;
+  summary?: string;
+
+  // New fields
+  companyName?: string;
+  assessment?: {
+    type: 'POSITIVE' | 'MIXED' | 'NEGATIVE' | 'INSUFFICIENT';
+    evidenceStrength: 'STRONG' | 'MODERATE' | 'LIMITED';
+    summary: string;
+  };
+  quickTake?: {
+    whatHappened: string;
+    why: string;
+    portfolioImpact: string;
+    bottomLine: string;
+  };
+  marketData?: {
+    price: number | null;
+    change: number | null;
+    volume: number;
+    timestamp: string;
+    dataStatus: string;
+  };
+  supportingEvidence?: AiEvidence[];
+  contradictingEvidence?: AiEvidence[];
+  uncertainFactors?: AiEvidence[];
+  risks?: AiRisk[];
+  whatToWatch?: string[];
+  portfolioImpact?: {
+    shares: number;
+    averageCost: number;
+    currentValue: number;
+    profitLoss: number;
+    totalReturnPercent: number;
+    latestMovementPercent: number;
+    portfolioExposurePercent: number;
+  } | null;
+  scenarios?: {
+    positive: AiScenario[];
+    neutral: AiScenario[];
+    negative: AiScenario[];
+  };
   sources: AiSource[];
+  dataFreshness?: {
+    marketData: string;
+    news: string;
+    fundamentals: string;
+    filings: string;
+  };
+  
   disclaimer: string;
   createdAt: string;
   isRealtime?: boolean;
@@ -254,13 +343,28 @@ export class AiAnalystService {
   }
 
   /**
+   * Fetch live historical chart points and quote metadata from backend market service.
+   */
+  async fetchStockChart(symbol: string, market: string = 'IN', range: string = '5D'): Promise<StockChartData | null> {
+    try {
+      const q = `/api/market/chart?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}&range=${encodeURIComponent(range)}`;
+      const res = await fetch(q);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Could not fetch market chart:', err);
+    }
+    return null;
+  }
+
+  /**
    * Analyze ANY stock (portfolio holding or researched stock) using real-time Google Gemini API
-   * or intelligent predictive news-grounded fallback.
+   * or server-side AI analyst.
    */
   async analyzeStock(request: AiAnalysisRequest): Promise<AiAnalysis> {
     const key = this.apiKey();
 
-    // 1. Fetch live market news for the stock
     let news: StockNewsItem[] = [];
     try {
       news = await this.fetchStockNews(request.symbol, request.companyName, request.market);
@@ -268,20 +372,41 @@ export class AiAnalystService {
       // ignore
     }
 
-    // 2. Run live Gemini generative model if key configured
+    // 1. Try backend server-side Gemini AI endpoint first
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (key) headers['x-gemini-key'] = key;
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          symbol: request.symbol,
+          companyName: request.companyName,
+          market: request.market,
+          question: request.question,
+          portfolioContext: request.portfolioContext,
+          news,
+        }),
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Backend AI endpoint call failed:', err);
+    }
+
+    // 2. Try client-side Gemini API if user configured local key
     if (key) {
       try {
         return await this.callGeminiApi(key, request, news);
       } catch (err: any) {
-        console.warn('Gemini API call failed, falling back to predictive news analysis:', err);
-        const fallback = this.buildStubResponse(request, news);
-        fallback.whySummary = `(Live Gemini connection notice: ${err.message || 'Switched to market news engine'}). ${fallback.whySummary}`;
-        return fallback;
+        console.warn('Client Gemini API call failed:', err);
       }
     }
 
-    // 3. Fallback: Predictive market news analyzer (with live news grounding)
-    await this.delay(1000);
+    // 3. Fallback to news-grounded analysis
+    await this.delay(600);
     return this.buildStubResponse(request, news);
   }
 
@@ -307,48 +432,43 @@ Context:
 - Symbol: ${req.symbol}
 - Company: ${req.companyName}
 - Market: ${req.market || 'US'}
-- Investment Status: ${positionContextText}
 
 REAL-TIME MARKET NEWS HEADLINES FOR ${req.symbol}:
 ${newsListText}
 
 CRITICAL TASK:
-1. Examine the breaking news headlines above. Categorize them into POSITIVE (bullish catalysts) and NEGATIVE (bearish risks).
-2. Formulate a PREDICTIVE MARKET ASSESSMENT: How is this news predicted to impact price momentum and market sentiment?
-3. Provide an actionable recommendation VERDICT to guide the user:
-   - "BUY" (Positive catalysts clearly dominate, favorable risk/reward, strong momentum)
-   - "HOLD" (Mixed signals or valuation consolidation; wait for clearer entry)
-   - "DO_NOT_BUY" (Avoid or sell; negative news, margin pressure, regulatory or macro headwinds)
-4. Provide a punchy "verdictReasoning" (1-2 sentences) directly advising the user why to buy, hold, or avoid based on news and momentum.
-5. Provide a "marketPrediction" (1-2 sentences) forecasting near-term price movement driven by these catalysts.
-6. Provide "newsCatalysts" mapping each key news headline with impact ("POSITIVE", "NEGATIVE", or "NEUTRAL") and predicted reaction.
+1. Provide a clear, evidence-based assessment of the situation answering the user's question.
+2. DO NOT output a simple "BUY", "SELL", or "HOLD" verdict. DO NOT provide percentage confidences or price target predictions.
+3. Distinguish strictly between FACT (what happened) and AI INTERPRETATION (why it matters).
+4. Extract structured evidence from the provided news into "supportingEvidence" (bullish), "contradictingEvidence" (bearish), and "uncertainFactors" (mixed/unclear).
+5. Identify 3-5 concrete risks to watch.
+6. Propose conditional scenarios (positive, neutral, negative) based on the evidence.
 
-Return your entire analysis in valid JSON format only (NO markdown code blocks, NO text outside JSON):
+Return your entire analysis in valid JSON format only matching this schema strictly (NO markdown code blocks outside JSON):
 {
-  "verdict": "BUY" | "HOLD" | "DO_NOT_BUY",
-  "verdictReasoning": "<1-2 sentence direct advice on whether user should buy, hold, or avoid>",
-  "marketPrediction": "<1-2 sentence forecast predicting market reaction to the latest news>",
-  "sentiment": "POSITIVE" | "NEGATIVE" | "NEUTRAL",
-  "confidence": <integer between 55 and 95>,
-  "whySummary": "<2-3 sentence answer to the user's specific question with news context>",
-  "newsCatalysts": [
-    {
-      "headline": "<headline or key news event>",
-      "impact": "POSITIVE" | "NEGATIVE" | "NEUTRAL",
-      "predictedReaction": "<Brief sentence on expected market reaction>"
-    }
+  "assessment": {
+    "type": "POSITIVE" | "MIXED" | "NEGATIVE" | "INSUFFICIENT",
+    "evidenceStrength": "STRONG" | "MODERATE" | "LIMITED",
+    "summary": "<Directly answer the user's question based ONLY on the evidence. Do not give financial advice.>"
+  },
+  "supportingEvidence": [
+    { "claim": "<Fact>", "evidence": "<Details>", "sourceTitle": "<News Title>", "sourceUrl": "<News Link>", "date": "<Date>" }
   ],
-  "positiveFactors": [
-    "<Key bullish catalyst 1>",
-    "<Key bullish catalyst 2>"
+  "contradictingEvidence": [
+    { "claim": "<Fact>", "evidence": "<Details>", "sourceTitle": "<News Title>", "sourceUrl": "<News Link>", "date": "<Date>" }
   ],
-  "negativeFactors": [
-    "<Key risk/headwind 1>",
-    "<Key risk/headwind 2>"
+  "uncertainFactors": [
+    { "claim": "<Fact>", "evidence": "<Details>", "sourceTitle": "<News Title>", "sourceUrl": "<News Link>", "date": "<Date>" }
   ],
-  "potentialDirection": "POSITIVE_BIAS" | "NEGATIVE_BIAS" | "NEUTRAL",
-  "keyRisks": "<Paragraph explaining the main risks investors should watch before buying or holding>",
-  "summary": "<In-depth financial summary connecting current market news and fundamentals to the user's decision>"
+  "risks": [
+    { "item": "<Risk factor>", "whyItMatters": "<Explanation>" }
+  ],
+  "whatToWatch": ["<Item 1>", "<Item 2>"],
+  "scenarios": {
+    "positive": [ { "trigger": "<What could support the stock?>", "outcome": "<Expected result>" } ],
+    "neutral": [ { "trigger": "<What would keep the situation unchanged?>", "outcome": "<Expected result>" } ],
+    "negative": [ { "trigger": "<What could weaken the outlook?>", "outcome": "<Expected result>" } ]
+  }
 }
 `;
 
@@ -367,7 +487,7 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
           generationConfig: {
             temperature: 0.2,
             topP: 0.8,
-            maxOutputTokens: 1400,
+            maxOutputTokens: 2500,
             responseMimeType: 'application/json',
           },
         };
@@ -393,37 +513,56 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
 
         const parsed = this.parseJsonResponse(candidateText) || {};
 
-        const verdict: AiVerdict = ['BUY', 'HOLD', 'DO_NOT_BUY'].includes(parsed.verdict)
-          ? parsed.verdict
-          : (parsed.sentiment === 'POSITIVE' ? 'BUY' : parsed.sentiment === 'NEGATIVE' ? 'DO_NOT_BUY' : 'HOLD');
-
-        const catalysts: AiNewsCatalyst[] = Array.isArray(parsed.newsCatalysts)
-          ? parsed.newsCatalysts.map((c: any) => ({
-              headline: this.cleanText(String(c.headline || '')),
-              impact: (['POSITIVE', 'NEGATIVE', 'NEUTRAL'].includes(c.impact) ? c.impact : 'NEUTRAL') as 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL',
-              predictedReaction: this.cleanText(String(c.predictedReaction || '')),
-            }))
-          : [];
-
-        // If Gemini didn't return catalysts from prompt, build from passed news
-        const finalCatalysts = catalysts.length > 0 ? catalysts : this.mapNewsToCatalysts(news);
+        // Build portfolio context safely on the frontend to avoid hallucination
+        let portfolioImpact = null;
+        if (req.isOwned && req.portfolioContext) {
+          portfolioImpact = {
+            shares: req.portfolioContext.shares,
+            averageCost: req.portfolioContext.avgCost,
+            currentValue: req.portfolioContext.shares * (req.portfolioContext.currentPrice || req.portfolioContext.avgCost),
+            profitLoss: req.portfolioContext.shares * ((req.portfolioContext.currentPrice || req.portfolioContext.avgCost) - req.portfolioContext.avgCost),
+            totalReturnPercent: req.portfolioContext.profitLossPct || 0,
+            latestMovementPercent: 0, // This would normally come from today's change if available
+            portfolioExposurePercent: 0 // Placeholder
+          };
+        }
 
         return {
           symbol: req.symbol,
+          companyName: req.companyName,
           question: req.question,
-          verdict,
-          verdictReasoning: this.cleanText(parsed.verdictReasoning) || (verdict === 'BUY' ? `Positive market momentum and news support buying ${req.symbol}.` : verdict === 'DO_NOT_BUY' ? `Elevated risks suggest avoiding ${req.symbol} for now.` : `Hold and wait for clearer catalyst signals for ${req.symbol}.`),
-          marketPrediction: this.cleanText(parsed.marketPrediction) || `Market sentiment leans ${parsed.sentiment || 'neutral'} as news catalysts unfold.`,
-          sentiment: (['POSITIVE', 'NEGATIVE', 'NEUTRAL'].includes(parsed.sentiment) ? parsed.sentiment : 'NEUTRAL') as AiSentiment,
-          confidence: typeof parsed.confidence === 'number' ? Math.min(95, Math.max(50, parsed.confidence)) : 82,
-          whySummary: this.cleanText(parsed.whySummary) || 'Analysis evaluated with real-time market news.',
-          newsCatalysts: finalCatalysts,
-          positiveFactors: Array.isArray(parsed.positiveFactors) ? parsed.positiveFactors.map((f: any) => this.cleanText(String(f))) : [],
-          negativeFactors: Array.isArray(parsed.negativeFactors) ? parsed.negativeFactors.map((f: any) => this.cleanText(String(f))) : [],
-          potentialDirection: (['POSITIVE_BIAS', 'NEGATIVE_BIAS', 'NEUTRAL'].includes(parsed.potentialDirection) ? parsed.potentialDirection : 'NEUTRAL') as AiDirection,
-          keyRisks: this.cleanText(parsed.keyRisks) || 'Standard equity market volatility.',
-          summary: this.cleanText(parsed.summary) || 'Financial summary generated.',
-          sources: news.slice(0, 4).map((n) => ({ title: n.title, publisher: n.publisher, url: n.link })),
+          
+          assessment: parsed.assessment || {
+            type: 'INSUFFICIENT',
+            evidenceStrength: 'LIMITED',
+            summary: 'Analysis could not be generated cleanly.'
+          },
+          
+          marketData: {
+            price: req.portfolioContext?.currentPrice || null,
+            change: null, // to be populated by real market data if available
+            volume: 0,
+            timestamp: new Date().toISOString(),
+            dataStatus: 'LIVE'
+          },
+          
+          supportingEvidence: parsed.supportingEvidence || [],
+          contradictingEvidence: parsed.contradictingEvidence || [],
+          uncertainFactors: parsed.uncertainFactors || [],
+          risks: parsed.risks || [],
+          whatToWatch: parsed.whatToWatch || [],
+          scenarios: parsed.scenarios || { positive: [], neutral: [], negative: [] },
+          portfolioImpact,
+          
+          sources: news.map((n) => ({ title: n.title, publisher: n.publisher, url: n.link })),
+          
+          dataFreshness: {
+            marketData: 'Live (Simulated)',
+            news: `Updated ${new Date().toLocaleTimeString()}`,
+            fundamentals: 'Latest Q',
+            filings: 'Latest'
+          },
+          
           disclaimer: 'Aurum provides AI-generated financial intelligence based on market news for informational purposes only. Not financial advice.',
           createdAt: new Date().toISOString(),
           isRealtime: true,
@@ -612,7 +751,6 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
 
     let posScore = 0;
     let negScore = 0;
-
     const catalysts: AiNewsCatalyst[] = [];
 
     if (news.length > 0) {
@@ -651,34 +789,10 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
       posScore += 2;
     }
 
-    let verdict: AiVerdict = 'HOLD';
-    let sentiment: AiSentiment = 'NEUTRAL';
-    let direction: AiDirection = 'NEUTRAL';
-    let confidence = 75;
-
-    if (posScore > negScore) {
-      verdict = 'BUY';
-      sentiment = 'POSITIVE';
-      direction = 'POSITIVE_BIAS';
-      confidence = 80;
-    } else if (negScore > posScore) {
-      verdict = 'DO_NOT_BUY';
-      sentiment = 'NEGATIVE';
-      direction = 'NEGATIVE_BIAS';
-      confidence = 78;
-    }
-
-    const verdictReasoning = verdict === 'BUY'
-      ? `Positive news catalysts (${posScore} bullish indicators vs ${negScore} risks) indicate favorable risk-to-reward ratio for entering or accumulating ${symbol}.`
-      : verdict === 'DO_NOT_BUY'
-      ? `Elevated downside risks and negative news momentum suggest avoiding ${symbol} or awaiting a deeper pullback.`
-      : `Mixed signals between bullish expansion and valuation concerns suggest holding or waiting for clearer confirmation.`;
-
-    const marketPrediction = verdict === 'BUY'
-      ? `Near-term news flow predicts price strength as institutional buyers respond to recent expansion and earnings tailwinds.`
-      : verdict === 'DO_NOT_BUY'
-      ? `Caution is warranted: recent headlines predict continued volatility and potential downward re-testing of support levels.`
-      : `Market price action is predicted to remain range-bound pending upcoming quarterly earnings reports.`;
+    let assessmentType: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' = 'NEUTRAL';
+    if (posScore > negScore) assessmentType = 'POSITIVE';
+    else if (negScore > posScore) assessmentType = 'NEGATIVE';
+    else if (posScore > 0 && negScore > 0) assessmentType = 'MIXED';
 
     const ownershipInfo = req.isOwned && req.portfolioContext
       ? (req.portfolioContext.profitLossPct !== null
@@ -686,32 +800,90 @@ Return your entire analysis in valid JSON format only (NO markdown code blocks, 
           : `You own ${req.portfolioContext.shares} shares @ avg price $${req.portfolioContext.avgCost.toFixed(2)}.`)
       : `Pre-investment research: You do not currently hold ${symbol} in your portfolio.`;
 
+    const summaryText = `${ownershipInfo} Analysis evaluated against ${news.length > 0 ? news.length + ' latest market news articles' : 'current sector intelligence'}. Add your free Gemini API Key in Settings to unlock real-time generative reasoning.`;
+
+    const positiveCatalyst = catalysts.find((c) => c.impact === 'POSITIVE');
+    const negativeCatalyst = catalysts.find((c) => c.impact === 'NEGATIVE');
+
+    const supportingEvidence = positiveCatalyst ? [{
+      claim: 'Positive news flow observed.',
+      evidence: positiveCatalyst.predictedReaction,
+      sourceTitle: positiveCatalyst.headline,
+      sourceUrl: positiveCatalyst.url,
+      date: 'Recent'
+    }] : [{
+      claim: 'Solid market positioning.',
+      evidence: `${req.companyName || symbol} demonstrates solid market positioning in its primary sector.`,
+      sourceTitle: 'Sector Intelligence',
+      sourceUrl: '#',
+      date: 'Recent'
+    }];
+
+    const contradictingEvidence = negativeCatalyst ? [{
+      claim: 'Negative risks detected.',
+      evidence: negativeCatalyst.predictedReaction,
+      sourceTitle: negativeCatalyst.headline,
+      sourceUrl: negativeCatalyst.url,
+      date: 'Recent'
+    }] : [{
+      claim: 'Headline sensitivity.',
+      evidence: 'Market volatility and headline sensitivity could trigger short-term pullbacks.',
+      sourceTitle: 'Macro Trends',
+      sourceUrl: '#',
+      date: 'Recent'
+    }];
+
     return {
       symbol,
+      companyName: req.companyName || symbol,
       question: req.question,
-      verdict,
-      verdictReasoning,
-      marketPrediction,
-      sentiment,
-      confidence,
-      whySummary: `${ownershipInfo} Analysis evaluated against ${news.length > 0 ? news.length + ' latest market news articles' : 'current sector intelligence'}. Add your free Gemini API Key in Settings to unlock real-time generative reasoning.`,
-      newsCatalysts: catalysts,
-      positiveFactors: [
-        `${req.companyName} demonstrates solid market positioning in its primary sector.`,
-        catalysts.find((c) => c.impact === 'POSITIVE')?.headline || 'Institutional interest remains supportive for core sector leaders.',
+      assessment: {
+        type: assessmentType,
+        evidenceStrength: 'LIMITED',
+        summary: summaryText,
+      },
+      supportingEvidence,
+      contradictingEvidence,
+      uncertainFactors: [],
+      risks: [
+        {
+          item: 'Macroeconomic Cycles',
+          whyItMatters: 'Broader interest-rate sensitivity and valuation multiples require monitoring.'
+        }
       ],
-      negativeFactors: [
-        catalysts.find((c) => c.impact === 'NEGATIVE')?.headline || 'Broader interest-rate sensitivity and valuation multiples require monitoring.',
-        'Market volatility and headline sensitivity could trigger short-term pullbacks.',
-      ],
-      potentialDirection: direction,
-      keyRisks: `Key risks for ${symbol} include headline volatility, macroeconomic cycles, and quarterly margin execution. Connect your Gemini API Key in Settings for deep live AI evaluation.`,
-      summary: `${verdictReasoning}\n\n${marketPrediction}\n\nAdd your Gemini API Key in Settings for deep multi-source financial intelligence.`,
+      whatToWatch: ['Headline volatility', 'Quarterly margin execution'],
+      scenarios: {
+        positive: [{ trigger: 'Institutional interest', outcome: 'Likely to support buyer demand and price upside.' }],
+        neutral: [{ trigger: 'Mixed signals', outcome: 'Market price action is predicted to remain range-bound.' }],
+        negative: [{ trigger: 'Valuation concerns', outcome: 'Could trigger short-term selling pressure.' }]
+      },
+      marketData: {
+        price: req.portfolioContext?.currentPrice || null,
+        change: req.portfolioContext?.profitLossPct || null,
+        volume: 0,
+        timestamp: new Date().toISOString(),
+        dataStatus: 'DELAYED'
+      },
+      portfolioImpact: (req.isOwned && req.portfolioContext) ? {
+        shares: req.portfolioContext.shares,
+        averageCost: req.portfolioContext.avgCost,
+        currentValue: req.portfolioContext.shares * (req.portfolioContext.currentPrice || req.portfolioContext.avgCost),
+        profitLoss: req.portfolioContext.shares * ((req.portfolioContext.currentPrice || req.portfolioContext.avgCost) - req.portfolioContext.avgCost),
+        totalReturnPercent: req.portfolioContext.profitLossPct || 0,
+        latestMovementPercent: 0,
+        portfolioExposurePercent: 0
+      } : undefined,
       sources: news.slice(0, 4).map((n) => ({ title: n.title, publisher: n.publisher, url: n.link })),
+      dataFreshness: {
+        marketData: 'Delayed (Simulated)',
+        news: `Updated ${new Date().toLocaleTimeString()}`,
+        fundamentals: 'Latest',
+        filings: 'Latest'
+      },
       disclaimer: 'Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.',
       createdAt: new Date().toISOString(),
       isRealtime: false,
-    };
+    } as any; // Typecast to any to avoid partial compatibility issues with legacy types if not fully cleaned up
   }
 
   private mapNewsToCatalysts(news: StockNewsItem[]): AiNewsCatalyst[] {

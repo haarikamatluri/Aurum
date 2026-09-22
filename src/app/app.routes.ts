@@ -48,6 +48,16 @@ export const routes: Routes = [
         title: 'AI Analyst — Money',
       },
       {
+        path: 'ai-analyst/:symbol',
+        loadComponent: () => import('./features/ai-analyst/ai-analyst').then((m) => m.AiAnalystPage),
+        title: 'AI Analyst — Money',
+      },
+      {
+        path: 'ai-analyst/:symbol/:tab',
+        loadComponent: () => import('./features/ai-analyst/ai-analyst').then((m) => m.AiAnalystPage),
+        title: 'AI Analyst — Money',
+      },
+      {
         path: 'settings',
         loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
         title: 'Settings — Money',
