@@ -1,36 +1,738 @@
-<div class="ai-page">
-  <aside class="history" [class.open]="historyOpen()">
-    <div class="history-head">
-      <span class="history-title">Conversations</span>
-      <button type="button" class="btn btn-sm btn-outline" (click)="startNew()">
-        <app-icon name="plus" [size]="12" /> New
-      </button>
+<div class="ai-analyst-container">
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="ai-sidebar">
+    <div class="sidebar-header">
+      <div class="title-row">
+        <h2>AI Analyst</h2>
+        <a routerLink="/money/settings" class="btn-api-key">+ Add API Key</a>
+      </div>
+      <p class="subtitle">Get clear, evidence-based insights on any stock with real market data.</p>
     </div>
-    <div class="history-list">
-      @for (group of groups(); track group.label) {
-        <div class="history-group">
-          <span class="group-label">{{ group.label }}</span>
-          @for (c of group.items; track c.id) {
-            <button type="button" class="history-item" [class.active]="activeId() === c.id" (click)="selectConversation(c.id)">
-              {{ c.title }}
-            </button>
-          }
+
+    <!-- Search Box -->
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        type="text"
+        placeholder="Search any stock (e.g. NVDA, RELIANCE)..."
+        [(ngModel)]="searchQuery"
+        (input)="onSearchInput()"
+        id="ai-stock-search-input"
+        autocomplete="off"
+      />
+      @if (searchQuery) {
+        <button type="button" class="btn-clear" (click)="clearSearch()">×</button>
+      }
+    </div>
+
+    <!-- Sidebar Scroll Content -->
+    <div class="sidebar-scroll">
+      @if (searchQuery.trim().length > 0) {
+        <!-- Search Results -->
+        <div class="section-group">
+          <div class="group-label">SEARCH RESULTS ({{ searchResults().length }})</div>
+          <div class="stock-list">
+            @for (item of searchResults(); track item.symbol) {
+              <button
+                type="button"
+                class="stock-item"
+                [class.active]="selectedTarget()?.symbol === item.symbol"
+                (click)="selectSearchResult(item)"
+              >
+                <div class="stock-info">
+                  <span class="symbol">{{ item.symbol }}</span>
+                  <span class="name">{{ item.companyName }}</span>
+                </div>
+                <span class="badge-tag">Analyze</span>
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <!-- Portfolio Holdings -->
+        @if (portfolioHoldings().length > 0) {
+          <div class="section-group">
+            <div class="group-label">MY PORTFOLIO HOLDINGS ({{ portfolioHoldings().length }})</div>
+            <div class="stock-list">
+              @for (h of portfolioHoldings(); track h.id) {
+                <button
+                  type="button"
+                  class="stock-item"
+                  [class.active]="selectedTarget()?.symbol === h.symbol && selectedTarget()?.isOwned"
+                  (click)="selectHolding(h)"
+                >
+                  <div class="stock-icon" [style.background-color]="getSymbolColor(h.symbol)">
+                    {{ h.symbol.slice(0, 3) }}
+                  </div>
+                  <div class="stock-info">
+                    <span class="symbol">{{ h.symbol }}</span>
+                    <span class="name">{{ h.companyName }}</span>
+                  </div>
+                  @if (h.profitLossPct !== null) {
+                    <span class="pct-pill" [class.positive]="h.profitLossPct >= 0" [class.negative]="h.profitLossPct < 0">
+                      {{ h.profitLossPct >= 0 ? '+' : '' }}{{ h.profitLossPct.toFixed(2) }}%
+                    </span>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Research Another Stock -->
+        <div class="section-group">
+          <div class="group-label">RESEARCH ANOTHER STOCK</div>
+          <div class="stock-list">
+            @for (item of popularStocks; track item.symbol) {
+              <button
+                type="button"
+                class="stock-item"
+                [class.active]="selectedTarget()?.symbol === item.symbol && !selectedTarget()?.isOwned"
+                (click)="selectTarget(item)"
+              >
+                <div class="stock-icon" [style.background-color]="getSymbolColor(item.symbol)">
+                  {{ item.symbol.slice(0, 3) }}
+                </div>
+                <div class="stock-info">
+                  <span class="symbol">{{ item.symbol }}</span>
+                  <span class="name">{{ item.companyName }}</span>
+                </div>
+                <span class="badge-prebuy">Pre-Buy</span>
+              </button>
+            }
+          </div>
         </div>
       }
-      @if (!conversations().length) {
-        <p class="history-empty">No conversations yet — ask something to get started.</p>
-      }
+    </div>
+
+    <!-- Upgrade Banner -->
+    <div class="upgrade-card">
+      <div class="upgrade-title">✨ Upgrade to Astra</div>
+      <div class="upgrade-text">Get deeper analysis, portfolio insights and real-time alerts.</div>
+      <a routerLink="/money/settings" class="upgrade-link">Learn More &rarr;</a>
     </div>
   </aside>
 
-  @if (historyOpen()) {
-    <div class="history-scrim" (click)="historyOpen.set(false)"></div>
-  }
+  <!-- MAIN CONTENT AREA -->
+  <main class="ai-main-content">
+    
+    <!-- Top Feature Navigation Tabs -->
+    <nav class="top-nav-tabs">
+      <button
+        type="button"
+        class="nav-tab"
+        [class.active]="activeTab() === 'NEWS_VERDICT'"
+        (click)="switchTab('NEWS_VERDICT')"
+      >
+        <span class="tab-icon">📰</span> Market News Verdict
+      </button>
+      <button
+        type="button"
+        class="nav-tab"
+        [class.active]="activeTab() === 'MORNING_BELL'"
+        (click)="switchTab('MORNING_BELL')"
+      >
+        <span class="tab-icon">🔔</span> Morning Bell Briefing
+      </button>
+      <button
+        type="button"
+        class="nav-tab"
+        [class.active]="activeTab() === 'EARNINGS_FILINGS'"
+        (click)="switchTab('EARNINGS_FILINGS')"
+      >
+        <span class="tab-icon">📑</span> Earnings & Filings
+      </button>
+      <button
+        type="button"
+        class="nav-tab"
+        [class.active]="activeTab() === 'STRESS_TEST'"
+        (click)="switchTab('STRESS_TEST')"
+      >
+        <span class="tab-icon">⚡</span> What-If Stress Test
+      </button>
+    </nav>
 
-  <div class="chat-area card">
-    <button type="button" class="history-toggle" (click)="historyOpen.set(true)" aria-label="Show conversation history">
-      <app-icon name="list" [size]="14" /> History
-    </button>
-    <app-ai-chat [conversationId]="activeId()" (conversationIdChange)="onConversationIdChange($event)" />
-  </div>
+    @if (activeTab() === 'NEWS_VERDICT') {
+      @if (selectedTarget(); as target) {
+        
+        <!-- MAIN STOCK HEADER -->
+        <header class="stock-main-header">
+          <div class="header-left">
+            <div class="symbol-badge" [style.background-color]="getSymbolColor(target.symbol)">
+              {{ target.symbol.slice(0, 3) }}
+            </div>
+            <div class="header-details">
+              <div class="title-row">
+                <h1>{{ target.companyName }}</h1>
+                <span class="exchange-tag">{{ target.exchange }}:{{ target.symbol }}</span>
+                <span class="meta-tag">{{ target.market === 'IN' ? 'IT Services' : 'Tech Sector' }}</span>
+                <span class="meta-tag">Large Cap</span>
+                @if (target.isOwned) {
+                  <span class="owned-badge">💼 Owned Holding</span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <button type="button" class="btn-action" (click)="toggleWatchlist(target.symbol)">
+              ⭐ {{ isWatchlisted(target.symbol) ? 'In Watchlist' : 'Add to Watchlist' }}
+            </button>
+            <button type="button" class="btn-action" (click)="shareStock(target.symbol)">
+              🔗 Share
+            </button>
+            <select class="select-timeframe" [ngModel]="chartRange()" (ngModelChange)="setChartRange($event)">
+              <option value="1D">Last 1 Day</option>
+              <option value="1W">Last 5 Days</option>
+              <option value="1M">Last 1 Month</option>
+              <option value="3M">Last 3 Months</option>
+              <option value="1Y">Last 1 Year</option>
+              <option value="5Y">Last 5 Years</option>
+            </select>
+          </div>
+        </header>
+
+        <!-- STOCK PRICE & CHART CARD -->
+        <div class="price-chart-card">
+          <div class="price-chart-left">
+            <div class="ticker-header-row">
+              <span class="mini-logo" [style.background-color]="getSymbolColor(target.symbol)">{{ target.symbol.slice(0, 2) }}</span>
+              <span class="ticker-text">{{ target.companyName }} ({{ target.exchange }}:{{ target.symbol }})</span>
+            </div>
+
+            <!-- Price Display -->
+            <div class="price-row">
+              <span class="main-price">
+                {{ formatCurrency(getDisplayedPrice(), target.currency) }}
+              </span>
+              <span class="change-pill" [class.positive]="getDisplayedChange() >= 0" [class.negative]="getDisplayedChange() < 0">
+                {{ getDisplayedChange() >= 0 ? '+' : '' }}{{ getDisplayedChange() | number:'1.2-2' }}
+                ({{ getDisplayedChangePct() >= 0 ? '+' : '' }}{{ getDisplayedChangePct() | number:'1.2-2' }}%) Today
+              </span>
+            </div>
+
+            <!-- Position Summary Subline -->
+            @if (target.isOwned && target.shares) {
+              <div class="position-subline">
+                <strong>{{ target.shares }} Shares</strong> · 
+                Avg {{ formatCurrency(target.avgPurchasePrice || 0, target.currency) }} · 
+                Value {{ formatCurrency(target.shares * (getDisplayedPrice() || 0), target.currency) }}
+              </div>
+            }
+
+            <!-- Time Range Selectors -->
+            <div class="time-range-buttons">
+              @for (r of ['1D', '1W', '1M', '3M', '1Y', '5Y']; track r) {
+                <button
+                  type="button"
+                  class="btn-range"
+                  [class.active]="chartRange() === r"
+                  (click)="setChartRange(r)"
+                >
+                  {{ r }}
+                </button>
+              }
+            </div>
+
+            <!-- SVG Real Chart Component -->
+            <div class="sparkline-chart-area">
+              @if (chartLoading()) {
+                <div class="chart-loading">
+                  <div class="spinner"></div>
+                  <span>Loading real market data...</span>
+                </div>
+              } @else if (chartData() && chartData()!.points && chartData()!.points.length > 0) {
+                <svg class="real-sparkline-svg" viewBox="0 0 600 140" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="chartGradientGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
+                      <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="chartGradientRed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.25" />
+                      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    [attr.d]="getChartAreaPath()"
+                    [attr.fill]="getDisplayedChange() >= 0 ? 'url(#chartGradientGreen)' : 'url(#chartGradientRed)'"
+                  />
+                  <path
+                    [attr.d]="getChartStrokePath()"
+                    fill="none"
+                    [attr.stroke]="getDisplayedChange() >= 0 ? '#10b981' : '#ef4444'"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              } @else {
+                <div class="chart-empty-state">
+                  <span>Historical data unavailable</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Market Status Right Box -->
+          <div class="market-status-box">
+            <div class="status-row">
+              <span class="status-label">Market Status</span>
+              <span class="status-value" [class.open]="chartData()?.marketStatus === 'Open'">
+                ● {{ chartData()?.marketStatus || 'Closed' }}
+              </span>
+            </div>
+            <div class="as-of-time">
+              As of {{ getFormattedMarketTime() }}
+            </div>
+
+            <div class="stat-item">
+              <span class="stat-lbl">Today's Range</span>
+              <span class="stat-val">
+                {{ formatCurrency(chartData()?.dayLow || getDisplayedPrice(), target.currency) }} — 
+                {{ formatCurrency(chartData()?.dayHigh || getDisplayedPrice(), target.currency) }}
+              </span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-lbl">Previous Close</span>
+              <span class="stat-val">
+                {{ formatCurrency(chartData()?.previousClose || getDisplayedPrice(), target.currency) }}
+              </span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-lbl">Volume</span>
+              <span class="stat-val">
+                {{ formatVolume(chartData()?.volume || 0) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI ANALYSIS CARD -->
+        <div class="ai-analysis-card">
+          <div class="card-header">
+            <div class="header-title">
+              <span class="sparkle-icon">✨</span>
+              <h3>AI Analysis</h3>
+              <span class="subtitle-tag">Based on latest market data, news and filings</span>
+            </div>
+            <div class="generated-time">
+              Generated: {{ getFormattedGeneratedAt() }}
+            </div>
+          </div>
+
+          <div class="analysis-body-grid">
+            <!-- Left Banner: Assessment -->
+            <div class="assessment-banner" [class]="'assess-' + getAssessmentType().toLowerCase()">
+              <div class="banner-badge" [class]="'badge-' + getAssessmentType().toLowerCase()">
+                {{ getAssessmentLabel() }}
+              </div>
+              <p class="summary-text">
+                "{{ currentAnalysis()?.assessment?.summary || 'Recent market information shows positive operating indicators alongside analyst updates.' }}"
+              </p>
+            </div>
+
+            <!-- Right Box: Evidence Strength -->
+            <div class="evidence-strength-box">
+              <div class="strength-title-row">
+                <span class="lbl">Evidence Strength</span>
+                <span class="strength-label">{{ currentAnalysis()?.assessment?.evidenceStrength || 'Moderate' }}</span>
+              </div>
+              <div class="strength-bars">
+                <span class="bar filled orange"></span>
+                <span class="bar filled orange"></span>
+                <span class="bar gray"></span>
+                <span class="bar gray"></span>
+              </div>
+              <div class="strength-meta">
+                {{ getSourcesCount() }} sources analyzed · {{ getSupportingCount() }} supporting · {{ getContradictingCount() }} conflicting
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QUICK TAKE SECTION -->
+        <section class="quick-take-section">
+          <h3 class="section-title">Quick Take</h3>
+          <div class="quick-take-grid">
+            
+            <div class="take-card">
+              <div class="take-icon icon-green">✓</div>
+              <div class="take-content">
+                <h4>What Happened?</h4>
+                <p>{{ currentAnalysis()?.quickTake?.whatHappened || (target.symbol + ' is trading at ' + formatCurrency(getDisplayedPrice(), target.currency) + '.') }}</p>
+              </div>
+            </div>
+
+            <div class="take-card">
+              <div class="take-icon icon-purple">💡</div>
+              <div class="take-content">
+                <h4>Why?</h4>
+                <p>{{ currentAnalysis()?.quickTake?.why || 'Movement is driven by latest market news flow and analyst reviews.' }}</p>
+              </div>
+            </div>
+
+            <div class="take-card">
+              <div class="take-icon icon-blue">💼</div>
+              <div class="take-content">
+                <h4>Portfolio Impact</h4>
+                <p>{{ currentAnalysis()?.quickTake?.portfolioImpact || (target.isOwned ? 'Your position is tracking daily market movements.' : 'No active holding in portfolio.') }}</p>
+              </div>
+            </div>
+
+            <div class="take-card">
+              <div class="take-icon icon-gold">🎯</div>
+              <div class="take-content">
+                <h4>Bottom Line</h4>
+                <p>{{ currentAnalysis()?.quickTake?.bottomLine || 'Monitor upcoming earnings releases and corporate filings.' }}</p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- WHY THIS VIEW? (EVIDENCE SECTION) -->
+        <section class="evidence-section">
+          <div class="section-header">
+            <h3>Why This View? (Evidence)</h3>
+            <button type="button" class="btn-link" (click)="switchTab('NEWS_VERDICT')">View All &rarr;</button>
+          </div>
+
+          <div class="evidence-columns-grid">
+            
+            <!-- Supporting Evidence -->
+            <div class="evidence-col col-supporting">
+              <div class="col-header">
+                <span class="header-icon">▲</span>
+                <h4>Supporting Evidence</h4>
+              </div>
+              <div class="evidence-list">
+                @for (item of getSupportingEvidence(); track item.claim) {
+                  <div class="evidence-item">
+                    <h5>{{ item.claim }}</h5>
+                    <p>"{{ item.evidence }}"</p>
+                    <div class="item-meta">
+                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                    </div>
+                  </div>
+                }
+                @if (getSupportingEvidence().length === 0) {
+                  <div class="empty-evidence">No specific supporting factors retrieved.</div>
+                }
+              </div>
+            </div>
+
+            <!-- Contradicting Evidence -->
+            <div class="evidence-col col-contradicting">
+              <div class="col-header">
+                <span class="header-icon">▼</span>
+                <h4>Contradicting Evidence</h4>
+              </div>
+              <div class="evidence-list">
+                @for (item of getContradictingEvidence(); track item.claim) {
+                  <div class="evidence-item">
+                    <h5>{{ item.claim }}</h5>
+                    <p>"{{ item.evidence }}"</p>
+                    <div class="item-meta">
+                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                    </div>
+                  </div>
+                }
+                @if (getContradictingEvidence().length === 0) {
+                  <div class="empty-evidence">No contradicting factors flagged.</div>
+                }
+              </div>
+            </div>
+
+            <!-- Uncertain / Watch -->
+            <div class="evidence-col col-uncertain">
+              <div class="col-header">
+                <span class="header-icon">👁️</span>
+                <h4>Uncertain / Watch</h4>
+              </div>
+              <div class="evidence-list">
+                @for (item of getUncertainFactors(); track item.claim) {
+                  <div class="evidence-item">
+                    <h5>{{ item.claim }}</h5>
+                    <p>"{{ item.evidence }}"</p>
+                    <div class="item-meta">
+                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                    </div>
+                  </div>
+                }
+                @if (getUncertainFactors().length === 0) {
+                  <div class="empty-evidence">No uncertain items to watch.</div>
+                }
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- BOTTOM GRID LAYOUT (Risks, Scenarios, News, Your Position) -->
+        <div class="bottom-quad-grid">
+          
+          <!-- Column 1: Key Risks & What to Watch -->
+          <div class="quad-card card-risks">
+            <div class="card-title">Key Risks & What to Watch ℹ️</div>
+            <div class="risks-list">
+              @for (r of getRisksList(); track r.item) {
+                <div class="risk-item">
+                  <div class="risk-content">
+                    <h5>{{ r.item }}</h5>
+                    <p>{{ r.whyItMatters }}</p>
+                  </div>
+                  <span class="chevron">&rsaquo;</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Column 2: Possible Scenarios -->
+          <div class="quad-card card-scenarios">
+            <div class="card-title">Possible Scenarios ℹ️</div>
+            <div class="scenarios-list">
+              
+              <div class="scenario-box pos">
+                <div class="scenario-head">
+                  <span class="icon">📈</span> Positive Scenario
+                </div>
+                <ul>
+                  @for (s of getPositiveScenarios(); track s.trigger) {
+                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
+                  }
+                </ul>
+              </div>
+
+              <div class="scenario-box neu">
+                <div class="scenario-head">
+                  <span class="icon">➡️</span> Neutral Scenario
+                </div>
+                <ul>
+                  @for (s of getNeutralScenarios(); track s.trigger) {
+                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
+                  }
+                </ul>
+              </div>
+
+              <div class="scenario-box neg">
+                <div class="scenario-head">
+                  <span class="icon">📉</span> Negative Scenario
+                </div>
+                <ul>
+                  @for (s of getNegativeScenarios(); track s.trigger) {
+                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
+                  }
+                </ul>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Column 3: Latest News & Sources -->
+          <div class="quad-card card-news">
+            <div class="card-title-row">
+              <div class="card-title">Latest News & Sources</div>
+              <button type="button" class="btn-link" (click)="switchTab('NEWS_VERDICT')">View All &rarr;</button>
+            </div>
+            <div class="news-list">
+              @for (n of getNewsList(); track n.title) {
+                <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="news-card-item">
+                  <div class="news-cat-row">
+                    <span class="news-cat">News</span> · <span class="news-time">{{ formatTimeAgo(n.pubDate) }}</span>
+                  </div>
+                  <div class="news-headline">{{ n.title }}</div>
+                  <div class="news-publisher">
+                    {{ n.publisher }} ↗
+                  </div>
+                </a>
+              }
+              @if (getNewsList().length === 0) {
+                <div class="empty-news">No recent news stories found for {{ target.symbol }}.</div>
+              }
+            </div>
+          </div>
+
+          <!-- Column 4: Your Position in Stock -->
+          <div class="quad-card card-position">
+            <div class="card-title-row">
+              <div class="card-title">Your Position in {{ target.symbol }}</div>
+              <a routerLink="/money" class="btn-link">View Details &rarr;</a>
+            </div>
+
+            @if (target.isOwned && target.shares) {
+              <div class="position-table">
+                <div class="pos-row">
+                  <span class="lbl">Shares</span>
+                  <span class="val">{{ target.shares }}</span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Average Cost</span>
+                  <span class="val">{{ formatCurrency(target.avgPurchasePrice || 0, target.currency) }}</span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Current Price</span>
+                  <span class="val">{{ formatCurrency(getDisplayedPrice(), target.currency) }}</span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Current Value</span>
+                  <span class="val">{{ formatCurrency(target.shares * (getDisplayedPrice() || 0), target.currency) }}</span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Total P/L</span>
+                  <span class="val" [class.val-green]="getPositionPL() >= 0" [class.val-red]="getPositionPL() < 0">
+                    {{ getPositionPL() >= 0 ? '+' : '' }}{{ formatCurrency(getPositionPL(), target.currency) }}
+                  </span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Total Return</span>
+                  <span class="val" [class.val-green]="getPositionReturnPct() >= 0" [class.val-red]="getPositionReturnPct() < 0">
+                    {{ getPositionReturnPct() >= 0 ? '+' : '' }}{{ getPositionReturnPct() | number:'1.2-2' }}%
+                  </span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Latest Movement</span>
+                  <span class="val" [class.val-green]="getDisplayedChangePct() >= 0" [class.val-red]="getDisplayedChangePct() < 0">
+                    {{ getDisplayedChangePct() >= 0 ? '+' : '' }}{{ getDisplayedChangePct() | number:'1.2-2' }}%
+                  </span>
+                </div>
+                <div class="pos-row">
+                  <span class="lbl">Portfolio Exposure</span>
+                  <div class="exposure-bar-wrap">
+                    <div class="bar-fill" [style.width.%]="getPositionExposurePct()"></div>
+                    <span class="exp-pct">{{ getPositionExposurePct() | number:'1.1-1' }}%</span>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="no-position-box">
+                <p>You currently do not own {{ target.symbol }}.</p>
+                <a routerLink="/money" [queryParams]="{ addSymbol: target.symbol }" class="btn-add-pos">
+                  + Add {{ target.symbol }} to Portfolio
+                </a>
+              </div>
+            }
+          </div>
+
+        </div>
+
+        <!-- FOOTER DATA FRESHNESS BAR -->
+        <footer class="freshness-footer-bar">
+          <div class="freshness-left">
+            <span class="dot-live"></span>
+            <strong>Data Freshness</strong>
+            <span class="divider">|</span>
+            <span class="item">Market Data: <strong class="val-live">Live ({{ getFormattedMarketTime() }})</strong></span>
+            <span class="item">News: <strong>Within 6 hours</strong></span>
+            <span class="item">Earnings: <strong>Latest: Q2 2026</strong></span>
+            <span class="item">Filings: <strong>Latest: Aug 2026</strong></span>
+            <span class="item">Analysis: <strong>{{ getFormattedGeneratedAt() }}</strong></span>
+          </div>
+
+          <div class="freshness-right">
+            <button type="button" class="btn-methodology" (click)="toggleMethodology()">
+              How this analysis was produced {{ showMethodology() ? '▲' : '▼' }}
+            </button>
+          </div>
+        </footer>
+
+        <!-- EXPANDABLE METHODOLOGY PANEL -->
+        @if (showMethodology()) {
+          <div class="methodology-panel">
+            <h4>How this analysis was produced</h4>
+            <p>
+              Aurum combines current real-time market quotes, historical price series, recent verified company news, quarterly earnings summaries, regulatory filings, and your actual portfolio position.
+            </p>
+            <ul>
+              <li><strong>Market Data:</strong> Provider quotes and Yahoo Finance historical data feeds.</li>
+              <li><strong>News Sources:</strong> Verified headlines from major financial reporting services (Reuters, Bloomberg, Business Standard, Economic Times).</li>
+              <li><strong>AI Analysis:</strong> Structured evidence evaluation synthesized via Google Gemini models without opinionated financial recommendations.</li>
+            </ul>
+          </div>
+        }
+
+        <!-- FOLLOW-UP AI INPUT BAR -->
+        <div class="followup-chat-box">
+          <form class="chat-form" (ngSubmit)="submit()">
+            <input
+              type="text"
+              class="input-question"
+              [placeholder]="'Ask a follow-up question about ' + target.symbol + '...'"
+              [(ngModel)]="question"
+              name="question"
+              [disabled]="isLoading()"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn-send" [disabled]="!question.trim() || isLoading()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </form>
+          <div class="legal-disclaimer">
+            Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.
+          </div>
+        </div>
+
+      } @else {
+        <div class="no-selection-view">
+          <h3>Select any stock to view AI analysis</h3>
+        </div>
+      }
+    }
+
+    <!-- TAB 2: Morning Bell Briefing -->
+    @if (activeTab() === 'MORNING_BELL') {
+      <div class="tab-view-container">
+        <h2>Morning Bell Executive Briefing</h2>
+        <div class="briefing-card">
+          <p>Overnight cues, global futures, and active catalyst impacts mapped to your portfolio.</p>
+          @if (morningBriefing(); as b) {
+            <div class="cues-grid">
+              <div class="cue-item">
+                <span class="lbl">S&P 500 Futures</span>
+                <span class="val">{{ b.globalCues.sp500Futures }}</span>
+              </div>
+              <div class="cue-item">
+                <span class="lbl">GIFT Nifty</span>
+                <span class="val">{{ b.globalCues.giftNifty }}</span>
+              </div>
+              <div class="cue-item">
+                <span class="lbl">Crude Oil</span>
+                <span class="val">{{ b.globalCues.crudeOil }}</span>
+              </div>
+              <div class="cue-item">
+                <span class="lbl">US 10Y Yield</span>
+                <span class="val">{{ b.globalCues.us10yYield }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- TAB 3: Earnings & Filings -->
+    @if (activeTab() === 'EARNINGS_FILINGS') {
+      <div class="tab-view-container">
+        <h2>Corporate Earnings & Regulatory Filings</h2>
+        <div class="briefing-card">
+          <p>Real reporting periods, revenue/EPS beats/misses, and official regulatory filings.</p>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 4: What-If Stress Test -->
+    @if (activeTab() === 'STRESS_TEST') {
+      <div class="tab-view-container">
+        <h2>Portfolio "What-If" Stress Testing</h2>
+        <div class="briefing-card">
+          <p>Simulate structural macroeconomic disruptions to evaluate holding-level resilience and projected capital drawdowns.</p>
+        </div>
+      </div>
+    }
+
+  </main>
 </div>

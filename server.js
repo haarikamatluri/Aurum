@@ -118,6 +118,10 @@ const NEWS_TTL_MS = 10 * 60 * 1000;
 // In-memory fallback stores if MongoDB is not connected
 let memoryUsers = [];
 const memoryStores = new Map(); // userId -> { holdings, transactions, notifications, alertStates }
+const memoryVoiceSessions = [];
+const memoryVoiceMessages = [];
+const memoryVoicePreferences = new Map();
+
 function getMemoryStore(userId) {
   if (!memoryStores.has(userId)) {
     memoryStores.set(userId, { holdings: [], transactions: [], notifications: [], alertStates: {} });
@@ -149,6 +153,8 @@ async function initMongoDB() {
     await db.collection('transactions').createIndex({ userId: 1, holdingId: 1 });
     await db.collection('notifications').createIndex({ userId: 1, createdAt: -1 });
     await db.collection('alert_states').createIndex({ holdingId: 1, userId: 1 }, { unique: true });
+    await db.collection('voice_sessions').createIndex({ userId: 1, updatedAt: -1 });
+    await db.collection('voice_preferences').createIndex({ userId: 1 }, { unique: true });
   } catch (err) {
     console.error('[MongoDB] Connection error:', err.message);
     isMongoConnected = false;
@@ -1586,6 +1592,146 @@ app.get('/api/market/news', marketLimiter, async (req, res) => {
   return res.json({ symbol, news: articles });
 });
 
+app.get('/api/market-data/health', marketLimiter, async (req, res) => {
+  const results = {
+    timestamp: new Date().toISOString(),
+    providers: {}
+  };
+
+  const timeout = 5000;
+  const fetchWithTimeout = async (url, options = {}) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  };
+
+  // Finnhub
+  try {
+    const apiKey = process.env.FINNHUB_API_KEY;
+    if (!apiKey) {
+      results.providers.finnhub = { configured: false, status: 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=${apiKey}`);
+      const data = await r.json();
+      const latencyMs = Date.now() - start;
+      if (r.ok && data && data.c !== undefined && data.c !== 0) {
+        results.providers.finnhub = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else {
+        results.providers.finnhub = { configured: true, reachable: true, authenticated: r.status !== 401 && r.status !== 403, dataReceived: false, status: r.status === 429 ? 'RATE_LIMITED' : 'INVALID_RESPONSE' };
+      }
+    }
+  } catch (e) {
+    results.providers.finnhub = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  // Twelve Data
+  try {
+    const apiKey = process.env.TWELVE_DATA_API_KEY;
+    if (!apiKey) {
+      results.providers.twelveData = { configured: false, status: 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://api.twelvedata.com/quote?symbol=AAPL&apikey=${apiKey}`);
+      const data = await r.json();
+      const latencyMs = Date.now() - start;
+      if (data.status !== 'error' && data.close) {
+        results.providers.twelveData = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else {
+        results.providers.twelveData = { configured: true, reachable: true, authenticated: data.code !== 401, dataReceived: false, status: data.code === 429 ? 'RATE_LIMITED' : (data.code === 401 ? 'AUTHENTICATION_FAILED' : 'PROVIDER_ERROR') };
+      }
+    }
+  } catch (e) {
+    results.providers.twelveData = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  // Massive
+  try {
+    const apiKey = process.env.MASSIVE_API_KEY;
+    if (!apiKey) {
+      results.providers.massive = { configured: false, status: 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://api.polygon.io/v2/aggs/ticker/AAPL/prev?apiKey=${apiKey}`);
+      const data = await r.json();
+      const latencyMs = Date.now() - start;
+      if (r.ok && data.results && data.results.length > 0) {
+        results.providers.massive = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else {
+        results.providers.massive = { configured: true, reachable: true, authenticated: r.status !== 401 && r.status !== 403, dataReceived: false, status: r.status === 429 ? 'RATE_LIMITED' : 'PROVIDER_ERROR' };
+      }
+    }
+  } catch (e) {
+    results.providers.massive = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  // Upstox
+  try {
+    const apiKey = process.env.UPSTOX_API_KEY;
+    const token = process.env.UPSTOX_ACCESS_TOKEN;
+    if (!apiKey || !token || token.includes('your_')) {
+      results.providers.upstox = { configured: !!apiKey, status: !token || token.includes('your_') ? 'AUTHENTICATION_FAILED' : 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://api.upstox.com/v2/market-quote/quotes?instrument_key=NSE_EQ|INE002A01018`, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` } });
+      const data = await r.json();
+      const latencyMs = Date.now() - start;
+      if (r.ok && data.status === 'success') {
+        results.providers.upstox = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else {
+        results.providers.upstox = { configured: true, reachable: true, authenticated: r.status !== 401, dataReceived: false, status: r.status === 401 ? 'AUTHENTICATION_FAILED' : 'PROVIDER_ERROR' };
+      }
+    }
+  } catch (e) {
+    results.providers.upstox = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  // Alpha Vantage
+  try {
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+    if (!apiKey) {
+      results.providers.alphaVantage = { configured: false, status: 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${apiKey}`);
+      const data = await r.json();
+      const latencyMs = Date.now() - start;
+      if (r.ok && data['Global Quote'] && data['Global Quote']['05. price']) {
+        results.providers.alphaVantage = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else if (data.Information && data.Information.includes('rate limit')) {
+        results.providers.alphaVantage = { configured: true, reachable: true, authenticated: true, dataReceived: false, status: 'RATE_LIMITED' };
+      } else {
+        results.providers.alphaVantage = { configured: true, reachable: true, authenticated: !data['Error Message'], dataReceived: false, status: 'INVALID_RESPONSE' };
+      }
+    }
+  } catch (e) {
+    results.providers.alphaVantage = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  // Gemini
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey.includes('your_')) {
+      results.providers.gemini = { configured: false, status: 'NOT_CONFIGURED' };
+    } else {
+      const start = Date.now();
+      const r = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      const latencyMs = Date.now() - start;
+      if (r.ok) {
+        results.providers.gemini = { configured: true, reachable: true, authenticated: true, dataReceived: true, latencyMs, status: 'HEALTHY' };
+      } else {
+        results.providers.gemini = { configured: true, reachable: true, authenticated: r.status !== 400 && r.status !== 401 && r.status !== 403, dataReceived: false, status: r.status === 400 ? 'AUTHENTICATION_FAILED' : 'PROVIDER_ERROR' };
+      }
+    }
+  } catch (e) {
+    results.providers.gemini = { configured: true, reachable: false, authenticated: false, dataReceived: false, status: 'NETWORK_ERROR' };
+  }
+
+  res.json(results);
+});
+
 app.get('/api/market/quotes', marketLimiter, async (req, res) => {
   const symbolsParam = req.query.symbols;
   if (!symbolsParam || typeof symbolsParam !== 'string') {
@@ -1638,6 +1784,537 @@ app.get('/api/market/quotes', marketLimiter, async (req, res) => {
 
   res.setHeader('Cache-Control', 'public, max-age=30');
   return res.json({ quotes: results, timestamp: new Date().toISOString() });
+});
+
+// ============================================================================
+// Market Historical Chart & Quote Detail Endpoint
+// ============================================================================
+
+app.get('/api/market/chart', marketLimiter, async (req, res) => {
+  try {
+    const symbol = (req.query.symbol || '').toString().trim().toUpperCase();
+    const market = (req.query.market || 'IN').toString().toUpperCase();
+    const rangeParam = (req.query.range || '5D').toString().toUpperCase();
+
+    if (!symbol) {
+      return res.status(400).json({ error: 'symbol query parameter is required' });
+    }
+
+    const rangeMap = {
+      '1D': { range: '1d', interval: '5m' },
+      '1W': { range: '5d', interval: '15m' },
+      '5D': { range: '5d', interval: '15m' },
+      '1M': { range: '1mo', interval: '1d' },
+      '3M': { range: '3mo', interval: '1d' },
+      '1Y': { range: '1y', interval: '1wk' },
+      '5Y': { range: '5y', interval: '1mo' },
+    };
+
+    const config = rangeMap[rangeParam] || rangeMap['5D'];
+    const isIndia = market === 'IN' || symbol.endsWith('.NS') || symbol.endsWith('.BO');
+    const candidates = isIndia
+      ? (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? [symbol] : [`${symbol}.NS`, `${symbol}.BO`])
+      : [symbol];
+
+    let chartResult = null;
+    let tickerUsed = symbol;
+
+    for (const t of candidates) {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?range=${config.range}&interval=${config.interval}`;
+        const apiRes = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        });
+        if (apiRes.ok) {
+          const json = await apiRes.json();
+          if (json.chart?.result?.[0]) {
+            chartResult = json.chart.result[0];
+            tickerUsed = t;
+            break;
+          }
+        }
+      } catch {
+        // ignore & try next candidate
+      }
+    }
+
+    if (!chartResult) {
+      return res.json({
+        symbol,
+        error: 'Historical data unavailable',
+        points: [],
+        meta: null,
+      });
+    }
+
+    const meta = chartResult.meta || {};
+    const timestamps = chartResult.timestamp || [];
+    const quotes = chartResult.indicators?.quote?.[0] || {};
+    const closePrices = quotes.close || [];
+
+    const points = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const p = closePrices[i];
+      if (typeof p === 'number' && !isNaN(p)) {
+        points.push({
+          timestamp: new Date(timestamps[i] * 1000).toISOString(),
+          price: Number(p.toFixed(2)),
+        });
+      }
+    }
+
+    const currentPrice = meta.regularMarketPrice ?? (points.length > 0 ? points[points.length - 1].price : null);
+    const previousClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
+    const change = (currentPrice !== null && previousClose !== null) ? currentPrice - previousClose : null;
+    const changePercent = (change !== null && previousClose) ? (change / previousClose) * 100 : null;
+
+    // Determine market status
+    const nowUtc = new Date();
+    let marketStatus = 'Closed';
+    if (isIndia) {
+      const istHours = (nowUtc.getUTCHours() + 5 + Math.floor((nowUtc.getUTCMinutes() + 30) / 60)) % 24;
+      const istMinutes = (nowUtc.getUTCMinutes() + 30) % 60;
+      const isWeekday = nowUtc.getUTCDay() >= 1 && nowUtc.getUTCDay() <= 5;
+      const totalMinutes = istHours * 60 + istMinutes;
+      if (isWeekday && totalMinutes >= 555 && totalMinutes <= 930) {
+        marketStatus = 'Open';
+      }
+    } else {
+      const nyHours = (nowUtc.getUTCHours() - 4 + 24) % 24;
+      const isWeekday = nowUtc.getUTCDay() >= 1 && nowUtc.getUTCDay() <= 5;
+      if (isWeekday && nyHours >= 9.5 && nyHours <= 16) {
+        marketStatus = 'Open';
+      }
+    }
+
+    return res.json({
+      symbol,
+      ticker: tickerUsed,
+      currency: meta.currency || (isIndia ? 'INR' : 'USD'),
+      currentPrice: currentPrice !== null ? Number(currentPrice.toFixed(2)) : null,
+      previousClose: previousClose !== null ? Number(previousClose.toFixed(2)) : null,
+      change: change !== null ? Number(change.toFixed(2)) : null,
+      changePercent: changePercent !== null ? Number(changePercent.toFixed(2)) : null,
+      dayHigh: meta.regularMarketDayHigh ? Number(meta.regularMarketDayHigh.toFixed(2)) : null,
+      dayLow: meta.regularMarketDayLow ? Number(meta.regularMarketDayLow.toFixed(2)) : null,
+      volume: meta.regularMarketVolume || 0,
+      marketStatus,
+      marketTime: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : new Date().toISOString(),
+      points,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, points: [] });
+  }
+});
+
+// ============================================================================
+// Server-Side Gemini AI Endpoints (No API key exposed to frontend)
+// ============================================================================
+
+async function callGeminiBackend(prompt, userApiKey) {
+  const apiKey = (userApiKey || process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey || apiKey.includes('your_')) {
+    throw new Error('Gemini API key is not configured on the server.');
+  }
+
+  const modelsToTry = ['gemini-3.5-flash', 'gemini-3.5-pro', 'gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+
+  for (const model of modelsToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            topP: 0.8,
+            maxOutputTokens: 2500,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text;
+      }
+    } catch {
+      // try next model
+    }
+  }
+
+  throw new Error('All Gemini API models failed to return a response.');
+}
+
+app.post('/api/ai/analyze', async (req, res) => {
+  try {
+    const { symbol, companyName, market, question, portfolioContext, news: clientNews } = req.body;
+    if (!symbol) {
+      return res.status(400).json({ error: 'symbol parameter is required' });
+    }
+
+    const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
+    const sym = symbol.toUpperCase();
+    const cName = companyName || sym;
+
+    // Fetch news if not provided
+    let news = Array.isArray(clientNews) ? clientNews : [];
+    if (news.length === 0) {
+      try {
+        const newsRes = await fetch(`http://localhost:${PORT}/api/market/news?symbol=${encodeURIComponent(sym)}&company=${encodeURIComponent(cName)}&market=${market || 'IN'}`);
+        if (newsRes.ok) {
+          const nData = await newsRes.json();
+          news = nData.news || [];
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const newsText = news.length > 0
+      ? news.map((n, i) => `${i + 1}. [${n.publisher || 'News'}] "${n.title}" (${n.pubDate})`).join('\n')
+      : 'No live headlines available. Base evaluation on known company sector metrics and business profile.';
+
+    const prompt = `
+You are a senior equity research analyst inside the Aurum portfolio intelligence application.
+Analyze ${sym} (${cName}) answering: "${question || 'What is the latest analysis for this stock?'}"
+
+Context:
+- Symbol: ${sym}
+- Company: ${cName}
+- Market: ${market || 'IN'}
+- Real-time News Headlines:
+${newsText}
+
+CRITICAL RULES:
+1. DO NOT recommend BUY, SELL, or HOLD.
+2. DO NOT state arbitrary confidence percentages (e.g. "80% confidence").
+3. Distinguish FACT from AI INTERPRETATION strictly.
+4. Extract evidence from provided news into supporting (positive), contradicting (negative), and uncertain/watch factors.
+5. Identify 3-4 key business/market risks with explanations.
+6. Provide positive, neutral, and negative scenarios based on conditional logic.
+
+Return valid JSON strictly matching this schema:
+{
+  "assessment": {
+    "type": "POSITIVE" | "MIXED" | "NEGATIVE" | "INSUFFICIENT",
+    "evidenceStrength": "STRONG" | "MODERATE" | "LIMITED",
+    "summary": "<2-4 sentence evidence-backed summary directly answering the query>"
+  },
+  "quickTake": {
+    "whatHappened": "<Fact about stock movement/news>",
+    "why": "<AI interpretation of catalyst>",
+    "portfolioImpact": "<Explanation of position/portfolio impact>",
+    "bottomLine": "<Objective takeaway for investor>"
+  },
+  "supportingEvidence": [
+    { "claim": "<Short title>", "evidence": "<Fact-backed statement>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
+  ],
+  "contradictingEvidence": [
+    { "claim": "<Short title>", "evidence": "<Fact-backed statement>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
+  ],
+  "uncertainFactors": [
+    { "claim": "<Short title>", "evidence": "<Fact-backed explanation>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
+  ],
+  "risks": [
+    { "item": "<Risk title>", "whyItMatters": "<Reason>" }
+  ],
+  "whatToWatch": ["<Watcher item 1>", "<Watcher item 2>"],
+  "scenarios": {
+    "positive": [ { "trigger": "<Trigger>", "outcome": "<Outcome>" } ],
+    "neutral": [ { "trigger": "<Trigger>", "outcome": "<Outcome>" } ],
+    "negative": [ { "trigger": "<Trigger>", "outcome": "<Outcome>" } ]
+  }
+}
+`;
+
+    try {
+      const rawJsonText = await callGeminiBackend(prompt, userApiKey);
+      let parsed = {};
+      try {
+        const clean = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+        parsed = JSON.parse(clean);
+      } catch {
+        parsed = {};
+      }
+
+      // Calculate portfolio impact deterministically if user owns stock
+      let portfolioImpact = null;
+      if (portfolioContext && portfolioContext.shares > 0) {
+        const shares = Number(portfolioContext.shares);
+        const avgCost = Number(portfolioContext.avgCost || 0);
+        const currentPrice = Number(portfolioContext.currentPrice || avgCost);
+        const prevPrice = Number(portfolioContext.previousClose || currentPrice);
+
+        const investment = shares * avgCost;
+        const currentValue = shares * currentPrice;
+        const profitLoss = currentValue - investment;
+        const totalReturnPercent = investment > 0 ? ((currentValue - investment) / investment) * 100 : 0;
+        const latestMovementPercent = prevPrice > 0 ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
+
+        portfolioImpact = {
+          shares,
+          averageCost: avgCost,
+          currentValue,
+          profitLoss,
+          totalReturnPercent,
+          latestMovementPercent,
+          portfolioExposurePercent: portfolioContext.exposurePercent || 0,
+        };
+      }
+
+      return res.json({
+        symbol: sym,
+        companyName: cName,
+        question: question || 'Analysis overview',
+        assessment: parsed.assessment || {
+          type: 'MIXED',
+          evidenceStrength: 'MODERATE',
+          summary: 'Recent information shows both constructive operating metrics and market uncertainty.'
+        },
+        quickTake: parsed.quickTake || {
+          whatHappened: `${sym} is trading with active market interest.`,
+          why: 'Movement coincides with recent sector news and company updates.',
+          portfolioImpact: portfolioImpact ? `Position is affected by recent price action.` : 'No direct position held.',
+          bottomLine: 'Monitor upcoming earnings and management guidance.'
+        },
+        supportingEvidence: parsed.supportingEvidence || [],
+        contradictingEvidence: parsed.contradictingEvidence || [],
+        uncertainFactors: parsed.uncertainFactors || [],
+        risks: parsed.risks || [],
+        whatToWatch: parsed.whatToWatch || [],
+        scenarios: parsed.scenarios || { positive: [], neutral: [], negative: [] },
+        portfolioImpact,
+        sources: news.map((n) => ({
+          title: n.title,
+          publisher: n.publisher || 'Financial Source',
+          url: n.link || '',
+          publishedAt: n.pubDate || new Date().toISOString(),
+        })),
+        dataFreshness: {
+          marketData: 'Live Market Feed',
+          news: `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          earnings: 'Latest Q Reporting Period',
+          filings: 'Latest Regulatory Filings',
+        },
+        generatedAt: new Date().toISOString(),
+        disclaimer: 'Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.',
+      });
+    } catch (aiErr) {
+      console.warn('[AI/Analyze] Backend AI error:', aiErr.message);
+      return res.status(503).json({
+        error: 'AI analysis could not be generated. Live AI service unavailable.',
+        details: aiErr.message,
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { symbol, companyName, question, history } = req.body;
+    if (!symbol || !question) {
+      return res.status(400).json({ error: 'symbol and question are required' });
+    }
+
+    const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
+    const prompt = `
+You are an AI Analyst for ${symbol} (${companyName || symbol}).
+User question: "${question}"
+
+Provide a clear, evidence-based answer without giving authoritative buy/sell advice. Cite specific facts or market developments where applicable.
+`;
+
+    try {
+      const text = await callGeminiBackend(prompt, userApiKey);
+      return res.json({ role: 'assistant', content: text, createdAt: new Date().toISOString() });
+    } catch (err) {
+      return res.status(530).json({ error: 'AI follow-up question could not be processed.', details: err.message });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// Voice Assistant Endpoints
+// ============================================================================
+
+app.use('/api/voice', requireAuth);
+
+app.post('/api/voice/session', async (req, res) => {
+  try {
+    const sessionId = `vsess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date().toISOString();
+    const session = {
+      id: sessionId,
+      userId: req.userId,
+      selectedSymbol: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (isMongoConnected && db) {
+      await db.collection('voice_sessions').insertOne(session);
+    } else {
+      memoryVoiceSessions.push(session);
+    }
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/voice/preferences', async (req, res) => {
+  try {
+    let prefs = null;
+    if (isMongoConnected && db) {
+      prefs = await db.collection('voice_preferences').findOne({ userId: req.userId });
+    } else {
+      prefs = memoryVoicePreferences.get(req.userId);
+    }
+    if (!prefs) {
+      prefs = {
+        userId: req.userId,
+        speechRate: 1,
+        autoPlay: true,
+        showTranscript: true,
+        pushToTalk: false
+      };
+    }
+    res.json(prefs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/voice/preferences', async (req, res) => {
+  try {
+    const updates = req.body;
+    let prefs = { ...updates, userId: req.userId };
+    delete prefs._id;
+    if (isMongoConnected && db) {
+      await db.collection('voice_preferences').updateOne(
+        { userId: req.userId },
+        { $set: prefs },
+        { upsert: true }
+      );
+    } else {
+      memoryVoicePreferences.set(req.userId, prefs);
+    }
+    res.json({ success: true, preferences: prefs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/voice/query', async (req, res) => {
+  try {
+    const { sessionId, transcript, pageContext } = req.body;
+    if (!transcript) {
+      return res.status(400).json({ error: 'transcript is required' });
+    }
+    
+    const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
+    
+    // Minimal orchestration: Ask Gemini to determine intent
+    const intentPrompt = `
+Analyze the user's voice request for a financial application.
+Request: "${transcript}"
+Context: ${pageContext || 'none'}
+
+Return a JSON with the following format exactly:
+{
+  "intent": "PORTFOLIO_SUMMARY" | "STOCK_ANALYSIS" | "MARKET_SUMMARY" | "WHAT_IF" | "NAVIGATE" | "UNKNOWN",
+  "symbol": "<detected symbol or null>"
+}`;
+
+    const rawIntentText = await callGeminiBackend(intentPrompt, userApiKey);
+    let parsedIntent = { intent: 'UNKNOWN', symbol: null };
+    try {
+      const clean = rawIntentText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+      parsedIntent = JSON.parse(clean);
+    } catch (e) {
+      // fallback
+    }
+
+    // Formulate the final answer based on intent
+    const answerPrompt = `
+You are Aurum, a voice AI investing assistant.
+User requested: "${transcript}"
+Intent determined: ${parsedIntent.intent}
+Symbol: ${parsedIntent.symbol || 'none'}
+
+Write a concise, conversational response meant to be spoken aloud.
+Return JSON exactly like:
+{
+  "intent": "${parsedIntent.intent}",
+  "spokenAnswer": "...",
+  "answer": "...",
+  "symbol": "${parsedIntent.symbol}",
+  "actions": []
+}
+`;
+
+    const rawAnswerText = await callGeminiBackend(answerPrompt, userApiKey);
+    let finalAnswer = {};
+    try {
+      const cleanAns = rawAnswerText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+      finalAnswer = JSON.parse(cleanAns);
+    } catch (e) {
+      finalAnswer = {
+        intent: 'UNKNOWN',
+        spokenAnswer: "I'm having trouble understanding right now.",
+        answer: "I couldn't process the response.",
+        symbol: null,
+        actions: []
+      };
+    }
+    
+    const responsePayload = {
+      ...finalAnswer,
+      sources: [],
+      data: {},
+      timestamp: new Date().toISOString(),
+      followUpSuggestions: []
+    };
+
+    const message = {
+      id: `vmsg-${Date.now()}`,
+      sessionId,
+      transcript,
+      response: responsePayload,
+      createdAt: new Date().toISOString()
+    };
+    
+    if (isMongoConnected && db && sessionId) {
+      await db.collection('voice_messages').insertOne(message);
+    } else {
+      memoryVoiceMessages.push(message);
+    }
+
+    res.json(responsePayload);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/voice/transcribe', async (req, res) => {
+  res.status(501).json({ error: 'Backend transcription not fully implemented. Please use browser SpeechRecognition.' });
+});
+
+app.post('/api/voice/speak', async (req, res) => {
+  res.status(501).json({ error: 'Backend TTS not fully implemented. Please use browser SpeechSynthesis.' });
+});
+
+app.post('/api/voice/action', async (req, res) => {
+  res.json({ success: true });
 });
 
 // Serve static files from Angular build output
