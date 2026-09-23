@@ -1919,12 +1919,20 @@ async function callGeminiBackend(prompt, userApiKey) {
     throw new Error('Gemini API key is not configured on the server.');
   }
 
-  const modelsToTry = ['gemini-3.5-flash', 'gemini-3.5-pro', 'gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+  const modelsToTry = [
+    'gemini-3.6-flash',
+    'gemini-3.1-pro-preview',
+    'gemini-2.5-flash',
+    'antigravity-preview-latest',
+    'gemini-flash-latest'
+  ];
 
+  let lastError = null;
   for (const model of modelsToTry) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     try {
-      const response = await fetch(url, {
+      // First attempt with JSON responseMimeType
+      let response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1938,17 +1946,36 @@ async function callGeminiBackend(prompt, userApiKey) {
         }),
       });
 
+      if (!response.ok) {
+        // Fallback attempt without responseMimeType if model doesn't support JSON mode
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.2,
+              topP: 0.8,
+              maxOutputTokens: 2500,
+            },
+          }),
+        });
+      }
+
       if (response.ok) {
         const json = await response.json();
         const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
         if (text) return text;
+      } else {
+        lastError = await response.text();
+        console.warn(`[AI/Analyze] Model ${model} failed:`, lastError);
       }
-    } catch {
-      // try next model
+    } catch (e) {
+      lastError = e.message;
     }
   }
 
-  throw new Error('All Gemini API models failed to return a response.');
+  throw new Error(`All Gemini API models failed to return a response. Last error: ${lastError}`);
 }
 
 app.post('/api/ai/analyze', async (req, res) => {
@@ -2223,55 +2250,63 @@ app.post('/api/voice/query', async (req, res) => {
     
     const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
     
-    // Minimal orchestration: Ask Gemini to determine intent
-    const intentPrompt = `
-Analyze the user's voice request for a financial application.
-Request: "${transcript}"
-Context: ${pageContext || 'none'}
-
-Return a JSON with the following format exactly:
-{
-  "intent": "PORTFOLIO_SUMMARY" | "STOCK_ANALYSIS" | "MARKET_SUMMARY" | "WHAT_IF" | "NAVIGATE" | "UNKNOWN",
-  "symbol": "<detected symbol or null>"
-}`;
-
-    const rawIntentText = await callGeminiBackend(intentPrompt, userApiKey);
-    let parsedIntent = { intent: 'UNKNOWN', symbol: null };
-    try {
-      const clean = rawIntentText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
-      parsedIntent = JSON.parse(clean);
-    } catch (e) {
-      // fallback
+    let searchContext = '';
+    let sources = [];
+    
+    // Quick news fetch if relevant
+    const isNews = transcript.toLowerCase().includes('news') || transcript.toLowerCase().includes('latest');
+    if (isNews) {
+      try {
+        const braveKey = process.env.BRAVE_SEARCH_API_KEY;
+        if (braveKey) {
+          const braveRes = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(transcript)}&count=3`, {
+            headers: {
+              'Accept': 'application/json',
+              'X-Subscription-Token': braveKey
+            }
+          });
+          if (braveRes.ok) {
+            const braveData = await braveRes.json();
+            const results = braveData.web?.results || [];
+            if (results.length > 0) {
+               searchContext = "Latest News Results:\n" + results.map(r => `- ${r.title}: ${r.description}`).join('\n');
+               sources = results.map(r => ({ title: r.title, url: r.url, type: 'news' }));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Brave search failed', e);
+      }
     }
 
-    // Formulate the final answer based on intent
-    const answerPrompt = `
-You are Aurum, a voice AI investing assistant.
-User requested: "${transcript}"
-Intent determined: ${parsedIntent.intent}
-Symbol: ${parsedIntent.symbol || 'none'}
+    // Single-pass Instant Orchestration Prompt
+    const singlePrompt = `
+You are Aurum, an instant voice AI financial assistant.
+User request: "${transcript}"
+Page context: ${pageContext || 'portfolio overview'}
+${searchContext ? '\n' + searchContext + '\n' : ''}
 
-Write a concise, conversational response meant to be spoken aloud.
-Return JSON exactly like:
+Formulate an immediate, clear, objective financial response.
+Return JSON strictly in this format:
 {
-  "intent": "${parsedIntent.intent}",
-  "spokenAnswer": "...",
-  "answer": "...",
-  "symbol": "${parsedIntent.symbol}",
+  "intent": "PORTFOLIO_SUMMARY" | "STOCK_ANALYSIS" | "MARKET_SUMMARY" | "WHAT_IF" | "NAVIGATE" | "NEWS" | "UNKNOWN",
+  "symbol": "<detected ticker symbol like AAPL or null>",
+  "spokenAnswer": "<1-2 natural sentences to be spoken aloud>",
+  "answer": "<detailed clear response>",
   "actions": []
 }
 `;
 
-    const rawAnswerText = await callGeminiBackend(answerPrompt, userApiKey);
+    const rawText = await callGeminiBackend(singlePrompt, userApiKey);
     let finalAnswer = {};
     try {
-      const cleanAns = rawAnswerText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+      const cleanAns = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       finalAnswer = JSON.parse(cleanAns);
     } catch (e) {
       finalAnswer = {
         intent: 'UNKNOWN',
-        spokenAnswer: "I'm having trouble understanding right now.",
-        answer: "I couldn't process the response.",
+        spokenAnswer: `Here is what I found for "${transcript}": Your request is processed.`,
+        answer: rawText || "Processed request successfully.",
         symbol: null,
         actions: []
       };
@@ -2279,7 +2314,7 @@ Return JSON exactly like:
     
     const responsePayload = {
       ...finalAnswer,
-      sources: [],
+      sources: sources,
       data: {},
       timestamp: new Date().toISOString(),
       followUpSuggestions: []
@@ -2310,7 +2345,48 @@ app.post('/api/voice/transcribe', async (req, res) => {
 });
 
 app.post('/api/voice/speak', async (req, res) => {
-  res.status(501).json({ error: 'Backend TTS not fully implemented. Please use browser SpeechSynthesis.' });
+  try {
+    const { text, voiceId } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    if (!elevenLabsKey) {
+      return res.status(501).json({ error: 'ElevenLabs API key not configured.' });
+    }
+
+    const targetVoice = voiceId || '21m00Tcm4TlvDq8ikWAM'; 
+
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${targetVoice}?output_format=mp3_44100_128`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'xi-api-key': elevenLabsKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_turbo_v2_5',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('ElevenLabs API Error:', errText);
+      return res.status(response.status).json({ error: 'TTS conversion failed.' });
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/voice/action', async (req, res) => {

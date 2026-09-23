@@ -56,6 +56,8 @@ export class VoiceAssistantService {
   };
 
   private currentTranscript = '';
+  private liveTranscriptSubject = new BehaviorSubject<string>('');
+  liveTranscript$ = this.liveTranscriptSubject.asObservable();
 
   constructor(
     private http: HttpClient,
@@ -67,7 +69,8 @@ export class VoiceAssistantService {
 
     this.stt.transcript$.subscribe(res => {
       this.currentTranscript = res.text;
-      if (res.isFinal) {
+      this.liveTranscriptSubject.next(res.text);
+      if (res.isFinal && res.text.trim()) {
         this.processQuery(this.currentTranscript);
       }
     });
@@ -116,11 +119,15 @@ export class VoiceAssistantService {
     this.tts.cancel();
     this.stateSubject.next('LISTENING');
     this.currentTranscript = '';
+    this.liveTranscriptSubject.next('');
     this.stt.start();
   }
 
   stopListening() {
     this.stt.stop();
+    if (this.currentTranscript && this.currentTranscript.trim()) {
+      this.processQuery(this.currentTranscript);
+    }
   }
   
   cancel() {

@@ -1,13 +1,17 @@
-import { Component } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { VoiceAssistantService } from '../../core/services/voice-assistant.service';
-import { VoiceButtonComponent } from './components/voice-button/voice-button.component';
-import { VoicePanelComponent } from './components/voice-panel/voice-panel.component';
+import { VoiceButtonComponent, VoicePanelComponent } from './components';
 
 @Component({
   selector: 'aurum-voice-assistant',
   standalone: true,
-  imports: [CommonModule, VoiceButtonComponent, VoicePanelComponent],
+  imports: [
+    CommonModule,
+    VoiceButtonComponent,
+    VoicePanelComponent
+  ],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <div class="voice-assistant-container">
       <aurum-voice-button 
@@ -40,7 +44,7 @@ import { VoicePanelComponent } from './components/voice-panel/voice-panel.compon
 export class VoiceAssistantComponent {
   isOpen = false;
 
-  constructor(public voiceService: VoiceAssistantService) {}
+  constructor(public voiceService: VoiceAssistantService) { }
 
   togglePanel() {
     this.isOpen = !this.isOpen;

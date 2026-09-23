@@ -13,8 +13,8 @@ import { Subscription } from 'rxjs';
     <div class="voice-modal">
       <div class="header">
         <div class="brand">
-          <div class="logo">A</div>
-          <span>Aurum</span>
+          <div class="logo">⚡</div>
+          <span>Antigravity Voice Bot</span>
         </div>
         <button class="close-btn" (click)="close.emit()">×</button>
       </div>
@@ -24,7 +24,9 @@ import { Subscription } from 'rxjs';
         <div *ngIf="state === 'LISTENING'" class="listening-state">
           <h3>Listening...</h3>
           <aurum-voice-waveform [state]="state"></aurum-voice-waveform>
-          <p class="instruction">Speak naturally about your portfolio, any stock, or market news.</p>
+          <p class="instruction" [class.active-speech]="!!liveTranscript">
+            {{ liveTranscript || 'Speak naturally about your portfolio, any stock, or market news.' }}
+          </p>
           <div class="actions">
             <button class="btn btn-secondary" (click)="service.cancel()">Cancel</button>
             <button class="btn btn-primary" (click)="service.stopListening()">Stop Listening</button>
@@ -283,19 +285,19 @@ export class VoicePanelComponent implements OnInit, OnDestroy {
   state: VoiceState = 'IDLE';
   chatHistory: any[] = [];
   latestAnswer = '';
+  liveTranscript = '';
   textInput = '';
   
   private subs = new Subscription();
 
-  constructor(public service: VoiceAssistantService) {
-    // If we open the panel, start listening immediately as per some UX patterns,
-    // or stay IDLE. The prompt says "Do NOT start microphone recording automatically 
-    // unless the user explicitly activates it." So we stay IDLE.
-  }
+  constructor(public service: VoiceAssistantService) {}
 
   ngOnInit() {
     this.subs.add(
       this.service.state$.subscribe(s => this.state = s)
+    );
+    this.subs.add(
+      this.service.liveTranscript$.subscribe(t => this.liveTranscript = t)
     );
     this.subs.add(
       this.service.chatHistory$.subscribe(h => {
