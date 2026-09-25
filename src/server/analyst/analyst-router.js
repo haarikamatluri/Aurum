@@ -29,7 +29,7 @@ const analystAlertsStore = new Map();
 /**
  * Configure router dependencies (e.g. Gemini backend caller, MongoDB client, Auth).
  */
-function createAnalystRouter({ geminiBackendCaller, isMongoConnected, db, optionalAuth }) {
+function createAnalystRouter({ geminiBackendCaller, isMongoConnected, db, optionalAuth, getMemoryStore, getUserWatchlist }) {
   const authMiddleware = optionalAuth || ((req, res, next) => next());
 
   // 1. Health & Metrics
@@ -57,6 +57,22 @@ function createAnalystRouter({ geminiBackendCaller, isMongoConnected, db, option
           const wDoc = await db.collection('watchlists').findOne({ userId });
           if (wDoc?.symbols && wDoc.symbols.length > 0) watchlistSymbols = wDoc.symbols;
         } catch {}
+      }
+
+      // Memory store fallback for holdings if DB has no holdings
+      if (userHoldings.length === 0 && typeof getMemoryStore === 'function') {
+        const memStore = getMemoryStore(userId);
+        if (memStore?.holdings && memStore.holdings.length > 0) {
+          userHoldings = memStore.holdings;
+        }
+      }
+
+      // Watchlist fallback if DB has no watchlists
+      if (typeof getUserWatchlist === 'function') {
+        const wSet = getUserWatchlist(userId);
+        if (wSet && wSet.size > 0) {
+          watchlistSymbols = Array.from(wSet);
+        }
       }
 
       const forceRefresh = req.query.refresh === 'true';

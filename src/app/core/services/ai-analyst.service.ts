@@ -290,28 +290,37 @@ export interface AnalystDataEnvelope<T = any> {
 
 export interface RealMorningBriefingData {
   generatedAt: string;
+  asOf?: string;
   marketSnapshot: {
     global: Array<{ index: string; region: string; price: number; changePct: number; currency: string; status: string }>;
     india: Array<{ index: string; region: string; price: number; changePct: number; currency: string; status: string }>;
+    globalMarkets?: any;
+    indianMarket?: any;
   };
   portfolioSnapshot: {
     totalValue: number;
     dailyPl: number;
+    dailyPL?: number;
     dailyPlPct: number;
+    dailyPLPct?: number;
     holdingsCount: number;
     topGainers: any[];
     topLosers: any[];
-    sectorExposure: Record<string, number>;
+    largestGainers?: any[];
+    largestLosers?: any[];
+    sectorExposure?: Record<string, number>;
   };
   watchlistSnapshot: {
     symbols: string[];
     topMovers: any[];
+    movers?: any[];
   };
   news: Array<{ title: string; source: string; publishedAt: string; url: string; symbol: string }>;
   earnings: any[];
   filings: any[];
-  risks: string[];
+  risks: any[];
   briefing: {
+    overnightMarket?: string;
     overnightMarketSummary: string;
     indianMarketSetup: string;
     portfolioImpact: string;
@@ -319,9 +328,9 @@ export interface RealMorningBriefingData {
     importantNews: string;
     earningsAndEvents: string;
     risksToWatch: string;
-    todaysFocus: string;
+    todaysFocus: string | string[];
   };
-  sources: string[];
+  sources: any[];
 }
 
 export interface FilingItem {
@@ -538,8 +547,9 @@ export class AiAnalystService {
   // Real Financial Intelligence OS Endpoints (/api/analyst/*)
   // --------------------------------------------------------------------------
 
-  async getRealMorningBriefing(): Promise<AnalystDataEnvelope<RealMorningBriefingData>> {
-    const res = await fetch('/api/analyst/morning-brief');
+  async getRealMorningBriefing(forceRefresh: boolean = false): Promise<AnalystDataEnvelope<RealMorningBriefingData>> {
+    const url = forceRefresh ? '/api/analyst/morning-brief?refresh=true' : '/api/analyst/morning-brief';
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Morning brief API error: ${res.status}`);
     return await res.json();
   }
@@ -1399,10 +1409,12 @@ Return your entire analysis in valid JSON format only matching this schema stric
           globalCues,
           keyTheme: b.briefing.indianMarketSetup || b.briefing.overnightMarketSummary || 'Active session market setup.',
           holdingsImpact: holdingsImpact.length > 0 ? holdingsImpact : fallback.holdingsImpact,
-          actionPlan: [
-            b.briefing.todaysFocus || 'Monitor market momentum and key earnings.',
-            b.briefing.risksToWatch || 'Track volatility indicators and macro announcements.'
-          ],
+          actionPlan: Array.isArray(b.briefing.todaysFocus)
+            ? b.briefing.todaysFocus
+            : [
+                b.briefing.todaysFocus || 'Monitor market momentum and key earnings.',
+                b.briefing.risksToWatch || 'Track volatility indicators and macro announcements.'
+              ],
           disclaimer: 'Institutional briefing synthesized from live multi-market index feeds and regulatory filings.'
         };
       }

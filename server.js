@@ -3453,7 +3453,9 @@ const analystRouter = createAnalystRouter({
   geminiBackendCaller: callGeminiBackend,
   isMongoConnected,
   db,
-  optionalAuth
+  optionalAuth,
+  getMemoryStore,
+  getUserWatchlist
 });
 app.use('/api/analyst', analystRouter);
 

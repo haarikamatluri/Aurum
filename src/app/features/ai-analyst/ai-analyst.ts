@@ -438,6 +438,10 @@ export class AiAnalystPage implements OnInit {
     this.watchlistService.toggleWatchlist(symbol);
   }
 
+  isFocusArray(val: any): boolean {
+    return Array.isArray(val);
+  }
+
   isWatchlisted(symbol: string): boolean {
     return this.watchlistService.isWatchlisted(symbol);
   }
@@ -489,7 +493,7 @@ export class AiAnalystPage implements OnInit {
   async loadMorningBriefing(forceRefresh: boolean = false): Promise<void> {
     this.briefingLoading.set(true);
     try {
-      const env = await this.aiService.getRealMorningBriefing();
+      const env = await this.aiService.getRealMorningBriefing(forceRefresh);
       this.morningBriefEnvelope.set(env);
       if (env?.data) {
         const b = env.data;
@@ -514,7 +518,9 @@ export class AiAnalystPage implements OnInit {
             expectedMovement: 'SIDEWAYS' as const,
             reason: b.briefing?.portfolioImpact || 'Tracked against live index movement.'
           })),
-          actionPlan: [b.briefing?.todaysFocus || 'Monitor portfolio assets.', b.briefing?.risksToWatch || 'Track market volatility.'],
+          actionPlan: Array.isArray(b.briefing?.todaysFocus)
+            ? b.briefing.todaysFocus
+            : [b.briefing?.todaysFocus || 'Monitor portfolio assets.', b.briefing?.risksToWatch || 'Track market volatility.'],
           disclaimer: 'Institutional briefing synthesized from live multi-market index feeds and regulatory filings.'
         });
       }

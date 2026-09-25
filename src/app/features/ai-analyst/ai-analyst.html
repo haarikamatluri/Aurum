@@ -755,12 +755,12 @@
                 <h3>Overnight Global Markets</h3>
                 <span class="sec-source">Yahoo Finance / Refinitiv</span>
               </div>
-              <p class="summary-text">{{ b.briefing.overnightMarketSummary }}</p>
+              <p class="summary-text">{{ b.briefing.overnightMarketSummary || b.briefing.overnightMarket }}</p>
               <div class="cues-ticker-grid">
                 @for (item of b.marketSnapshot.global; track item.index) {
                   <div class="market-pill">
                     <span class="pill-name">{{ item.index }}</span>
-                    <span class="pill-price">{{ item.currency === 'USD' ? '$' : '' }}{{ item.price | number:'1.2-2' }}</span>
+                    <span class="pill-price">{{ item.currency === 'USD' ? '$' : (item.currency === 'INR' ? '₹' : '') }}{{ item.price | number:'1.2-2' }}</span>
                     <span class="pill-change" [class.pos]="item.changePct >= 0" [class.neg]="item.changePct < 0">
                       {{ item.changePct >= 0 ? '+' : '' }}{{ item.changePct | number:'1.2-2' }}%
                     </span>
@@ -806,8 +806,8 @@
               </div>
               <div class="metric-box">
                 <span class="lbl">Estimated Daily P&L</span>
-                <span class="val" [class.pos]="b.portfolioSnapshot.dailyPl >= 0" [class.neg]="b.portfolioSnapshot.dailyPl < 0">
-                  {{ b.portfolioSnapshot.dailyPl >= 0 ? '+' : '' }}₹{{ b.portfolioSnapshot.dailyPl | number:'1.2-2' }} ({{ b.portfolioSnapshot.dailyPlPct | number:'1.2-2' }}%)
+                <span class="val" [class.pos]="(b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) >= 0" [class.neg]="(b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) < 0">
+                  {{ (b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) >= 0 ? '+' : '' }}₹{{ (b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) | number:'1.2-2' }} ({{ (b.portfolioSnapshot.dailyPlPct ?? b.portfolioSnapshot.dailyPLPct) | number:'1.2-2' }}%)
                 </span>
               </div>
               <div class="metric-box">
@@ -825,6 +825,19 @@
                 <h3>Watchlist Movers</h3>
               </div>
               <p class="summary-text-sm">{{ b.briefing.watchlistMovers }}</p>
+              @if (b.watchlistSnapshot?.movers && b.watchlistSnapshot.movers.length > 0) {
+                <div class="watchlist-movers-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+                  @for (m of b.watchlistSnapshot.movers.slice(0, 3); track m.symbol) {
+                    <div class="mover-mini-row" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 4px 8px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                      <span style="font-weight: 600;">{{ m.symbol }}</span>
+                      <span>{{ m.currency === 'USD' ? '$' : '₹' }}{{ m.price | number:'1.2-2' }}</span>
+                      <span [class.pos]="m.changePercent >= 0" [class.neg]="m.changePercent < 0" style="font-weight: 600;">
+                        {{ m.changePercent >= 0 ? '+' : '' }}{{ m.changePercent | number:'1.2-2' }}%
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
             </div>
             <div class="briefing-card">
               <div class="card-title-row">
@@ -848,7 +861,15 @@
               <span class="sec-number">07</span>
               <h3>Today's Executive Action Focus</h3>
             </div>
-            <p class="summary-text">{{ b.briefing.todaysFocus }}</p>
+            @if (isFocusArray(b.briefing.todaysFocus)) {
+              <ul class="focus-list" style="margin: 8px 0 0 18px; padding: 0;">
+                @for (item of b.briefing.todaysFocus; track item) {
+                  <li style="font-size: 0.88rem; line-height: 1.5; margin-bottom: 4px;">{{ item }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="summary-text">{{ b.briefing.todaysFocus }}</p>
+            }
           </div>
 
           @if (b.news && b.news.length > 0) {
