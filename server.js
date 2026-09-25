@@ -71,19 +71,31 @@ const marketLimiter = (process.env.VERCEL || process.env.VERCEL_ENV)
 
 // Vercel Serverless URL Normalization Middleware
 app.use((req, res, next) => {
+  let rawUrl = req.url || '/';
+
+  // Strip Vercel function routing prefixes if present (e.g., /api/index.js/auth/signup)
+  rawUrl = rawUrl.replace(/^\/api\/index\.js/, '');
+  if (!rawUrl) rawUrl = '/';
+
+  // Normalize shorthand routes
+  if (rawUrl === '/signup' || rawUrl === '/register') rawUrl = '/api/auth/signup';
+  if (rawUrl === '/login') rawUrl = '/api/auth/login';
+
   if (
-    req.url.startsWith('/auth/') ||
-    req.url.startsWith('/market/') ||
-    req.url.startsWith('/analyst/') ||
-    req.url.startsWith('/ml/') ||
-    req.url.startsWith('/portfolio/') ||
-    req.url.startsWith('/securities/') ||
-    req.url.startsWith('/voice/') ||
-    req.url.startsWith('/watchlist/') ||
-    req.url.startsWith('/alerts/')
+    rawUrl.startsWith('/auth/') ||
+    rawUrl.startsWith('/market/') ||
+    rawUrl.startsWith('/analyst/') ||
+    rawUrl.startsWith('/ml/') ||
+    rawUrl.startsWith('/portfolio/') ||
+    rawUrl.startsWith('/securities/') ||
+    rawUrl.startsWith('/voice/') ||
+    rawUrl.startsWith('/watchlist/') ||
+    rawUrl.startsWith('/alerts/')
   ) {
-    req.url = '/api' + req.url;
+    rawUrl = '/api' + rawUrl;
   }
+
+  req.url = rawUrl;
   next();
 });
 
@@ -4678,19 +4690,41 @@ app.post('/api/voice/action', async (req, res) => {
   res.json({ success: true });
 });
 
-// Serve static files from Angular build output
-app.use(express.static(DIST_DIR, {
-  maxAge: '1y',
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('index.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
+// Serverless vs Standalone Express Routing Guard
+if (process.env.VERCEL || process.env.VERCEL_ENV) {
+  // On Vercel, static frontend files are served by Vercel CDN.
+  // Unmatched API requests return JSON 404 instead of crashing with ENOENT.
+  app.use((req, res) => {
+    res.status(404).json({
+      error: `API endpoint ${req.method} ${req.originalUrl || req.url} not found`,
+      requestId: `req-${Date.now()}`
+    });
+  });
+} else {
+  // Serve static files from Angular build output for standalone server
+  app.use(express.static(DIST_DIR, {
+    maxAge: '1y',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
     }
-  }
-}));
+  }));
 
-// Catch-all handler for Angular SPA client-side routing
-app.use((req, res) => {
-  res.sendFile(path.join(DIST_DIR, 'index.html'));
+  // Catch-all handler for Angular SPA client-side routing
+  app.use((req, res) => {
+    res.sendFile(path.join(DIST_DIR, 'index.html'));
+  });
+}
+
+// Global Server Error Handler
+app.use((err, req, res, next) => {
+  console.error('[ServerError]', err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    requestId: `req-${Date.now()}`
+  });
 });
 
 module.exports = app;
