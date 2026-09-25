@@ -1,8 +1,8 @@
 .cmd-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -16,17 +16,19 @@
   to { opacity: 1; }
 }
 
-.cmd-modal {
+.cmd-workspace {
   width: 100%;
   max-width: 1100px;
   height: 85vh;
-  background: #1A1A1A;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #0F172A;
 }
 
 @keyframes slideUp {
@@ -34,143 +36,253 @@
   to { transform: translateY(0); opacity: 1; }
 }
 
-.cmd-sidebar {
-  width: 260px;
-  background: #141414;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+.cmd-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #E2E8F0;
   display: flex;
-  flex-direction: column;
-}
-
-.cmd-logo {
-  padding: 1.5rem;
-  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
-  color: #D4AF37;
-  font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: #F8FAFC;
 
-  svg {
-    stroke-width: 1.5;
-  }
-}
-
-.cmd-nav {
-  padding: 1rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-}
-
-.nav-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: #A3A3A3;
-  font-size: 0.95rem;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #FFF;
-  }
-
-  &.active {
-    background: rgba(212, 175, 55, 0.1);
-    color: #D4AF37;
-    
-    svg {
-      stroke: #D4AF37;
+  .header-titles {
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #0F172A;
+    }
+    p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #64748B;
     }
   }
 
-  svg {
-    stroke: #A3A3A3;
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: #64748B;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #E2E8F0;
+      color: #0F172A;
+    }
   }
 }
 
-.cmd-content {
+.cmd-dashboard {
   flex: 1;
-  position: relative;
   display: flex;
   flex-direction: column;
-  background: #1A1A1A;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background: #F1F5F9;
+  gap: 1.5rem;
 }
 
-.cmd-close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: none;
-  color: #A3A3A3;
+/* Quick Actions */
+.quick-actions-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.2s;
+  gap: 1rem;
+  background: #FFFFFF;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #FFF;
+  .qa-label {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.9rem;
+    margin-right: 0.5rem;
+  }
+
+  .qa-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    svg {
+      color: #64748B;
+    }
+
+    &:hover {
+      background: #F8FAFC;
+      border-color: #CBD5E1;
+    }
+
+    &.buy-btn {
+      background: #ECFDF5;
+      border-color: #A7F3D0;
+      color: #065F46;
+      svg { color: #059669; }
+      &:hover { background: #D1FAE5; }
+    }
+
+    &.sell-btn {
+      background: #FEF2F2;
+      border-color: #FECACA;
+      color: #991B1B;
+      svg { color: #DC2626; }
+      &:hover { background: #FEE2E2; }
+    }
   }
 }
 
-.cmd-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  position: relative;
+/* Grid layout */
+.cmd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
 }
 
-/* Modals Embedded Overrides */
-::ng-deep .cmd-scroll-area {
-  /* Ensure the embedded modals stretch fully without their own padding */
-  .embedded-mode {
-    display: block;
-    width: 100%;
-    height: 100%;
+.cmd-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 
-    ::ng-deep {
-      .modal-backdrop, .overlay {
-        position: static;
-        background: transparent;
-        backdrop-filter: none;
-        padding: 0;
-        animation: none;
-        height: 100%;
-        display: block;
-      }
-      .modal-container, .modal {
-        width: 100%;
-        max-width: 100%;
-        height: 100%;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        background: transparent;
-        margin: 0;
-        max-height: none;
-        animation: none;
-      }
-      .modal-header {
-        border-radius: 0;
-      }
+  h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1E293B;
+    border-bottom: 1px solid #E2E8F0;
+    padding-bottom: 0.5rem;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+
+    span {
+      color: #64748B;
+    }
+    strong {
+      color: #0F172A;
+      font-weight: 600;
+
+      &.positive { color: #16A34A; }
+      &.negative { color: #DC2626; }
+      &.neutral { color: #94A3B8; }
+    }
+  }
+
+  .card-action-btn {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid #E2E8F0;
+    background: #F8FAFC;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #E2E8F0;
+    }
+  }
+}
+
+.order-view-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+
+  .back-btn {
+    position: absolute;
+    top: 1rem;
+    left: 1.5rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    color: #64748B;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #F1F5F9;
+      color: #0F172A;
+    }
+  }
+
+  app-order-modal {
+    flex: 1;
+    display: block;
+    height: 100%;
+    /* Override internal modal wrapper to fit container */
+    ::ng-deep .modal-backdrop {
+      position: static;
+      padding: 0;
+      background: none;
+      backdrop-filter: none;
+    }
+    ::ng-deep .modal-container {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+      padding-top: 3.5rem; /* space for back button */
+      background: none;
+    }
+  }
+  
+  app-broker-sync-modal {
+    flex: 1;
+    display: block;
+    height: 100%;
+    ::ng-deep .modal-backdrop {
+      position: static;
+      padding: 0;
+      background: none;
+      backdrop-filter: none;
+    }
+    ::ng-deep .modal-container {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+      padding-top: 3.5rem;
+      background: none;
     }
   }
 }

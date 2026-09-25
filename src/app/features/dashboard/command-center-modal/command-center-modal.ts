@@ -1,104 +1,172 @@
-import { Component, ChangeDetectionStrategy, output, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy, output, signal, inject, computed } from '@angular/core';
+import { CommonModule, DecimalPipe } from '@angular/common';
 import { OrderModalComponent } from '../order-modal/order-modal';
-import { AutomationModalComponent } from '../automation-modal/automation-modal';
-import { BrokerSyncModalComponent } from '../broker-sync-modal/broker-sync-modal';
-import { AddStockModal } from '../add-stock-modal/add-stock-modal';
-import { ImportSheetsModal } from '../import-sheets-modal/import-sheets-modal';
 import { AddHoldingRequest } from '../../../core/models/portfolio.model';
+import { PortfolioService } from '../../../core/services/portfolio.service';
+import { TradingService } from '../../../core/services/trading.service';
+import { AutomationService } from '../../../core/services/automation.service';
+import { BrokerSyncService } from '../../../core/services/broker-sync.service';
+import { BrokerSyncModalComponent } from '../broker-sync-modal/broker-sync-modal';
 
-type CommandTab = 'ORDER' | 'AUTOMATION' | 'BROKER' | 'ADD' | 'IMPORT';
+type CommandView = 'DASHBOARD' | 'BUY' | 'SELL' | 'BROKER';
 
 @Component({
   selector: 'app-command-center-modal',
   standalone: true,
   imports: [
     CommonModule, 
-    OrderModalComponent, 
-    AutomationModalComponent, 
-    BrokerSyncModalComponent, 
-    AddStockModal, 
-    ImportSheetsModal
+    DecimalPipe,
+    OrderModalComponent,
+    BrokerSyncModalComponent
   ],
   styleUrl: './command-center-modal.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="cmd-overlay" (click)="close.emit()">
-      <div class="cmd-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="cmd-title">
+      <div class="cmd-workspace" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="cmd-title">
         
-        <!-- Sidebar Navigation -->
-        <aside class="cmd-sidebar">
-          <div class="cmd-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-            </svg>
-            <span id="cmd-title">AURUM COMMAND</span>
+        <header class="cmd-header">
+          <div class="header-titles">
+            <h2 id="cmd-title">AURUM COMMAND CENTER</h2>
+            <p>Portfolio | Trading | Strategy | Broker | Data</p>
           </div>
-
-          <nav class="cmd-nav">
-            <button class="nav-item" [class.active]="activeTab() === 'ORDER'" (click)="activeTab.set('ORDER')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <line x1="12" y1="2" x2="12" y2="22"/><line x1="17" y1="5" x2="22" y2="10"/><line x1="22" y1="10" x2="17" y2="15"/><line x1="7" y1="19" x2="2" y2="14"/><line x1="2" y1="14" x2="7" y2="9"/>
-              </svg>
-              <span>Trading Engine</span>
-            </button>
-            
-            <button class="nav-item" [class.active]="activeTab() === 'AUTOMATION'" (click)="activeTab.set('AUTOMATION')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/>
-              </svg>
-              <span>Strategy Automation</span>
-            </button>
-            
-            <button class="nav-item" [class.active]="activeTab() === 'BROKER'" (click)="activeTab.set('BROKER')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-              <span>Broker Sync</span>
-            </button>
-            
-            <button class="nav-item" [class.active]="activeTab() === 'ADD'" (click)="activeTab.set('ADD')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
-              </svg>
-              <span>Add Stock</span>
-            </button>
-
-            <button class="nav-item" [class.active]="activeTab() === 'IMPORT'" (click)="activeTab.set('IMPORT')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <span>Bulk Import</span>
-            </button>
-          </nav>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="cmd-content">
-          <button class="cmd-close-btn" (click)="close.emit()" aria-label="Close Command Center">
+          <button class="close-btn" (click)="close.emit()" aria-label="Close Command Center">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
+        </header>
 
-          <div class="cmd-scroll-area">
-            @if (activeTab() === 'ORDER') {
-              <app-order-modal [isEmbedded]="true" (close)="close.emit()"></app-order-modal>
-            }
-            @if (activeTab() === 'AUTOMATION') {
-              <app-automation-modal [isEmbedded]="true" (close)="close.emit()"></app-automation-modal>
-            }
-            @if (activeTab() === 'BROKER') {
-              <app-broker-sync-modal [isEmbedded]="true" (closeModal)="close.emit()" (holdingsImported)="brokerHoldingsImported.emit($event)"></app-broker-sync-modal>
-            }
-            @if (activeTab() === 'ADD') {
-              <app-add-stock-modal [isEmbedded]="true" (close)="close.emit()" (added)="stockAdded.emit($event)"></app-add-stock-modal>
-            }
-            @if (activeTab() === 'IMPORT') {
-              <app-import-sheets-modal [isEmbedded]="true" (close)="close.emit()" (imported)="stocksImported.emit($event)"></app-import-sheets-modal>
-            }
+        @if (activeView() === 'DASHBOARD') {
+          <div class="cmd-dashboard">
+            <!-- Quick Actions -->
+            <section class="quick-actions-bar">
+              <span class="qa-label">Quick Actions:</span>
+              <button class="qa-btn buy-btn" (click)="activeView.set('BUY')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                + Buy Stock
+              </button>
+              <button class="qa-btn sell-btn" (click)="activeView.set('SELL')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                - Sell Stock
+              </button>
+              <button class="qa-btn" (click)="notifyNotImplemented('Analyze Stock')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Analyze Stock
+              </button>
+              <button class="qa-btn" (click)="notifyNotImplemented('Ask Aurum')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                Ask Aurum
+              </button>
+            </section>
+
+            <!-- Dashboard Grid -->
+            <div class="cmd-grid">
+              
+              <!-- Portfolio Overview -->
+              <div class="cmd-card">
+                <h3>Portfolio Snapshot</h3>
+                <div class="stat-row">
+                  <span>Total Value</span>
+                  <strong>{{ portfolioService.totalValue() | currency }}</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Today's P&L</span>
+                  <strong [class.positive]="portfolioService.todayPnL() >= 0" [class.negative]="portfolioService.todayPnL() < 0">
+                    {{ portfolioService.todayPnL() >= 0 ? '+' : '' }}{{ portfolioService.todayPnL() | currency }}
+                  </strong>
+                </div>
+                <div class="stat-row">
+                  <span>Cash & Buying Power</span>
+                  <strong>{{ portfolioService.cash() | currency }}</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Open Positions</span>
+                  <strong>{{ portfolioService.holdings().length }}</strong>
+                </div>
+              </div>
+
+              <!-- Trading Engine -->
+              <div class="cmd-card">
+                <h3>Trading Engine</h3>
+                <div class="stat-row">
+                  <span>Pending Orders</span>
+                  <strong>0</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Executed Orders</span>
+                  <strong>{{ tradingService.orders().length }}</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Kill Switch Status</span>
+                  <strong [class.negative]="tradingService.killSwitchActive()" [class.positive]="!tradingService.killSwitchActive()">
+                    {{ tradingService.killSwitchActive() ? 'HALTED' : 'READY' }}
+                  </strong>
+                </div>
+                <button class="card-action-btn" (click)="tradingService.toggleKillSwitch()">
+                  {{ tradingService.killSwitchActive() ? 'Resume Trading' : 'Halt Trading' }}
+                </button>
+              </div>
+
+              <!-- Strategy & Automation -->
+              <div class="cmd-card">
+                <h3>Strategy & Automation</h3>
+                <div class="stat-row">
+                  <span>Automation Engine</span>
+                  <strong class="positive">ONLINE</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Active Strategies</span>
+                  <strong>{{ automationService.strategies().length }}</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Phase 4 Connection</span>
+                  <strong class="positive">CONNECTED</strong>
+                </div>
+                <button class="card-action-btn" (click)="notifyNotImplemented('Open Automation settings')">Manage Automations</button>
+              </div>
+
+              <!-- Broker Connectivity -->
+              <div class="cmd-card">
+                <h3>Broker Connectivity</h3>
+                <div class="stat-row">
+                  <span>Broker Status</span>
+                  <strong [class.positive]="brokerSync.status().isConnected" [class.neutral]="!brokerSync.status().isConnected">
+                    {{ brokerSync.status().isConnected ? 'SYNCED' : 'DISCONNECTED' }}
+                  </strong>
+                </div>
+                <div class="stat-row">
+                  <span>Linked Accounts</span>
+                  <strong>{{ brokerSync.status().isConnected ? 1 : 0 }}</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Last Sync</span>
+                  <strong>{{ brokerSync.status().lastSyncTime | date:'shortTime' }}</strong>
+                </div>
+                <button class="card-action-btn" (click)="activeView.set('BROKER')">Sync Brokers</button>
+              </div>
+
+            </div>
           </div>
-        </main>
+        } @else if (activeView() === 'BUY' || activeView() === 'SELL') {
+          <!-- Order Panel View (Buy or Sell) -->
+          <div class="order-view-container">
+            <button class="back-btn" (click)="activeView.set('DASHBOARD')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to Command Center
+            </button>
+            <app-order-modal [initialSide]="activeView() === 'BUY' ? 'BUY' : 'SELL'" [isEmbedded]="true" (closeModal)="activeView.set('DASHBOARD')"></app-order-modal>
+          </div>
+        } @else if (activeView() === 'BROKER') {
+          <!-- Broker Sync Panel View -->
+          <div class="order-view-container">
+            <button class="back-btn" (click)="activeView.set('DASHBOARD')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to Command Center
+            </button>
+            <app-broker-sync-modal [isEmbedded]="true" (closeModal)="activeView.set('DASHBOARD')" (holdingsImported)="brokerHoldingsImported.emit($event)"></app-broker-sync-modal>
+          </div>
+        }
       </div>
     </div>
   `
@@ -109,5 +177,14 @@ export class CommandCenterModalComponent {
   stocksImported = output<{ count: number }>();
   brokerHoldingsImported = output<number>();
   
-  activeTab = signal<CommandTab>('ORDER');
+  portfolioService = inject(PortfolioService);
+  tradingService = inject(TradingService);
+  automationService = inject(AutomationService);
+  brokerSync = inject(BrokerSyncService);
+
+  activeView = signal<CommandView>('DASHBOARD');
+
+  notifyNotImplemented(feature: string) {
+    alert(`${feature} is not available in the current phase.`);
+  }
 }
