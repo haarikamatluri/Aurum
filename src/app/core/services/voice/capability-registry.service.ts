@@ -633,6 +633,31 @@ export class CapabilityRegistryService {
       keywords: ['why', 'falling', 'dropping', 'rising', 'moving', 'happening with it', 'reason', 'catalyst']
     });
 
+    this.registerCapability({
+      id: 'GET_COMPLETE_SECURITY_INTELLIGENCE',
+      name: 'Get Complete Security Intelligence',
+      description: 'Fetches complete security intelligence across live quote, fundamentals, technicals, news, earnings, filings, portfolio position, watchlist, and ML predictions.',
+      category: 'STOCK',
+      aliases: ['give me everything about', 'show me all information about', 'everything on', 'full intelligence on', 'complete dossier on'],
+      parameters: [
+        { name: 'symbol', type: 'string', required: true, description: 'Ticker symbol' }
+      ],
+      requiredContext: ['symbol'],
+      riskLevel: 'READ_ONLY',
+      confirmationRequired: false,
+      reversible: true,
+      requiresAuthentication: true,
+      examples: [
+        'Give me everything about TCS',
+        'Show me all information about Nvidia',
+        'Give me everything about Apple',
+        'Full intelligence on Tata Steel'
+      ],
+      supportsCompoundCommand: true,
+      supportsContextInheritance: true,
+      keywords: ['everything about', 'all information', 'everything on', 'complete intelligence', 'full data']
+    });
+
     // =========================================================================
     // 6. RESEARCH
     // =========================================================================

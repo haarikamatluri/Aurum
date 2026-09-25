@@ -97,6 +97,17 @@ export class CommandPlannerService {
     // LEVEL 2: COMPOUND ACTION GRAPHS (Parallel / Sequential Multi-Node Chains)
     // =========================================================================
 
+    // Complete Intelligence: "Give me everything about Nvidia", "Show me all information about TCS", "Full intelligence on Apple"
+    if (
+      /\b(everything about|all information about|everything on|complete intelligence|full intelligence|dossier on|give me everything)\b/i.test(lower) ||
+      (/\b(give|show|tell)\s+me\s+everything\b/i.test(lower))
+    ) {
+      const targetSym = entities.symbol || context.currentSymbol || 'TCS';
+      const nIntel = this.createNode('GET_COMPLETE_SECURITY_INTELLIGENCE', { symbol: targetSym });
+      nodes.push(nIntel);
+      return this.wrapPlan(planId, raw, 'COMPLETE_INTELLIGENCE', entities, nodes, false);
+    }
+
     // Compound A: "Open TCS, check today's movement, find the news causing it, compare it with Infosys, and tell me whether my portfolio is affected."
     if (
       /\b(open|show)\b/i.test(lower) && entities.symbol &&

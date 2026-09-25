@@ -225,13 +225,22 @@ export class VoiceActionRegistry {
     };
   }
 
+  private isIndianSymbol(symbol: string, item?: any): boolean {
+    if (item?.currency === 'INR' || item?.market === 'IN') return true;
+    if (item?.currency === 'USD' || item?.market === 'US') return false;
+    const sym = (symbol || '').toUpperCase();
+    if (sym.endsWith('.NS') || sym.endsWith('.BO')) return true;
+    const indianTickers = ['TCS', 'RELIANCE', 'RIL', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS', 'TATASTEEL', 'WIPRO', 'SBIN', 'ITC', 'LT', 'BHARTIARTL', 'MARUTI', 'KOTAKBANK', 'AXISBANK', 'HINDUNILVR', 'NIFTY50', 'SENSEX'];
+    return indianTickers.includes(sym);
+  }
+
   getMarketExposure(): ActionResult {
     const holdings = this.portfolioService.holdings();
     let inrValue = 0;
     let usdValue = 0;
 
     for (const h of holdings) {
-      const isIndian = h.currency === 'INR' || ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS', 'WIPRO', 'SBIN', 'ITC'].includes(h.symbol);
+      const isIndian = this.isIndianSymbol(h.symbol, h);
       const val = (h.shares || 0) * (h.currentPrice || h.avgPurchasePrice || 0);
       if (isIndian) inrValue += val;
       else usdValue += val * 83; // approx conversion for ratio
@@ -265,12 +274,14 @@ export class VoiceActionRegistry {
       };
     }
 
+    const isIndian = this.isIndianSymbol(sym, match);
+    const currSym = isIndian ? '₹' : '$';
     const pl = Math.round(match.profitLoss || 0);
-    const spoken = `${sym} has contributed ₹${Math.abs(pl).toLocaleString('en-IN')} to your portfolio ${pl >= 0 ? 'gain' : 'loss'}.`;
+    const spoken = `${sym} has contributed ${currSym}${Math.abs(pl).toLocaleString(isIndian ? 'en-IN' : 'en-US')} to your portfolio ${pl >= 0 ? 'gain' : 'loss'}.`;
     return {
       success: true,
       actionName: 'PORTFOLIO_IMPACT',
-      uiFeedback: `${sym} P&L Contribution: ₹${pl.toLocaleString('en-IN')}`,
+      uiFeedback: `${sym} P&L Contribution: ${currSym}${pl.toLocaleString(isIndian ? 'en-IN' : 'en-US')}`,
       spokenFeedback: spoken,
       data: { symbol: sym, profitLoss: pl }
     };
@@ -281,7 +292,7 @@ export class VoiceActionRegistry {
   // =========================================================================
   async setPriceAlert(symbol: string, targetPrice: number): Promise<ActionResult> {
     const sym = symbol.toUpperCase();
-    const isIndian = ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS'].includes(sym);
+    const isIndian = this.isIndianSymbol(sym);
     const currSym = isIndian ? '₹' : '$';
 
     this.notificationService.addNotification({
@@ -331,7 +342,7 @@ export class VoiceActionRegistry {
   // =========================================================================
   async prepareOrderPreview(symbol: string, side: 'BUY' | 'SELL', quantity: number): Promise<ActionResult> {
     const sym = symbol.toUpperCase();
-    const isIndian = ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS'].includes(sym);
+    const isIndian = this.isIndianSymbol(sym);
     const currSym = isIndian ? '₹' : '$';
 
     try {

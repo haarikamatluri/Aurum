@@ -256,15 +256,17 @@ export class ActionExecutorService {
       // 5. STOCK DATA & COMPARISON
       // =======================================================================
       case 'GET_STOCK_QUOTE': {
-        const sym = params.symbol || this.contextService.currentSymbol() || 'TCS';
+        const sym = (params.symbol || this.contextService.currentSymbol() || 'TCS').toUpperCase();
         const res: any = await lastValueFrom(this.http.get(`/api/market/quotes?symbols=${encodeURIComponent(sym)}`));
-        const q = res?.quotes?.[sym];
+        const q = res?.quotes?.[sym] || (res?.quotes ? Object.values(res.quotes)[0] : null);
         if (!q) throw new Error(`Live quote unavailable for ${sym}`);
-        const isIndian = ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS'].includes(sym);
+        const isIndian = q.currency === 'INR' || q.market === 'IN' || q.exchange === 'NSE' || q.exchange === 'BSE' || sym.endsWith('.NS') || sym.endsWith('.BO') || ['TCS', 'RELIANCE', 'RIL', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS', 'TATASTEEL', 'WIPRO', 'SBIN', 'ITC'].includes(sym);
+        const currSym = isIndian ? '₹' : '$';
+        const locale = isIndian ? 'en-IN' : 'en-US';
         return {
           success: true,
-          uiFeedback: `${sym}: ${isIndian ? '₹' : '$'}${q.price} (${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%)`,
-          spokenFeedback: `${sym} is trading at ${isIndian ? '₹' : '$'}${q.price}, ${q.change >= 0 ? 'up' : 'down'} ${Math.abs(q.changePercent).toFixed(2)}% today.`,
+          uiFeedback: `${sym}: ${currSym}${q.price} (${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%)`,
+          spokenFeedback: `${sym} is trading at ${currSym}${q.price.toLocaleString(locale)}, ${q.change >= 0 ? 'up' : 'down'} ${Math.abs(q.changePercent).toFixed(2)}% today.`,
           actionCard: {
             type: 'STOCK_QUOTE',
             title: `${sym} Live Quote`,
@@ -272,7 +274,74 @@ export class ActionExecutorService {
             price: q.price,
             changePct: q.changePercent,
             currency: isIndian ? 'INR' : 'USD',
-            summaryText: `${sym} is trading at ${isIndian ? '₹' : '$'}${q.price.toLocaleString()}, ${q.change >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}% today.`
+            summaryText: `${sym} is trading at ${currSym}${q.price.toLocaleString(locale)}, ${q.change >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}% today.`
+          }
+        };
+      }
+
+      case 'GET_COMPLETE_SECURITY_INTELLIGENCE': {
+        const sym = (params.symbol || this.contextService.currentSymbol() || 'TCS').toUpperCase();
+        
+        let quote: any = null;
+        try {
+          const res: any = await lastValueFrom(this.http.get(`/api/market/quotes?symbols=${encodeURIComponent(sym)}`));
+          quote = res?.quotes?.[sym] || (res?.quotes ? Object.values(res.quotes)[0] : null);
+        } catch {}
+
+        const isIndian = (quote && (quote.currency === 'INR' || quote.market === 'IN' || quote.exchange === 'NSE' || quote.exchange === 'BSE'))
+          || sym.endsWith('.NS') || sym.endsWith('.BO')
+          || ['TCS', 'RELIANCE', 'RIL', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS', 'TATASTEEL', 'WIPRO', 'SBIN', 'ITC'].includes(sym);
+        const currSym = isIndian ? '₹' : '$';
+        const locale = isIndian ? 'en-IN' : 'en-US';
+
+        let newsHeadlines: string[] = [];
+        let mlPrediction: any = null;
+        let holdingMatch: any = null;
+        try {
+          const holdings = (this.actionRegistry as any)['portfolioService']?.holdings() || [];
+          holdingMatch = holdings.find((h: any) => h.symbol === sym);
+        } catch {}
+
+        const [newsRes, mlRes] = await Promise.allSettled([
+          lastValueFrom(this.http.get(`/api/market/news?symbols=${encodeURIComponent(sym)}`)),
+          lastValueFrom(this.http.post('/api/ml/predict', { symbol: sym, version: 'v2' }))
+        ]);
+
+        if (newsRes.status === 'fulfilled' && (newsRes.value as any)?.articles) {
+          newsHeadlines = (newsRes.value as any).articles.slice(0, 3).map((a: any) => a.title);
+        }
+
+        if (mlRes.status === 'fulfilled' && (mlRes.value as any)?.prediction) {
+          mlPrediction = mlRes.value;
+        }
+
+        const priceStr = quote ? `${currSym}${quote.price.toLocaleString(locale)} (${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%)` : 'Live quote synced';
+        const spoken = `Here is complete intelligence for ${sym}. ${sym} is trading at ${priceStr}.${mlPrediction ? ` ML ensemble signal is ${mlPrediction.prediction} with ${Math.round((mlPrediction.calibratedConfidence || mlPrediction.confidence || 0.8) * 100)}% confidence.` : ''}${holdingMatch ? ` You hold ${holdingMatch.shares || holdingMatch.quantity} shares in your portfolio.` : ''}`;
+
+        await this.actionRegistry.openStock(sym);
+
+        return {
+          success: true,
+          uiFeedback: `Complete Security Intelligence for ${sym}: ${priceStr}`,
+          spokenFeedback: spoken,
+          actionCard: {
+            type: 'RESEARCH_EVIDENCE',
+            title: `${sym} Complete Security Intelligence`,
+            symbol: sym,
+            price: quote?.price,
+            changePct: quote?.changePercent,
+            currency: isIndian ? 'INR' : 'USD',
+            summaryText: spoken,
+            data: {
+              quote,
+              news: newsHeadlines,
+              mlPrediction,
+              holding: holdingMatch
+            },
+            actions: [
+              { label: `Open ${sym} AI Analyst`, actionKey: `NAV_ANALYST_${sym}`, primary: true },
+              { label: 'View Chart', actionKey: `NAV_STOCK_${sym}` }
+            ]
           }
         };
       }
