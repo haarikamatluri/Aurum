@@ -371,8 +371,7 @@ export class AiAnalystPage implements OnInit {
 
   async submitFollowup(): Promise<void> {
     const q = this.question.trim();
-    const target = this.selectedTarget();
-    if (!q || !target || this.followupLoading()) return;
+    if (!q || this.followupLoading()) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatThreadMessage = {
@@ -387,28 +386,35 @@ export class AiAnalystPage implements OnInit {
     this.followupLoading.set(true);
 
     try {
-      const history = this.chatMessages().map((m) => ({ role: m.role, content: m.text }));
-      const key = this.aiService.getApiKey();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (key) headers['x-gemini-key'] = key;
+      const currentTarget = this.selectedTarget();
+      const env = await this.aiService.analyzeQuestion(q, currentTarget?.symbol, currentTarget?.market || 'IN');
+      if (env?.data) {
+        const d = env.data;
+        if (d.security?.symbol && d.security.symbol !== currentTarget?.symbol) {
+          const newTarget: AnalystStockTarget = {
+            id: `target-${d.security.symbol}`,
+            symbol: d.security.symbol,
+            companyName: d.security.companyName || d.security.symbol,
+            exchange: (d.security.market as MarketRegion) === 'US' ? 'NASDAQ' : 'NSE',
+            market: (d.security.market as MarketRegion) || 'IN',
+            currency: d.security.currency || 'INR',
+            currentPrice: d.security.price || null,
+            isOwned: false
+          };
+          this.selectedTarget.set(newTarget);
+        }
 
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          symbol: target.symbol,
-          companyName: target.companyName,
-          question: q,
-          history,
-        }),
-      });
+        const recText = d.recommendation
+          ? `**Aurum Analytical View: ${d.recommendation.action}** (Score: ${d.recommendation.score}/100, Confidence: ${d.recommendation.confidence}%)\n\n` +
+            `${d.reasoning?.summary || ''}\n\n` +
+            `**Key Drivers:**\n${(d.recommendation.keyDrivers || []).map((dr: string) => `• ${dr}`).join('\n')}\n\n` +
+            `**Key Risks:**\n${(d.recommendation.keyRisks || []).map((rk: string) => `• ${rk}`).join('\n')}`
+          : (d.reasoning?.summary || 'Analysis complete.');
 
-      if (res.ok) {
-        const data = await res.json();
         const botMsg: ChatThreadMessage = {
           id: `amsg-${Date.now()}`,
           role: 'assistant',
-          text: data.content || data.message?.answer || 'Response generated.',
+          text: recText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         this.chatMessages.update((msgs) => [...msgs, botMsg]);
@@ -416,7 +422,7 @@ export class AiAnalystPage implements OnInit {
         const botMsg: ChatThreadMessage = {
           id: `amsg-${Date.now()}`,
           role: 'assistant',
-          text: `Aurum: Answer could not be retrieved at this moment.`,
+          text: `Aurum: Analytical engine returned no data for this query.`,
           timestamp: timeStr,
         };
         this.chatMessages.update((msgs) => [...msgs, botMsg]);
@@ -425,7 +431,7 @@ export class AiAnalystPage implements OnInit {
       const botMsg: ChatThreadMessage = {
         id: `amsg-${Date.now()}`,
         role: 'assistant',
-        text: `Aurum: Unable to process follow-up request (${err.message || 'network error'}).`,
+        text: `Aurum: Unable to process request (${err.message || 'network error'}).`,
         timestamp: timeStr,
       };
       this.chatMessages.update((msgs) => [...msgs, botMsg]);

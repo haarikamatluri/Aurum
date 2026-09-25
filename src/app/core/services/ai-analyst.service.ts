@@ -547,6 +547,16 @@ export class AiAnalystService {
   // Real Financial Intelligence OS Endpoints (/api/analyst/*)
   // --------------------------------------------------------------------------
 
+  async analyzeQuestion(question: string, symbol?: string, market = 'IN'): Promise<AnalystDataEnvelope<any>> {
+    const res = await fetch('/api/analyst/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, symbol, market })
+    });
+    if (!res.ok) throw new Error(`Analyst analyze error: ${res.status}`);
+    return await res.json();
+  }
+
   async getRealMorningBriefing(forceRefresh: boolean = false): Promise<AnalystDataEnvelope<RealMorningBriefingData>> {
     const url = forceRefresh ? '/api/analyst/morning-brief?refresh=true' : '/api/analyst/morning-brief';
     const res = await fetch(url);

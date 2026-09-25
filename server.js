@@ -3362,10 +3362,9 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) 
   const ai = new GoogleGenAI({ apiKey });
   const modelsToTry = [
     'gemini-2.5-flash',
-    'gemini-3.8-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-2.0-flash'
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-pro'
   ];
 
   let lastError = null;
@@ -3417,7 +3416,7 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) 
   }
 
   // Fallback to direct REST API if SDK call fails
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
   try {
     const res = await fetch(url, {
       method: 'POST',
