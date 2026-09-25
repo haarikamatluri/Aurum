@@ -3353,7 +3353,7 @@ app.get('/api/ai/health', (req, res) => {
   });
 });
 
-async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) {
+async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false) {
   const apiKey = (userApiKey || process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey || apiKey.includes('your_')) {
     throw new Error('Gemini API key is not configured on the server.');
@@ -3361,9 +3361,8 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) 
 
   const ai = new GoogleGenAI({ apiKey });
   const modelsToTry = [
-    'gemini-2.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
     'gemini-1.5-pro'
   ];
 
@@ -3379,12 +3378,19 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) 
         config.tools = [{ googleSearch: {} }];
       }
 
-      const response = await ai.models.generateContent({
+      // Fast timeout per model try (1.5s)
+      const callPromise = ai.models.generateContent({
         model,
         contents: prompt,
         config
       });
 
+      let timer;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Model call timeout (1.5s)')), 1500);
+      });
+
+      const response = await Promise.race([callPromise, timeoutPromise]).finally(() => clearTimeout(timer));
       const text = response.text;
       const candidate = response.candidates?.[0];
       const groundingMetadata = candidate?.groundingMetadata || null;
@@ -3412,35 +3418,18 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = true) 
     } catch (err) {
       console.warn(`[GeminiGrounding] Model ${model} failed:`, err.message);
       lastError = err;
+      if (err.message.includes('429') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED')) {
+        // Quota exhausted - stop retrying immediately to save latency
+        break;
+      }
     }
-  }
-
-  // Fallback to direct REST API if SDK call fails
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: enableSearch ? [{ googleSearch: {} }] : []
-      })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const candidate = data.candidates?.[0];
-      const text = candidate?.content?.parts?.[0]?.text;
-      if (text) return { text, groundingMetadata: candidate.groundingMetadata || null, webSources: [] };
-    }
-  } catch (e) {
-    console.warn('[GeminiGrounding] REST fallback error:', e.message);
   }
 
   throw new Error(`Gemini API call failed: ${lastError?.message || 'Unable to connect'}`);
 }
 
-async function callGeminiBackend(prompt, userApiKey) {
-  const result = await callGeminiWithGrounding(prompt, userApiKey, true);
+async function callGeminiBackend(prompt, userApiKey, enableSearch = false) {
+  const result = await callGeminiWithGrounding(prompt, userApiKey, enableSearch);
   return result.text;
 }
 

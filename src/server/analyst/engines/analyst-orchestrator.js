@@ -109,6 +109,27 @@ function resolveIntent(query) {
 }
 
 /**
+ * Timeout wrapper for fast async execution
+ */
+function withTimeout(promise, ms, fallbackValue = null) {
+  let timer;
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[AnalystOrchestrator] Call timed out after ${ms}ms - using instant deterministic engine`);
+      resolve(fallbackValue);
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Fast provider call with 2000ms timeout fallback
+ */
+function withProviderTimeout(promise, ms = 2000, fallback = { status: 'TIMEOUT', data: null }) {
+  return withTimeout(promise, ms, fallback);
+}
+
+/**
  * Execute central Aurum AI Analyst pipeline.
  */
 async function processAnalystQuery({
@@ -141,7 +162,7 @@ async function processAnalystQuery({
     };
   }
 
-  // 1. Parallel data acquisition
+  // 1. Parallel data acquisition with strict 2-second max timeout per provider
   const [
     marketDataEnv,
     fundamentalsEnv,
@@ -150,12 +171,12 @@ async function processAnalystQuery({
     newsEnv,
     macroEnv
   ] = await Promise.all([
-    getStockMarketData(primarySymbol, effectiveMarket),
-    getCompanyFundamentals(primarySymbol, effectiveMarket),
-    getStockEarnings(primarySymbol, effectiveMarket),
-    getCompanyFilings(primarySymbol, effectiveMarket),
-    getAnalystNews({ symbol: primarySymbol, market: effectiveMarket, limit: 6 }),
-    getMacroOverview()
+    withProviderTimeout(getStockMarketData(primarySymbol, effectiveMarket), 2000),
+    withProviderTimeout(getCompanyFundamentals(primarySymbol, effectiveMarket), 2000),
+    withProviderTimeout(getStockEarnings(primarySymbol, effectiveMarket), 2000),
+    withProviderTimeout(getCompanyFilings(primarySymbol, effectiveMarket), 2000),
+    withProviderTimeout(getAnalystNews({ symbol: primarySymbol, market: effectiveMarket, limit: 6 }), 2000),
+    withProviderTimeout(getMacroOverview(), 2000)
   ]);
 
   const mData = marketDataEnv.data || {};
@@ -213,8 +234,8 @@ async function processAnalystQuery({
   if (intent === 'COMPARISON_QUERY' && symbols.length > 1) {
     const targetB = symbols[1];
     const [mB, fB] = await Promise.all([
-      getStockMarketData(targetB, effectiveMarket),
-      getCompanyFundamentals(targetB, effectiveMarket)
+      withProviderTimeout(getStockMarketData(targetB, effectiveMarket), 2000),
+      withProviderTimeout(getCompanyFundamentals(targetB, effectiveMarket), 2000)
     ]);
     const recB = calculateRecommendation({
       symbol: targetB,
@@ -231,7 +252,7 @@ async function processAnalystQuery({
     };
   }
 
-  // 5. Synthesis via Gemini (with strict factual constraints)
+  // 5. Synthesis via Gemini (with strict 2500ms maximum timeout for fast user responses)
   let reasoning = null;
   if (typeof geminiCaller === 'function') {
     try {
@@ -286,9 +307,12 @@ Return valid JSON strictly matching this schema:
   }
 }`;
 
-      const rawAiText = await geminiCaller(prompt);
-      const cleanJson = rawAiText.replace(/```json/g, '').replace(/```/g, '').trim();
-      reasoning = JSON.parse(cleanJson);
+      // Race Gemini call against 2500ms timeout
+      const rawAiText = await withTimeout(geminiCaller(prompt, null, false), 2500, null);
+      if (rawAiText) {
+        const cleanJson = rawAiText.replace(/```json/g, '').replace(/```/g, '').trim();
+        reasoning = JSON.parse(cleanJson);
+      }
     } catch (e) {
       console.warn('[AnalystOrchestrator] AI synthesis fallback:', e.message);
     }
