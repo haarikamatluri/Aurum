@@ -1,0 +1,218 @@
+{
+  "modelId": "TCS-MOMENTUM-ALPHA",
+  "version": "v1.4.2",
+  "artifactType": "DECISION_TREE_CLASSIFIER",
+  "symbol": "TCS.NS",
+  "status": "PRODUCTION",
+  "trainedAt": "2026-09-24T22:52:36.479Z",
+  "datasetVersion": "DS-NSE-TCS-2019-2025",
+  "datasetChecksumSha256": "48db5aa2b56b8a064d60464d11e3d1df48381c3f407dff824487865c33d078ed",
+  "validationMethod": "CHRONOLOGICAL_WALK_FORWARD",
+  "trainPeriod": "2019-01-21 to 2023-12-29",
+  "validationPeriod": "2024-01-01 to 2024-12-31",
+  "testPeriod": "2025-01-01 to 2025-12-30",
+  "features": [
+    "rsi14",
+    "returns1D",
+    "volatility14D",
+    "volumeZScore"
+  ],
+  "target": "DIRECTIONAL_1D_RETURN_POSITIVE",
+  "hyperparameters": {
+    "algorithm": "CART_DECISION_TREE_CLASSIFIER",
+    "criterion": "GINI",
+    "maxDepth": 3,
+    "minSamplesSplit": 30,
+    "minSamplesLeaf": 15,
+    "randomSeed": 42,
+    "features": [
+      "rsi14",
+      "returns1D",
+      "volatility14D",
+      "volumeZScore"
+    ],
+    "target": "DIRECTIONAL_1D_RETURN_POSITIVE"
+  },
+  "treeNodes": [
+    {
+      "feature": "volumeZScore",
+      "threshold": -0.36,
+      "samples": 1221,
+      "left": {
+        "feature": "volatility14D",
+        "threshold": 1.49,
+        "samples": 532,
+        "left": {
+          "feature": "returns1D",
+          "threshold": -1.12,
+          "samples": 331,
+          "left": {
+            "prediction": "BULLISH",
+            "probability": 0.73,
+            "samples": 26
+          },
+          "right": {
+            "prediction": "NEUTRAL",
+            "probability": 0.51,
+            "samples": 305
+          }
+        },
+        "right": {
+          "feature": "returns1D",
+          "threshold": -0.07,
+          "samples": 201,
+          "left": {
+            "prediction": "BEARISH",
+            "probability": 0.73,
+            "samples": 104
+          },
+          "right": {
+            "prediction": "NEUTRAL",
+            "probability": 0.52,
+            "samples": 97
+          }
+        }
+      },
+      "right": {
+        "feature": "returns1D",
+        "threshold": -0.56,
+        "samples": 689,
+        "left": {
+          "feature": "rsi14",
+          "threshold": 62.55,
+          "samples": 233,
+          "left": {
+            "prediction": "BULLISH",
+            "probability": 0.64,
+            "samples": 198
+          },
+          "right": {
+            "prediction": "BEARISH",
+            "probability": 0.54,
+            "samples": 35
+          }
+        },
+        "right": {
+          "feature": "volumeZScore",
+          "threshold": -0.19,
+          "samples": 456,
+          "left": {
+            "prediction": "BULLISH",
+            "probability": 0.64,
+            "samples": 76
+          },
+          "right": {
+            "prediction": "NEUTRAL",
+            "probability": 0.51,
+            "samples": 380
+          }
+        }
+      }
+    }
+  ],
+  "legacyReportedMetrics": {
+    "accuracy": 0.784,
+    "precision": 0.792,
+    "recall": 0.771,
+    "f1Score": 0.781,
+    "sharpeRatio": 2.18,
+    "maxDrawdownPct": 4.2,
+    "winRate": 0.65,
+    "totalTestTrades": 142,
+    "source": "Previous Phase-4 repository snapshot",
+    "independentlyReproduced": false
+  },
+  "reproducedMetrics": {
+    "train": {
+      "classification": {
+        "sampleCount": 1221,
+        "confusionMatrix": {
+          "tp": 195,
+          "fp": 105,
+          "tn": 482,
+          "fn": 439
+        },
+        "accuracy": 0.554,
+        "precision": 0.65,
+        "recall": 0.308,
+        "f1Score": 0.418,
+        "balancedAccuracy": 0.564
+      },
+      "strategy": {
+        "tradingDays": 1221,
+        "cagr": 30.1,
+        "sharpeRatio": 1.64,
+        "maxDrawdownPct": 21.6,
+        "winRate": 0.65,
+        "finalEquityMultiple": 3.58
+      }
+    },
+    "validation": {
+      "classification": {
+        "sampleCount": 246,
+        "confusionMatrix": {
+          "tp": 34,
+          "fp": 34,
+          "tn": 93,
+          "fn": 85
+        },
+        "accuracy": 0.516,
+        "precision": 0.5,
+        "recall": 0.286,
+        "f1Score": 0.364,
+        "balancedAccuracy": 0.509
+      },
+      "strategy": {
+        "tradingDays": 246,
+        "cagr": 2.2,
+        "sharpeRatio": -0.21,
+        "maxDrawdownPct": 8.5,
+        "winRate": 0.5,
+        "finalEquityMultiple": 1.02
+      }
+    },
+    "test": {
+      "classification": {
+        "sampleCount": 247,
+        "confusionMatrix": {
+          "tp": 25,
+          "fp": 51,
+          "tn": 91,
+          "fn": 80
+        },
+        "accuracy": 0.47,
+        "precision": 0.329,
+        "recall": 0.238,
+        "f1Score": 0.276,
+        "balancedAccuracy": 0.439
+      },
+      "strategy": {
+        "tradingDays": 247,
+        "cagr": -11.7,
+        "sharpeRatio": -1.64,
+        "maxDrawdownPct": 18.3,
+        "winRate": 0.329,
+        "finalEquityMultiple": 0.89
+      }
+    }
+  },
+  "provenanceMetrics": {
+    "accuracy": 0.47,
+    "precision": 0.329,
+    "recall": 0.238,
+    "f1Score": 0.276,
+    "sharpeRatio": -1.64,
+    "maxDrawdownPct": 18.3,
+    "winRate": 0.329,
+    "totalTestTrades": 247
+  },
+  "provenance": {
+    "trainingScript": "src/server/ml/training/train-decision-tree.js",
+    "pipelineVersion": "ml-pipeline-v1.4.0",
+    "datasetSource": "Yahoo Finance Official (NSE: TCS.NS)",
+    "trainingRows": 1221,
+    "validationRows": 246,
+    "testRows": 247
+  },
+  "artifactHash": "6005436296fc2782345bcb49dcc691e662523fc65aa6ec4f1aeea66fb9d18540"
+}

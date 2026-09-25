@@ -12,6 +12,9 @@ import { ImportSheetsModal } from './import-sheets-modal/import-sheets-modal';
 import { MonitoringService } from '../../core/services/monitoring.service';
 import { AiAnalystService, MorningBriefing } from '../../core/services/ai-analyst.service';
 import { BrokerSyncModalComponent } from './broker-sync-modal/broker-sync-modal';
+import { OrderModalComponent } from './order-modal/order-modal';
+import { AutomationModalComponent } from './automation-modal/automation-modal';
+import { CommandCenterModalComponent } from './command-center-modal/command-center-modal';
 
 type SortMode = 'gain-desc' | 'gain-asc' | 'alpha' | 'recent';
 type MarketFilter = 'ALL' | 'US' | 'IN';
@@ -29,7 +32,7 @@ interface MarketIndex {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, AddStockModal, EditStockModal, SellStockModal, ImportSheetsModal, BrokerSyncModalComponent],
+  imports: [DecimalPipe, RouterLink, EditStockModal, SellStockModal, CommandCenterModalComponent],
   template: `
     <div class="dashboard-container">
       <!-- Top Header Row -->
@@ -75,52 +78,14 @@ interface MarketIndex {
             }
           </div>
 
-          <!-- Add Stock Button with Dropdown -->
+          <!-- Command Center Trigger -->
           <div class="add-stock-wrap">
-            <button class="btn-add-primary" (click)="toggleAddMenu($event)" id="add-stock-btn">
+            <button class="btn-add-primary" (click)="openCommandCenter()" id="command-center-btn" title="Open Phase 4 Command Center">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/>
               </svg>
-              <span>Add Stock</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              <span>Command Center</span>
             </button>
-
-            @if (addMenuOpen()) {
-              <div class="add-dropdown-menu" role="menu">
-                <button type="button" class="add-dropdown-item" (click)="openAddModal('US')">
-                  <span class="flag">🇺🇸</span>
-                  <div class="add-item-text">
-                    <span class="title">Add US Stock</span>
-                    <span class="desc">NASDAQ & NYSE (USD)</span>
-                  </div>
-                </button>
-                <button type="button" class="add-dropdown-item" (click)="openAddModal('IN')">
-                  <span class="flag">🇮🇳</span>
-                  <div class="add-item-text">
-                    <span class="title">Add Indian Stock</span>
-                    <span class="desc">NSE & BSE (INR)</span>
-                  </div>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button type="button" class="add-dropdown-item" (click)="openImportModal()">
-                  <span class="flag">📊</span>
-                  <div class="add-item-text">
-                    <span class="title">Upload Excel / CSV</span>
-                    <span class="desc">Import multiple stocks from spreadsheet</span>
-                  </div>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button type="button" class="add-dropdown-item" (click)="openBrokerSyncModal()">
-                  <span class="flag">🔗</span>
-                  <div class="add-item-text">
-                    <span class="title">Sync Broker Account</span>
-                    <span class="desc">Direct Zerodha Kite & Webull sync</span>
-                  </div>
-                </button>
-              </div>
-            }
           </div>
 
           <!-- Notifications Quick Trigger -->
@@ -530,14 +495,14 @@ interface MarketIndex {
               <button
                 type="button"
                 class="btn-import-sheet"
-                (click)="openImportModal()"
+                (click)="openCommandCenter()"
                 title="Upload Excel (.xlsx, .xls) or CSV sheet to import stock list"
                 id="btn-import-sheet"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
                 </svg>
-                <span>Upload Excel / CSV</span>
+                <span>Command Center</span>
               </button>
 
               <div class="sort-selector">
@@ -867,14 +832,8 @@ interface MarketIndex {
               <h3>No stocks in this portfolio yet</h3>
               <p>Add US (NASDAQ/NYSE) or Indian (NSE/BSE) stocks to begin tracking performance and receiving 5% movement alerts.</p>
               <div class="empty-btns">
-                <button type="button" class="btn btn-primary" (click)="openAddModal('US')">
-                  <span>🇺🇸 Add US Stock</span>
-                </button>
-                <button type="button" class="btn btn-outline" (click)="openAddModal('IN')">
-                  <span>🇮🇳 Add India Stock</span>
-                </button>
-                <button type="button" class="btn btn-outline" (click)="openImportModal()">
-                  <span>📊 Upload Excel / CSV</span>
+                <button type="button" class="btn btn-primary" (click)="openCommandCenter()">
+                  <span>Add Stocks or Link Broker</span>
                 </button>
               </div>
             </div>
@@ -936,15 +895,6 @@ interface MarketIndex {
         </div>
       }
 
-      <!-- Add Stock Modal -->
-      @if (showAddModal()) {
-        <app-add-stock-modal
-          [defaultMarket]="addModalMarket()"
-          (close)="showAddModal.set(false)"
-          (added)="onStockAdded($event)"
-        />
-      }
-
       <!-- Edit Stock Modal -->
       @if (editingHolding()) {
         <app-edit-stock-modal
@@ -963,19 +913,13 @@ interface MarketIndex {
         />
       }
 
-      <!-- Import Sheets Modal -->
-      @if (importModalOpen()) {
-        <app-import-sheets-modal
-          (close)="closeImportModal()"
-          (imported)="onStocksImported($event)"
-        />
-      }
-
-      <!-- Broker Sync Modal -->
-      @if (showBrokerSyncModal()) {
-        <app-broker-sync-modal
-          (closeModal)="showBrokerSyncModal.set(false)"
-          (holdingsImported)="onBrokerHoldingsImported($event)"
+      <!-- Command Center Modal (Consolidated Phase 4 Hub) -->
+      @if (commandCenterOpen()) {
+        <app-command-center-modal
+          (close)="commandCenterOpen.set(false)"
+          (stockAdded)="onStockAdded($event)"
+          (stocksImported)="onStocksImported($event)"
+          (brokerHoldingsImported)="onBrokerHoldingsImported($event)"
         />
       }
 
@@ -1004,16 +948,12 @@ export class Dashboard implements OnInit, OnDestroy {
   protected readonly briefingGenerating = signal<boolean>(false);
   protected readonly isBriefingLive = signal<boolean>(false);
   protected readonly briefingExpanded = signal<boolean>(false);
-  protected readonly showBrokerSyncModal = signal<boolean>(false);
-  private sseSource: EventSource | null = null;
-
-  protected readonly showAddModal = signal(false);
-  protected readonly addModalMarket = signal<MarketRegion>('US');
   protected readonly editingHolding = signal<Holding | null>(null);
   protected readonly sellingHolding = signal<Holding | null>(null);
   protected readonly deleteTarget = signal<Holding | null>(null);
-  protected readonly importModalOpen = signal(false);
+  protected readonly commandCenterOpen = signal<boolean>(false);
   protected readonly toastMessage = signal<string | null>(null);
+  private sseSource: EventSource | null = null;
   protected readonly sortMode = signal<SortMode>('recent');
   protected readonly selectedMarket = signal<MarketFilter>('ALL');
   protected readonly selectedTimeframe = signal<Timeframe>('1M');
@@ -1172,61 +1112,35 @@ export class Dashboard implements OnInit, OnDestroy {
   protected readonly chartDates = computed(() => ['Apr 21', 'Apr 28', 'May 5', 'May 12', 'May 19']);
 
   protected readonly recentAlerts = computed(() => {
-    const holdings = this.portfolio.holdings();
-    if (holdings.length === 0) {
-      return [
-        {
-          id: '1',
-          symbol: 'NVDA',
-          companyName: 'NVIDIA Corp.',
-          market: 'US',
-          price: 950.02,
-          currency: 'USD' as const,
-          changePct: 5.32,
-          isUp: true,
-          message: 'Price moved up by 5%',
-          timeAgo: 'Today, 10:15 AM',
-        },
-        {
-          id: '2',
-          symbol: 'TCS',
-          companyName: 'Tata Consultancy Services',
-          market: 'IN',
-          price: 4102.80,
-          currency: 'INR' as const,
-          changePct: -5.08,
-          isUp: false,
-          message: 'Price moved down by 5%',
-          timeAgo: 'Today, 09:47 AM',
-        },
-        {
-          id: '3',
-          symbol: 'RELIANCE',
-          companyName: 'Reliance Industries',
-          market: 'IN',
-          price: 2950.30,
-          currency: 'INR' as const,
-          changePct: 5.18,
-          isUp: true,
-          message: 'Price moved up by 5%',
-          timeAgo: 'Yesterday, 03:20 PM',
-        },
-      ];
+    const notifications = this.notifService.notifications();
+    
+    if (notifications.length === 0) {
+      return [];
     }
 
-    return holdings.slice(0, 4).map((h, i) => {
-      const isUp = (h.profitLossPct ?? 0) >= 0;
+    return notifications.slice(0, 4).map(n => {
+      // Find market/currency from holding if possible, else default
+      const holding = this.portfolio.getHoldingBySymbol(n.symbol);
+      const market = holding ? holding.market : 'US';
+      const currency = holding ? holding.currency : 'USD';
+      
+      const now = new Date();
+      const notifTime = new Date(n.createdAt);
+      const isToday = now.toDateString() === notifTime.toDateString();
+      const timeStr = notifTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      const timeAgo = isToday ? `Today, ${timeStr}` : `Yesterday, ${timeStr}`;
+
       return {
-        id: h.id,
-        symbol: h.symbol,
-        companyName: h.companyName,
-        market: h.market,
-        price: h.currentPrice ?? h.avgPurchasePrice,
-        currency: h.currency,
-        changePct: Math.abs(h.profitLossPct ?? (5.2 + i * 0.4)),
-        isUp: isUp || i === 0,
-        message: (isUp || i === 0) ? 'Price moved up by 5%' : 'Price moved down by 5%',
-        timeAgo: i === 0 ? 'Today, 10:15 AM' : (i === 1 ? 'Today, 09:47 AM' : 'Yesterday, 03:20 PM'),
+        id: n.id,
+        symbol: n.symbol,
+        companyName: n.companyName,
+        market: market,
+        price: n.price,
+        currency: currency,
+        changePct: Math.abs(n.movementPercent),
+        isUp: n.direction === 'UP',
+        message: n.message,
+        timeAgo: timeAgo,
       };
     });
   });
@@ -1266,9 +1180,8 @@ export class Dashboard implements OnInit, OnDestroy {
     this.marketMenuOpen.set(false);
   }
 
-  openAddModal(market: MarketRegion = 'US'): void {
-    this.addModalMarket.set(market);
-    this.showAddModal.set(true);
+  openCommandCenter(): void {
+    this.commandCenterOpen.set(true);
     this.addMenuOpen.set(false);
   }
 
@@ -1316,16 +1229,6 @@ export class Dashboard implements OnInit, OnDestroy {
     const holding = this.portfolio.addHolding(req);
     this.monitoring.initAlertState(holding.id, holding.symbol, holding.avgPurchasePrice, holding.market, holding.currency);
     this.monitoring.refreshPrices();
-    this.showAddModal.set(false);
-  }
-
-  openImportModal(): void {
-    this.importModalOpen.set(true);
-    this.addMenuOpen.set(false);
-  }
-
-  closeImportModal(): void {
-    this.importModalOpen.set(false);
   }
 
   onStocksImported(event: { count: number }): void {
@@ -1407,11 +1310,6 @@ export class Dashboard implements OnInit, OnDestroy {
     }
   }
 
-  openBrokerSyncModal(): void {
-    this.showBrokerSyncModal.set(true);
-    this.addMenuOpen.set(false);
-  }
-
   onBrokerHoldingsImported(count: number): void {
     this.monitoring.refreshPrices();
     this.loadMorningBriefing();
@@ -1420,7 +1318,16 @@ export class Dashboard implements OnInit, OnDestroy {
   }
 
   formatCurrency(value: number, currency: 'USD' | 'INR' = 'USD'): string {
-    const symbol = currency === 'INR' ? '₹' : '$';
-    return `${symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (value === null || value === undefined || isNaN(value)) return '—';
+    const absVal = Math.abs(value);
+    const prefix = value < 0 ? '-' : '';
+
+    if (currency === 'INR') {
+      const inrStr = absVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${prefix}₹${inrStr}`;
+    } else {
+      const usdStr = absVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${prefix}$${usdStr}`;
+    }
   }
 }

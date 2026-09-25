@@ -1,15 +1,13 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, lastValueFrom } from 'rxjs';
 import { SpeechToTextService } from './speech-to-text.service';
 import { TextToSpeechService } from './text-to-speech.service';
-
-export type VoiceState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'SPEAKING' | 'ERROR';
-
-export interface VoiceSession {
-  id: string;
-  userId: string;
-}
+import { CommandOrchestratorService, AssistantState, ActionCardData, TimelineStep } from './voice/command-orchestrator.service';
+import { WakeWordService } from './voice/wake-word.service';
+import { VoicePerformanceService } from './voice/voice-performance.service';
+import { VoiceContextService } from './voice/voice-context.service';
+import { TradingService } from './trading.service';
 
 export interface VoicePreferences {
   userId?: string;
@@ -18,185 +16,152 @@ export interface VoicePreferences {
   showTranscript: boolean;
   pushToTalk: boolean;
   voiceURI?: string;
-}
-
-export interface VoiceResponse {
-  intent: string;
-  spokenAnswer: string;
-  answer: string;
-  symbol: string | null;
-  actions: any[];
-  sources: any[];
-  followUpSuggestions: string[];
-}
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  isError?: boolean;
+  wakeModeEnabled?: boolean;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class VoiceAssistantService {
-  private stateSubject = new BehaviorSubject<VoiceState>('IDLE');
-  state$ = this.stateSubject.asObservable();
-  
-  private chatHistorySubject = new BehaviorSubject<ChatMessage[]>([]);
-  chatHistory$ = this.chatHistorySubject.asObservable();
+  private readonly http = inject(HttpClient);
+  private readonly stt = inject(SpeechToTextService);
+  private readonly tts = inject(TextToSpeechService);
+  private readonly orchestrator = inject(CommandOrchestratorService);
+  private readonly wakeWord = inject(WakeWordService);
+  private readonly perf = inject(VoicePerformanceService);
+  private readonly context = inject(VoiceContextService);
+  private readonly trading = inject(TradingService);
 
-  private session: VoiceSession | null = null;
+  readonly state = this.orchestrator.state;
+  readonly stateLabel = this.orchestrator.stateLabel;
+  readonly liveTranscript = this.orchestrator.interimTranscript;
+  readonly activeCard = this.orchestrator.activeCard;
+  readonly timeline = this.orchestrator.timeline;
+  readonly lastTelemetry = this.perf.lastTelemetry;
+  readonly averageLatency = this.perf.averageLatencyMs;
+  readonly contextSnapshot = this.context.getSnapshot.bind(this.context);
+
   private preferences: VoicePreferences = {
-    speechRate: 1,
+    speechRate: 1.05,
     autoPlay: true,
     showTranscript: true,
-    pushToTalk: false
+    pushToTalk: false,
+    wakeModeEnabled: false
   };
 
-  private currentTranscript = '';
-  private liveTranscriptSubject = new BehaviorSubject<string>('');
-  liveTranscript$ = this.liveTranscriptSubject.asObservable();
-
-  constructor(
-    private http: HttpClient,
-    private stt: SpeechToTextService,
-    private tts: TextToSpeechService
-  ) {
-    this.initSession();
+  constructor() {
     this.loadPreferences();
 
-    this.stt.transcript$.subscribe(res => {
-      this.currentTranscript = res.text;
-      this.liveTranscriptSubject.next(res.text);
+    // Listen to STT events
+    this.stt.transcript$.subscribe((res) => {
       if (res.isFinal && res.text.trim()) {
-        this.processQuery(this.currentTranscript);
+        this.orchestrator.handleFinalTranscript(res.text);
+      } else if (res.text) {
+        this.orchestrator.handleInterimTranscript(res.text);
       }
     });
 
-    this.stt.error$.subscribe(err => {
+    this.stt.error$.subscribe((err) => {
       if (err) {
-        this.stateSubject.next('ERROR');
-        this.addMessage('assistant', err, true);
+        this.orchestrator.cancel();
       }
     });
-  }
 
-  private async initSession() {
-    try {
-      this.session = await lastValueFrom(this.http.post<VoiceSession>('/api/voice/session', {}));
-    } catch (e) {
-      console.warn('Failed to init voice session', e);
-    }
+    // Keyboard shortcut / Wake word activation
+    this.wakeWord.wakeTriggered$.subscribe(() => {
+      if (this.state() === 'IDLE') {
+        this.startListening();
+      } else {
+        this.stopListening();
+      }
+    });
+
+    this.wakeWord.cancelTriggered$.subscribe(() => {
+      this.cancel();
+    });
   }
 
   private async loadPreferences() {
     try {
       const prefs = await lastValueFrom(this.http.get<VoicePreferences>('/api/voice/preferences'));
       if (prefs) {
-        this.preferences = prefs;
+        this.preferences = { ...this.preferences, ...prefs };
       }
-    } catch (e) {
-      console.warn('Failed to load voice preferences', e);
+    } catch {
+      // offline / demo fallback
     }
   }
 
   async savePreferences(prefs: Partial<VoicePreferences>) {
     this.preferences = { ...this.preferences, ...prefs };
+    if (prefs.autoPlay !== undefined) {
+      this.orchestrator.setAutoSpeak(prefs.autoPlay);
+    }
+    if (prefs.wakeModeEnabled !== undefined) {
+      this.wakeWord.setWakeMode(prefs.wakeModeEnabled);
+    }
     try {
       await lastValueFrom(this.http.put('/api/voice/preferences', this.preferences));
-    } catch (e) {
-      console.warn('Failed to save voice preferences', e);
+    } catch {
+      // offline
     }
   }
 
-  getPreferences() {
+  getPreferences(): VoicePreferences {
     return this.preferences;
   }
 
   startListening() {
     this.tts.cancel();
-    this.stateSubject.next('LISTENING');
-    this.currentTranscript = '';
-    this.liveTranscriptSubject.next('');
+    this.perf.markVoiceStart();
+    this.orchestrator.handleInterimTranscript('');
     this.stt.start();
   }
 
   stopListening() {
     this.stt.stop();
-    if (this.currentTranscript && this.currentTranscript.trim()) {
-      this.processQuery(this.currentTranscript);
-    }
   }
-  
+
   cancel() {
     this.stt.cancel();
-    this.tts.cancel();
-    this.stateSubject.next('IDLE');
+    this.orchestrator.cancel();
   }
 
   sendTextQuery(text: string) {
     if (!text.trim()) return;
     this.tts.cancel();
-    this.processQuery(text);
+    this.perf.markVoiceStart();
+    this.orchestrator.handleFinalTranscript(text);
   }
 
-  private async processQuery(transcript: string) {
-    if (!transcript.trim()) {
-      this.stateSubject.next('IDLE');
-      return;
-    }
-    
-    this.stateSubject.next('PROCESSING');
-    this.addMessage('user', transcript);
-
-    try {
-      const pageContext = window.location.pathname;
-      const res = await lastValueFrom(this.http.post<VoiceResponse>('/api/voice/query', {
-        sessionId: this.session?.id,
-        transcript,
-        pageContext
-      }));
-
-      this.addMessage('assistant', res.answer);
-      
-      if (this.preferences.autoPlay && res.spokenAnswer) {
-        this.stateSubject.next('SPEAKING');
-        this.tts.speak(res.spokenAnswer, this.preferences.voiceURI, this.preferences.speechRate);
-        
-        // Wait for TTS to finish to go back to IDLE
-        const sub = this.tts.isSpeaking$.subscribe(speaking => {
-          if (!speaking && this.stateSubject.value === 'SPEAKING') {
-            this.stateSubject.next('IDLE');
-            sub.unsubscribe();
-          }
+  async executeCardAction(actionKey: string, card: ActionCardData) {
+    if (actionKey === 'CONFIRM_ORDER' && card.rawPayload) {
+      try {
+        const order = await this.trading.executeConfirmedOrder(card.rawPayload);
+        this.orchestrator.activeCard.set({
+          type: 'ORDER_PREVIEW',
+          title: 'Order Executed Successfully',
+          symbol: order.symbol,
+          price: order.price,
+          currency: order.currency,
+          summaryText: `Successfully executed ${order.side} ${order.quantity} shares of ${order.symbol} at ${order.currency === 'INR' ? '₹' : '$'}${order.price}. Broker Order ID: ${order.orderId}`
         });
-      } else {
-        this.stateSubject.next('IDLE');
+        this.tts.speak(`Order executed successfully for ${order.quantity} shares of ${order.symbol}.`);
+      } catch (err: any) {
+        this.orchestrator.activeCard.set({
+          type: 'ORDER_PREVIEW',
+          title: 'Order Execution Failed',
+          summaryText: `Error: ${err.message}`
+        });
+        this.tts.speak(`Order execution failed: ${err.message}`);
       }
-
-    } catch (error: any) {
-      this.stateSubject.next('ERROR');
-      this.addMessage('assistant', 'Sorry, I encountered an error processing your request.', true);
+    } else if (actionKey === 'CANCEL_ORDER') {
+      this.orchestrator.dismissActiveCard();
+      this.tts.speak('Order preview cancelled.');
     }
   }
 
-  private addMessage(role: 'user' | 'assistant', content: string, isError = false) {
-    const current = this.chatHistorySubject.value;
-    this.chatHistorySubject.next([...current, { role, content, timestamp: new Date(), isError }]);
-  }
-
-  toggleMute() {
-    this.tts.cancel();
-    this.stateSubject.next('IDLE');
-  }
-
-  pause() {
-    this.tts.pause();
-  }
-
-  resume() {
-    this.tts.resume();
+  dismissActiveCard() {
+    this.orchestrator.dismissActiveCard();
   }
 }

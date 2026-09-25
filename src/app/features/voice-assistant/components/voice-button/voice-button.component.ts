@@ -6,7 +6,7 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <button class="voice-btn" (click)="open.emit()" aria-label="Ask Antigravity Bot">
+    <button class="voice-btn" (click)="open.emit()" aria-label="Ask Aurum">
       <div class="icon-container">
         <div class="pulse-ring"></div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -17,10 +17,10 @@ import { CommonModule } from '@angular/common';
       </div>
       <div class="text-container">
         <div class="title-row">
-          <span class="title">Ask Antigravity Bot</span>
+          <span class="title">Ask Aurum</span>
           <span class="ai-tag">AI</span>
         </div>
-        <span class="subtitle">Instant Voice Intelligence</span>
+        <span class="subtitle">Your AI investing assistant</span>
       </div>
     </button>
   `,

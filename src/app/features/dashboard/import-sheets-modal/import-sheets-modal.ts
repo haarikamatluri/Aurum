@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed, input, HostBinding } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import * as XLSX from 'xlsx';
@@ -26,7 +26,7 @@ export interface ParsedStockRow {
   standalone: true,
   imports: [FormsModule, DecimalPipe],
   template: `
-    <div class="overlay" (click)="close.emit()">
+    <div class="overlay" (click)="!isEmbedded() && close.emit()">
       <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <!-- Header -->
         <div class="modal-header">
@@ -256,6 +256,9 @@ export interface ParsedStockRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ImportSheetsModal {
+  isEmbedded = input<boolean>(false);
+  @HostBinding('class.embedded-mode') get embedded() { return this.isEmbedded(); }
+
   @Output() close = new EventEmitter<void>();
   @Output() imported = new EventEmitter<{ count: number }>();
 

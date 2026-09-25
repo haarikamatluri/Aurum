@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, computed } from '@angular/core';
 import { Router } from '@angular/router';
-import { DatePipe, CurrencyPipe } from '@angular/common';
+import { DatePipe, CurrencyPipe, DecimalPipe } from '@angular/common';
 import { NotificationService } from '../../core/services/notification.service';
 import { MoneyNotification } from '../../core/models/alert.model';
 
@@ -9,7 +9,7 @@ interface NotificationGroup { label: string; items: MoneyNotification[]; }
 @Component({
   selector: 'app-notifications',
   standalone: true,
-  imports: [DatePipe, CurrencyPipe],
+  imports: [DatePipe, CurrencyPipe, DecimalPipe],
   template: `
     <div class="notifications-page">
       <div class="page-header">
@@ -51,7 +51,7 @@ interface NotificationGroup { label: string; items: MoneyNotification[]; }
                     <div class="notif-headline">
                       <span class="notif-symbol">{{ n.symbol }}</span>
                       <span class="notif-threshold" [class.up]="n.direction === 'UP'" [class.down]="n.direction === 'DOWN'">
-                        {{ n.direction === 'UP' ? '+' : '' }}{{ n.thresholdPct }}%
+                        {{ n.direction === 'UP' ? '+' : '' }}{{ n.movementPercent | number:'1.2-2' }}%
                       </span>
                     </div>
                     <p class="notif-message">{{ n.message }}</p>

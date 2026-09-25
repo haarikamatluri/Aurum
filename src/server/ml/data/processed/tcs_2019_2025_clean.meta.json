@@ -1,0 +1,16 @@
+{
+  "cleaningVersion": "v1.0.0-aurum-clean",
+  "source": "Yahoo Finance Official (NSE: TCS.NS)",
+  "sourceSymbol": "TCS.NS",
+  "startDate": "2019-01-01",
+  "endDate": "2025-12-31",
+  "rawRowCount": 1730,
+  "cleanRowCount": 1729,
+  "rejectedRowsCount": 1,
+  "duplicateCount": 0,
+  "rawChecksumSha256": "afd6cc2d4a2059588ec3749bb4f7cdbe5fbc18ee9fb77caf36b2a68843e85459",
+  "cleanChecksumSha256": "48db5aa2b56b8a064d60464d11e3d1df48381c3f407dff824487865c33d078ed",
+  "forwardFilled": false,
+  "interpolated": false,
+  "generatedAt": "2026-09-24T22:07:32.632Z"
+}

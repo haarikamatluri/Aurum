@@ -1,0 +1,116 @@
+[
+  {
+    "modelId": "TCS-MOMENTUM-ALPHA",
+    "modelVersion": "v1.4.2",
+    "symbol": "TCS.NS",
+    "status": "PRODUCTION",
+    "trainingDate": "2026-09-24T22:07:22.292Z",
+    "datasetVersion": "DS-NSE-TCS-2019-2025",
+    "featureVersion": "features-v1.4.0",
+    "features": [
+      "rsi14",
+      "returns1D",
+      "volatility14D",
+      "volumeZScore"
+    ],
+    "trainingPeriod": "2019-01-21 to 2023-12-29",
+    "validationPeriod": "2024-01-01 to 2024-12-31",
+    "testPeriod": "2025-01-01 to 2025-12-30",
+    "metrics": {
+      "accuracy": 0.47,
+      "precision": 0.329,
+      "recall": 0.238,
+      "f1Score": 0.276,
+      "sharpeRatio": -1.64,
+      "maxDrawdownPct": 18.3,
+      "winRate": 0.329,
+      "totalTestTrades": 247
+    },
+    "artifactHash": "6005436296fc2782345bcb49dcc691e662523fc65aa6ec4f1aeea66fb9d18540",
+    "artifactPath": "src/server/ml/artifacts/tcs_momentum_model.json",
+    "lastUpdated": "2026-09-24T22:07:22.295Z"
+  },
+  {
+    "modelId": "NVDA-BREAKOUT-SENTINEL",
+    "modelVersion": "v2.1.0",
+    "symbol": "NVDA",
+    "status": "PRODUCTION_CANDIDATE",
+    "trainingDate": "2026-09-01",
+    "datasetVersion": "DS-NASDAQ-NVDA-2021-2025",
+    "featureVersion": "features-v1.4.0",
+    "features": [
+      "returns1D",
+      "returns5D",
+      "volatility14D",
+      "rsi14"
+    ],
+    "metrics": {
+      "accuracy": 0.582,
+      "sharpeRatio": 1.12,
+      "winRate": 0.54
+    },
+    "artifactHash": "c4e5f6...a1b2",
+    "artifactPath": "src/server/ml/artifacts/nvda_breakout_model.json",
+    "lastUpdated": "2026-09-24T22:06:24.968Z"
+  },
+  {
+    "modelId": "RELIANCE-REGIME-CLASSIFIER",
+    "modelVersion": "v1.0.3",
+    "symbol": "RELIANCE.NS",
+    "status": "VALIDATED",
+    "trainingDate": "2026-07-20",
+    "datasetVersion": "DS-NSE-RIL-2020-2025",
+    "featureVersion": "features-v1.4.0",
+    "features": [
+      "volatility14D",
+      "rsi14",
+      "volumeZScore"
+    ],
+    "metrics": {
+      "accuracy": 0.531,
+      "sharpeRatio": 0.45,
+      "winRate": 0.51
+    },
+    "artifactHash": "d7e8f9...b2c3",
+    "artifactPath": "src/server/ml/artifacts/reliance_regime_model.json",
+    "lastUpdated": "2026-09-24T22:06:24.969Z"
+  },
+  {
+    "modelId": "TCS-ENSEMBLE-V2",
+    "modelVersion": "v2.0.0",
+    "symbol": "TCS.NS",
+    "status": "PRODUCTION",
+    "trainingDate": "2026-09-24T22:50:39.700Z",
+    "datasetVersion": "DS-NSE-TCS-2019-2025-V2",
+    "featureVersion": "features-v1.4.0",
+    "features": [
+      "returns1D",
+      "returns3D",
+      "returns5D",
+      "returns10D",
+      "returns20D",
+      "trendDistanceSMA20",
+      "trendDistanceSMA50",
+      "emaSpread10_20",
+      "rsi14",
+      "rsi7",
+      "macdHist",
+      "volatility5D",
+      "volatility14D",
+      "volatility20D",
+      "atr14Percent",
+      "volumeChange1D",
+      "volumeZScore",
+      "dailyRange",
+      "bodySize",
+      "upperWick",
+      "lowerWick",
+      "gapPercent"
+    ],
+    "validationPeriod": "2024-01-01 to 2024-12-31",
+    "testPeriod": "2025-01-01 to 2025-12-30",
+    "artifactHash": "d31dd61171a055661104440acb874dd6eef550a1d5f4e2dd2b752244c834a69c",
+    "artifactPath": "src/server/ml/artifacts/tcs_momentum_model.json",
+    "lastUpdated": "2026-09-24T22:50:39.700Z"
+  }
+]

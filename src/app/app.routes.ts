@@ -62,6 +62,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
         title: 'Settings — Money',
       },
+      {
+        path: 'phase4',
+        loadComponent: () => import('./features/phase4/phase4').then((m) => m.Phase4Page),
+        title: 'Phase 4 Intelligence — Money',
+      },
     ],
   },
   { path: '**', redirectTo: '' },

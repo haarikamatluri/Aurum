@@ -1,0 +1,3970 @@
+{
+  "modelId": "TCS-ENSEMBLE-V2",
+  "name": "TCS High-Confidence Selective Ensemble",
+  "version": "v2.0.0",
+  "type": "SELECTIVE_ENSEMBLE",
+  "targetAsset": "TCS.NS",
+  "currency": "INR",
+  "trainedAt": "2026-09-24T22:50:39.696Z",
+  "datasetVersion": "DS-NSE-TCS-2019-2025-V2",
+  "datasetChecksumSha256": "48db5aa2b56b8a064d60464d11e3d1df48381c3f407dff824487865c33d078ed",
+  "featureVersion": "features-v2.0.0",
+  "targetVersion": "target-v2.0.0",
+  "features": [
+    "returns1D",
+    "returns3D",
+    "returns5D",
+    "returns10D",
+    "returns20D",
+    "trendDistanceSMA20",
+    "trendDistanceSMA50",
+    "emaSpread10_20",
+    "rsi14",
+    "rsi7",
+    "macdHist",
+    "volatility5D",
+    "volatility14D",
+    "volatility20D",
+    "atr14Percent",
+    "volumeChange1D",
+    "volumeZScore",
+    "dailyRange",
+    "bodySize",
+    "upperWick",
+    "lowerWick",
+    "gapPercent"
+  ],
+  "featureCount": 22,
+  "featureImportance": {
+    "returns1D": 0,
+    "returns3D": 0.016,
+    "returns5D": 0,
+    "returns10D": 0,
+    "returns20D": 0,
+    "trendDistanceSMA20": 0,
+    "trendDistanceSMA50": 0,
+    "emaSpread10_20": 0,
+    "rsi14": 0.004,
+    "rsi7": 0,
+    "macdHist": 0,
+    "volatility5D": 0.012,
+    "volatility14D": 0,
+    "volatility20D": 0,
+    "atr14Percent": 0,
+    "volumeChange1D": 0,
+    "volumeZScore": 0,
+    "dailyRange": 0,
+    "bodySize": 0.016,
+    "upperWick": 0.012,
+    "lowerWick": 0.004,
+    "gapPercent": 0
+  },
+  "trainingPeriod": "2019-01-21 to 2023-12-29",
+  "validationPeriod": "2024-01-01 to 2024-12-31",
+  "testPeriod": "2025-01-01 to 2025-12-30",
+  "modelsEnsemble": {
+    "architectures": [
+      "LOGISTIC_REGRESSION",
+      "DECISION_TREE",
+      "RANDOM_FOREST",
+      "GRADIENT_BOOSTING"
+    ],
+    "weights": {
+      "lr": 0.15,
+      "dt": 0.2,
+      "rf": 0.35,
+      "gb": 0.3
+    },
+    "serializedModels": {
+      "type": "ENSEMBLE_V2",
+      "weights": {
+        "lr": 0.15,
+        "dt": 0.2,
+        "rf": 0.35,
+        "gb": 0.3
+      },
+      "calibrator": {
+        "type": "PLATT_SCALING",
+        "A": -0.835,
+        "B": 0.345,
+        "brierScore": 0.2491,
+        "expectedCalibrationError": 0.0053,
+        "reliabilityBins": [
+          {
+            "range": "[0.0, 0.1]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.1, 0.2]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.2, 0.3]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.3, 0.4]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.4, 0.5]",
+            "count": 244,
+            "avgConfidence": 0.478,
+            "empiricalAccuracy": 0.484,
+            "gap": 0.005
+          },
+          {
+            "range": "[0.5, 0.6]",
+            "count": 2,
+            "avgConfidence": 0.501,
+            "empiricalAccuracy": 0.5,
+            "gap": 0.001
+          },
+          {
+            "range": "[0.6, 0.7]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.7, 0.8]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.8, 0.9]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          },
+          {
+            "range": "[0.9, 1.0]",
+            "count": 0,
+            "avgConfidence": 0,
+            "empiricalAccuracy": 0,
+            "gap": 0
+          }
+        ]
+      },
+      "defaultConfidenceThreshold": 0.85,
+      "minAgreementRatio": 0.75,
+      "models": {
+        "lr": {
+          "type": "LOGISTIC_REGRESSION",
+          "featureNames": [
+            "returns1D",
+            "returns3D",
+            "returns5D",
+            "returns10D",
+            "returns20D",
+            "trendDistanceSMA20",
+            "trendDistanceSMA50",
+            "emaSpread10_20",
+            "rsi14",
+            "rsi7",
+            "macdHist",
+            "volatility5D",
+            "volatility14D",
+            "volatility20D",
+            "atr14Percent",
+            "volumeChange1D",
+            "volumeZScore",
+            "dailyRange",
+            "bodySize",
+            "upperWick",
+            "lowerWick",
+            "gapPercent"
+          ],
+          "weights": {
+            "returns1D": -0.007538120319981075,
+            "returns3D": -0.09617207445816278,
+            "returns5D": 0.04472875960715762,
+            "returns10D": 0.02614311482861617,
+            "returns20D": 0.11610701518713089,
+            "trendDistanceSMA20": 0.011048666260100069,
+            "trendDistanceSMA50": -0.17842024749295546,
+            "emaSpread10_20": -0.03294057579226793,
+            "rsi14": -0.0035456904994308185,
+            "rsi7": 0.023882329795832564,
+            "macdHist": -0.06305102513725519,
+            "volatility5D": 0.024656547516984217,
+            "volatility14D": -0.04372792441178589,
+            "volatility20D": -0.010910881330716465,
+            "atr14Percent": -0.028059538481469623,
+            "volumeChange1D": 0.025553903131396695,
+            "volumeZScore": 0.07291135504082454,
+            "dailyRange": 0.026094671386699828,
+            "bodySize": 0.016113382969157385,
+            "upperWick": 0.09282395423998849,
+            "lowerWick": -0.06702684824743824,
+            "gapPercent": 0.037101377265112846
+          },
+          "bias": 0.07395663169130616,
+          "means": {
+            "returns1D": 0.06692181069958847,
+            "returns3D": 0.2020329218106996,
+            "returns5D": 0.33800823045267503,
+            "returns10D": 0.6807407407407416,
+            "returns20D": 1.3160987654320968,
+            "trendDistanceSMA20": 0.5668230452674894,
+            "trendDistanceSMA50": 1.3147983539094634,
+            "emaSpread10_20": 0.25537448559670806,
+            "rsi14": 53.07069958847734,
+            "rsi7": 53.00296296296298,
+            "macdHist": 0.39738271604938297,
+            "volatility5D": 1.3684444444444437,
+            "volatility14D": 1.4369547325102876,
+            "volatility20D": 1.4516872427983527,
+            "atr14Percent": 2.173868312757197,
+            "volumeChange1D": 13.08516872427984,
+            "volumeZScore": 0.0017201646090534686,
+            "dailyRange": 2.0685267489711956,
+            "bodySize": 1.0224773662551443,
+            "upperWick": 0.5089958847736623,
+            "lowerWick": 0.5369794238683139,
+            "gapPercent": 0.10606584362139923
+          },
+          "stds": {
+            "returns1D": 1.5676718295137786,
+            "returns3D": 2.607660157706816,
+            "returns5D": 3.27860039903287,
+            "returns10D": 4.590746919208447,
+            "returns20D": 6.366350242512283,
+            "trendDistanceSMA20": 3.577593820264721,
+            "trendDistanceSMA50": 5.301244043296541,
+            "emaSpread10_20": 1.2564598827957092,
+            "rsi14": 16.523212091276406,
+            "rsi7": 23.157718838223808,
+            "macdHist": 1.1439908457762933,
+            "volatility5D": 0.8130178289037224,
+            "volatility14D": 0.6486872642594649,
+            "volatility20D": 0.6067790032413093,
+            "atr14Percent": 0.8926034238480552,
+            "volumeChange1D": 89.25310149314315,
+            "volumeZScore": 1.0208610349917313,
+            "dailyRange": 1.1909232719218983,
+            "bodySize": 0.9325773585923689,
+            "upperWick": 0.5343489587366899,
+            "lowerWick": 0.5105996849698071,
+            "gapPercent": 0.8378249054947627
+          }
+        },
+        "dt": {
+          "type": "DECISION_TREE",
+          "maxDepth": 4,
+          "minSamplesSplit": 20,
+          "minSamplesLeaf": 10,
+          "featureNames": [
+            "returns1D",
+            "returns3D",
+            "returns5D",
+            "returns10D",
+            "returns20D",
+            "trendDistanceSMA20",
+            "trendDistanceSMA50",
+            "emaSpread10_20",
+            "rsi14",
+            "rsi7",
+            "macdHist",
+            "volatility5D",
+            "volatility14D",
+            "volatility20D",
+            "atr14Percent",
+            "volumeChange1D",
+            "volumeZScore",
+            "dailyRange",
+            "bodySize",
+            "upperWick",
+            "lowerWick",
+            "gapPercent"
+          ],
+          "root": {
+            "isLeaf": false,
+            "feature": "trendDistanceSMA50",
+            "threshold": 1.285,
+            "samples": 1215,
+            "left": {
+              "isLeaf": false,
+              "feature": "trendDistanceSMA20",
+              "threshold": -0.115,
+              "samples": 605,
+              "left": {
+                "isLeaf": false,
+                "feature": "trendDistanceSMA50",
+                "threshold": -0.265,
+                "samples": 420,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volatility5D",
+                  "threshold": 0.625,
+                  "samples": 336,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.758,
+                    "prediction": 1,
+                    "samples": 33
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.535,
+                    "prediction": 1,
+                    "samples": 303
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA50",
+                  "threshold": 0.835,
+                  "samples": 84,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.297,
+                    "prediction": 0,
+                    "samples": 64
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.7,
+                    "prediction": 1,
+                    "samples": 20
+                  }
+                }
+              },
+              "right": {
+                "isLeaf": false,
+                "feature": "rsi7",
+                "threshold": 80.2,
+                "samples": 185,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "returns20D",
+                  "threshold": -0.515,
+                  "samples": 162,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.563,
+                    "prediction": 1,
+                    "samples": 64
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.745,
+                    "prediction": 1,
+                    "samples": 98
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "returns10D",
+                  "threshold": 2.85,
+                  "samples": 23,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.5,
+                    "prediction": 1,
+                    "samples": 10
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.154,
+                    "prediction": 0,
+                    "samples": 13
+                  }
+                }
+              }
+            },
+            "right": {
+              "isLeaf": false,
+              "feature": "rsi7",
+              "threshold": 53.05,
+              "samples": 610,
+              "left": {
+                "isLeaf": false,
+                "feature": "bodySize",
+                "threshold": 1.215,
+                "samples": 183,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA50",
+                  "threshold": 4.705,
+                  "samples": 126,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.286,
+                    "prediction": 0,
+                    "samples": 84
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.476,
+                    "prediction": 0,
+                    "samples": 42
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 46.05,
+                  "samples": 57,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.622,
+                    "prediction": 1,
+                    "samples": 45
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.333,
+                    "prediction": 0,
+                    "samples": 12
+                  }
+                }
+              },
+              "right": {
+                "isLeaf": false,
+                "feature": "returns5D",
+                "threshold": 3.54,
+                "samples": 427,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volatility5D",
+                  "threshold": 1.865,
+                  "samples": 294,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.521,
+                    "prediction": 1,
+                    "samples": 261
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.758,
+                    "prediction": 1,
+                    "samples": 33
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA50",
+                  "threshold": 6.56,
+                  "samples": 133,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.523,
+                    "prediction": 1,
+                    "samples": 65
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.338,
+                    "prediction": 0,
+                    "samples": 68
+                  }
+                }
+              }
+            }
+          }
+        },
+        "rf": {
+          "type": "RANDOM_FOREST",
+          "nEstimators": 15,
+          "maxDepth": 4,
+          "minSamplesSplit": 15,
+          "minSamplesLeaf": 10,
+          "maxFeatures": 0.6,
+          "seed": 42,
+          "featureNames": [
+            "returns1D",
+            "returns3D",
+            "returns5D",
+            "returns10D",
+            "returns20D",
+            "trendDistanceSMA20",
+            "trendDistanceSMA50",
+            "emaSpread10_20",
+            "rsi14",
+            "rsi7",
+            "macdHist",
+            "volatility5D",
+            "volatility14D",
+            "volatility20D",
+            "atr14Percent",
+            "volumeChange1D",
+            "volumeZScore",
+            "dailyRange",
+            "bodySize",
+            "upperWick",
+            "lowerWick",
+            "gapPercent"
+          ],
+          "trees": [
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "returns3D",
+                "rsi14",
+                "bodySize",
+                "volatility5D",
+                "atr14Percent",
+                "trendDistanceSMA20",
+                "returns5D",
+                "returns10D",
+                "macdHist",
+                "volatility20D",
+                "returns1D",
+                "gapPercent",
+                "lowerWick"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "returns5D",
+                "threshold": 4.36,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "returns10D",
+                  "threshold": 1.26,
+                  "samples": 1089,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "trendDistanceSMA20",
+                    "threshold": -2.735,
+                    "samples": 648,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns5D",
+                      "threshold": -3.265,
+                      "samples": 192,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.463,
+                        "prediction": 0,
+                        "samples": 95
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.722,
+                        "prediction": 1,
+                        "samples": 97
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility20D",
+                      "threshold": 1.025,
+                      "samples": 456,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.589,
+                        "prediction": 1,
+                        "samples": 90
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.443,
+                        "prediction": 0,
+                        "samples": 366
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns5D",
+                    "threshold": 2.47,
+                    "samples": 441,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "lowerWick",
+                      "threshold": 0.245,
+                      "samples": 308,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.767,
+                        "prediction": 1,
+                        "samples": 90
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.61,
+                        "prediction": 1,
+                        "samples": 218
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 53.8,
+                      "samples": 133,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.154,
+                        "prediction": 0,
+                        "samples": 13
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.55,
+                        "prediction": 1,
+                        "samples": 120
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "returns3D",
+                  "threshold": 3.975,
+                  "samples": 126,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns1D",
+                    "threshold": 1.465,
+                    "samples": 84,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA20",
+                      "threshold": 3.785,
+                      "samples": 72,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.071,
+                        "prediction": 0,
+                        "samples": 28
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.364,
+                        "prediction": 0,
+                        "samples": 44
+                      }
+                    },
+                    "right": {
+                      "isLeaf": true,
+                      "probability": 0.667,
+                      "prediction": 1,
+                      "samples": 12
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "macdHist",
+                    "threshold": 1.005,
+                    "samples": 42,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "bodySize",
+                      "threshold": 1.385,
+                      "samples": 20,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.7,
+                        "prediction": 1,
+                        "samples": 10
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 77.65,
+                      "samples": 22,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.583,
+                        "prediction": 1,
+                        "samples": 12
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 10
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "emaSpread10_20",
+                "returns3D",
+                "dailyRange",
+                "atr14Percent",
+                "bodySize",
+                "rsi14",
+                "rsi7",
+                "trendDistanceSMA50",
+                "macdHist",
+                "volatility20D",
+                "returns20D",
+                "volumeZScore",
+                "returns5D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "trendDistanceSMA50",
+                "threshold": 1.365,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "dailyRange",
+                  "threshold": 1.485,
+                  "samples": 605,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volatility20D",
+                    "threshold": 1.625,
+                    "samples": 180,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": -1.015,
+                      "samples": 144,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.386,
+                        "prediction": 0,
+                        "samples": 70
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.649,
+                        "prediction": 1,
+                        "samples": 74
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 2.35,
+                      "samples": 36,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.267,
+                        "prediction": 0,
+                        "samples": 15
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 21
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "trendDistanceSMA50",
+                    "threshold": 0.62,
+                    "samples": 425,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 38.9,
+                      "samples": 378,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.535,
+                        "prediction": 1,
+                        "samples": 185
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.658,
+                        "prediction": 1,
+                        "samples": 193
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": 0.38,
+                      "samples": 47,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 36
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.727,
+                        "prediction": 1,
+                        "samples": 11
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 52.6,
+                  "samples": 610,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "trendDistanceSMA50",
+                    "threshold": 2.655,
+                    "samples": 183,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": 0.36,
+                      "samples": 72,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.125,
+                        "prediction": 0,
+                        "samples": 56
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.438,
+                        "prediction": 0,
+                        "samples": 16
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": 8.045,
+                      "samples": 111,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.42,
+                        "prediction": 0,
+                        "samples": 88
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.739,
+                        "prediction": 1,
+                        "samples": 23
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": 8.135,
+                    "samples": 427,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA50",
+                      "threshold": 3.795,
+                      "samples": 294,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.648,
+                        "prediction": 1,
+                        "samples": 145
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.477,
+                        "prediction": 0,
+                        "samples": 149
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": 8.745,
+                      "samples": 133,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.192,
+                        "prediction": 0,
+                        "samples": 26
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.449,
+                        "prediction": 0,
+                        "samples": 107
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "trendDistanceSMA50",
+                "returns20D",
+                "dailyRange",
+                "bodySize",
+                "volumeZScore",
+                "atr14Percent",
+                "rsi14",
+                "volatility20D",
+                "trendDistanceSMA20",
+                "emaSpread10_20",
+                "lowerWick",
+                "returns10D",
+                "macdHist"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "macdHist",
+                "threshold": 0.715,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "emaSpread10_20",
+                  "threshold": -0.97,
+                  "samples": 968,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "trendDistanceSMA20",
+                    "threshold": -2.085,
+                    "samples": 96,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility20D",
+                      "threshold": 1.07,
+                      "samples": 54,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.1,
+                        "prediction": 0,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.636,
+                        "prediction": 1,
+                        "samples": 44
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 2.115,
+                      "samples": 42,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 16
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.154,
+                        "prediction": 0,
+                        "samples": 26
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": 0.17,
+                    "samples": 872,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 2.235,
+                      "samples": 348,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.441,
+                        "prediction": 0,
+                        "samples": 238
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.7,
+                        "prediction": 1,
+                        "samples": 110
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": 2.94,
+                      "samples": 524,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.699,
+                        "prediction": 1,
+                        "samples": 156
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.563,
+                        "prediction": 1,
+                        "samples": 368
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "atr14Percent",
+                  "threshold": 2.47,
+                  "samples": 247,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "bodySize",
+                    "threshold": 0.9,
+                    "samples": 168,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "lowerWick",
+                      "threshold": 0.28,
+                      "samples": 96,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.667,
+                        "prediction": 1,
+                        "samples": 18
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.231,
+                        "prediction": 0,
+                        "samples": 78
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA20",
+                      "threshold": 7.37,
+                      "samples": 72,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.607,
+                        "prediction": 1,
+                        "samples": 56
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.188,
+                        "prediction": 0,
+                        "samples": 16
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": -6.775,
+                    "samples": 79,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": -8.41,
+                      "samples": 28,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.643,
+                        "prediction": 1,
+                        "samples": 14
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.143,
+                        "prediction": 0,
+                        "samples": 14
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "macdHist",
+                      "threshold": 0.9,
+                      "samples": 51,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.85,
+                        "prediction": 1,
+                        "samples": 20
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.581,
+                        "prediction": 1,
+                        "samples": 31
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "returns1D",
+                "returns10D",
+                "rsi7",
+                "volatility14D",
+                "atr14Percent",
+                "upperWick",
+                "returns3D",
+                "lowerWick",
+                "gapPercent",
+                "emaSpread10_20",
+                "trendDistanceSMA20",
+                "volatility5D",
+                "returns5D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "lowerWick",
+                "threshold": 1.005,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volatility14D",
+                  "threshold": 1.975,
+                  "samples": 1089,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns5D",
+                    "threshold": 2.445,
+                    "samples": 972,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns3D",
+                      "threshold": 1.86,
+                      "samples": 776,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.548,
+                        "prediction": 1,
+                        "samples": 693
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.699,
+                        "prediction": 1,
+                        "samples": 83
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": 2.215,
+                      "samples": 196,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.544,
+                        "prediction": 1,
+                        "samples": 171
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.08,
+                        "prediction": 0,
+                        "samples": 25
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns10D",
+                    "threshold": 0.85,
+                    "samples": 117,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 42.45,
+                      "samples": 55,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.171,
+                        "prediction": 0,
+                        "samples": 35
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 20
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "upperWick",
+                      "threshold": 0.75,
+                      "samples": 62,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.444,
+                        "prediction": 0,
+                        "samples": 36
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.808,
+                        "prediction": 1,
+                        "samples": 26
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "returns5D",
+                  "threshold": 5.135,
+                  "samples": 126,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "lowerWick",
+                    "threshold": 1.265,
+                    "samples": 108,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 1.115,
+                      "samples": 60,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.042,
+                        "prediction": 0,
+                        "samples": 24
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.333,
+                        "prediction": 0,
+                        "samples": 36
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "lowerWick",
+                      "threshold": 2.015,
+                      "samples": 48,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.639,
+                        "prediction": 1,
+                        "samples": 36
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.167,
+                        "prediction": 0,
+                        "samples": 12
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": true,
+                    "probability": 0.778,
+                    "prediction": 1,
+                    "samples": 18
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "bodySize",
+                "rsi7",
+                "returns10D",
+                "lowerWick",
+                "dailyRange",
+                "returns1D",
+                "volumeZScore",
+                "returns3D",
+                "gapPercent",
+                "returns20D",
+                "returns5D",
+                "volatility14D",
+                "trendDistanceSMA50"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "returns5D",
+                "threshold": 4.065,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 46.7,
+                  "samples": 1089,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "trendDistanceSMA50",
+                    "threshold": -0.695,
+                    "samples": 432,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 17.9,
+                      "samples": 215,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.762,
+                        "prediction": 1,
+                        "samples": 63
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.513,
+                        "prediction": 1,
+                        "samples": 152
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "gapPercent",
+                      "threshold": 0.005,
+                      "samples": 217,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.587,
+                        "prediction": 1,
+                        "samples": 63
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.273,
+                        "prediction": 0,
+                        "samples": 154
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns10D",
+                    "threshold": -0.22,
+                    "samples": 657,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.545,
+                      "samples": 130,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.551,
+                        "prediction": 1,
+                        "samples": 78
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.269,
+                        "prediction": 0,
+                        "samples": 52
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "bodySize",
+                      "threshold": 0.105,
+                      "samples": 527,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.365,
+                        "prediction": 0,
+                        "samples": 52
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.627,
+                        "prediction": 1,
+                        "samples": 475
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 78.1,
+                  "samples": 126,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volumeZScore",
+                    "threshold": 1.19,
+                    "samples": 60,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns5D",
+                      "threshold": 5.775,
+                      "samples": 48,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.25,
+                        "prediction": 0,
+                        "samples": 28
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.65,
+                        "prediction": 1,
+                        "samples": 20
+                      }
+                    },
+                    "right": {
+                      "isLeaf": true,
+                      "probability": 0.917,
+                      "prediction": 1,
+                      "samples": 12
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns1D",
+                    "threshold": 0.14,
+                    "samples": 66,
+                    "left": {
+                      "isLeaf": true,
+                      "probability": 0.583,
+                      "prediction": 1,
+                      "samples": 12
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.09,
+                      "samples": 54,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.091,
+                        "prediction": 0,
+                        "samples": 44
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "returns5D",
+                "volumeChange1D",
+                "volatility14D",
+                "trendDistanceSMA20",
+                "volatility5D",
+                "emaSpread10_20",
+                "atr14Percent",
+                "trendDistanceSMA50",
+                "gapPercent",
+                "returns3D",
+                "volumeZScore",
+                "rsi14",
+                "bodySize"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "volatility5D",
+                "threshold": 1.435,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volumeChange1D",
+                  "threshold": -15.72,
+                  "samples": 726,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volumeChange1D",
+                    "threshold": -45.275,
+                    "samples": 216,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": 0.64,
+                      "samples": 42,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.75,
+                        "prediction": 1,
+                        "samples": 28
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.357,
+                        "prediction": 0,
+                        "samples": 14
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.725,
+                      "samples": 174,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.379,
+                        "prediction": 0,
+                        "samples": 153
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.048,
+                        "prediction": 0,
+                        "samples": 21
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns3D",
+                    "threshold": 1.77,
+                    "samples": 510,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.435,
+                      "samples": 408,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.528,
+                        "prediction": 1,
+                        "samples": 320
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.693,
+                        "prediction": 1,
+                        "samples": 88
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": -0.375,
+                      "samples": 102,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.633,
+                        "prediction": 1,
+                        "samples": 30
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.264,
+                        "prediction": 0,
+                        "samples": 72
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "returns3D",
+                  "threshold": -3.895,
+                  "samples": 489,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "bodySize",
+                    "threshold": 2.135,
+                    "samples": 48,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA20",
+                      "threshold": -4.295,
+                      "samples": 20,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.3,
+                        "prediction": 0,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 10
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": -0.14,
+                      "samples": 28,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.286,
+                        "prediction": 0,
+                        "samples": 14
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.857,
+                        "prediction": 1,
+                        "samples": 14
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volumeZScore",
+                    "threshold": -0.685,
+                    "samples": 441,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 1.52,
+                      "samples": 88,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.125,
+                        "prediction": 0,
+                        "samples": 16
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.486,
+                        "prediction": 0,
+                        "samples": 72
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 1.485,
+                      "samples": 353,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.914,
+                        "prediction": 1,
+                        "samples": 35
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.629,
+                        "prediction": 1,
+                        "samples": 318
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "gapPercent",
+                "returns3D",
+                "volatility20D",
+                "trendDistanceSMA50",
+                "volatility5D",
+                "returns20D",
+                "returns1D",
+                "dailyRange",
+                "rsi7",
+                "returns5D",
+                "volatility14D",
+                "returns10D",
+                "atr14Percent"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "returns1D",
+                "threshold": -1.075,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 46.45,
+                  "samples": 242,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "gapPercent",
+                    "threshold": -0.225,
+                    "samples": 144,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": -2.81,
+                      "samples": 56,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.567,
+                        "prediction": 1,
+                        "samples": 30
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.923,
+                        "prediction": 1,
+                        "samples": 26
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "dailyRange",
+                      "threshold": 3.66,
+                      "samples": 88,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.361,
+                        "prediction": 0,
+                        "samples": 72
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.75,
+                        "prediction": 1,
+                        "samples": 16
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns10D",
+                    "threshold": 3.155,
+                    "samples": 98,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns10D",
+                      "threshold": 1.63,
+                      "samples": 72,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.686,
+                        "prediction": 1,
+                        "samples": 35
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.946,
+                        "prediction": 1,
+                        "samples": 37
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 67.95,
+                      "samples": 26,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.625,
+                        "prediction": 1,
+                        "samples": 16
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.1,
+                        "prediction": 0,
+                        "samples": 10
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA50",
+                  "threshold": 2.94,
+                  "samples": 973,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns1D",
+                    "threshold": 1.125,
+                    "samples": 582,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 57.95,
+                      "samples": 464,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.472,
+                        "prediction": 0,
+                        "samples": 322
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.606,
+                        "prediction": 1,
+                        "samples": 142
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns1D",
+                      "threshold": 1.335,
+                      "samples": 118,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.409,
+                        "prediction": 0,
+                        "samples": 22
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.719,
+                        "prediction": 1,
+                        "samples": 96
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volatility5D",
+                    "threshold": 0.615,
+                    "samples": 391,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns3D",
+                      "threshold": -0.13,
+                      "samples": 39,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.533,
+                        "prediction": 1,
+                        "samples": 15
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.083,
+                        "prediction": 0,
+                        "samples": 24
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "dailyRange",
+                      "threshold": 1.645,
+                      "samples": 352,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.414,
+                        "prediction": 0,
+                        "samples": 140
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.547,
+                        "prediction": 1,
+                        "samples": 212
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "trendDistanceSMA20",
+                "volatility14D",
+                "emaSpread10_20",
+                "atr14Percent",
+                "volatility5D",
+                "lowerWick",
+                "rsi7",
+                "returns20D",
+                "macdHist",
+                "gapPercent",
+                "returns10D",
+                "returns5D",
+                "volumeChange1D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "volumeChange1D",
+                "threshold": 39.595,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "macdHist",
+                  "threshold": 1.355,
+                  "samples": 968,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volatility14D",
+                    "threshold": 0.855,
+                    "samples": 864,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns10D",
+                      "threshold": -1.83,
+                      "samples": 86,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.375,
+                        "prediction": 0,
+                        "samples": 16
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.814,
+                        "prediction": 1,
+                        "samples": 70
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": -31.865,
+                      "samples": 778,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.604,
+                        "prediction": 1,
+                        "samples": 154
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.463,
+                        "prediction": 0,
+                        "samples": 624
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": 14.56,
+                    "samples": 104,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns5D",
+                      "threshold": 4.89,
+                      "samples": 90,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.375,
+                        "prediction": 0,
+                        "samples": 72
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.056,
+                        "prediction": 0,
+                        "samples": 18
+                      }
+                    },
+                    "right": {
+                      "isLeaf": true,
+                      "probability": 0.786,
+                      "prediction": 1,
+                      "samples": 14
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "rsi7",
+                  "threshold": 24.65,
+                  "samples": 247,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "rsi7",
+                    "threshold": 17.65,
+                    "samples": 48,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.425,
+                      "samples": 28,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.8,
+                        "prediction": 1,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 18
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 22.2,
+                      "samples": 20,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.9,
+                        "prediction": 1,
+                        "samples": 10
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns5D",
+                    "threshold": 0.045,
+                    "samples": 199,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": 87.35,
+                      "samples": 76,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.878,
+                        "prediction": 1,
+                        "samples": 49
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.481,
+                        "prediction": 0,
+                        "samples": 27
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 0.565,
+                      "samples": 123,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 12
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.541,
+                        "prediction": 1,
+                        "samples": 111
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "returns20D",
+                "returns10D",
+                "volumeChange1D",
+                "macdHist",
+                "atr14Percent",
+                "returns5D",
+                "volatility14D",
+                "returns3D",
+                "rsi7",
+                "upperWick",
+                "dailyRange",
+                "rsi14",
+                "volatility5D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "rsi7",
+                "threshold": 74.75,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "upperWick",
+                  "threshold": 1.055,
+                  "samples": 968,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volatility5D",
+                    "threshold": 2.305,
+                    "samples": 864,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 55.15,
+                      "samples": 774,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.478,
+                        "prediction": 0,
+                        "samples": 462
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.571,
+                        "prediction": 1,
+                        "samples": 312
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "upperWick",
+                      "threshold": 0.39,
+                      "samples": 90,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.533,
+                        "prediction": 1,
+                        "samples": 45
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.244,
+                        "prediction": 0,
+                        "samples": 45
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns5D",
+                    "threshold": 0.325,
+                    "samples": 104,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": 92.565,
+                      "samples": 70,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.857,
+                        "prediction": 1,
+                        "samples": 56
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.357,
+                        "prediction": 0,
+                        "samples": 14
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 59.45,
+                      "samples": 34,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.2,
+                        "prediction": 0,
+                        "samples": 15
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.737,
+                        "prediction": 1,
+                        "samples": 19
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "volumeChange1D",
+                  "threshold": 28.865,
+                  "samples": 247,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns3D",
+                    "threshold": 3.055,
+                    "samples": 168,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 1.425,
+                      "samples": 128,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.917,
+                        "prediction": 1,
+                        "samples": 24
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 104
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": 8.73,
+                      "samples": 40,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.042,
+                        "prediction": 0,
+                        "samples": 24
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.5,
+                        "prediction": 1,
+                        "samples": 16
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "upperWick",
+                    "threshold": 0.655,
+                    "samples": 79,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 91.4,
+                      "samples": 56,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.267,
+                        "prediction": 0,
+                        "samples": 45
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.818,
+                        "prediction": 1,
+                        "samples": 11
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns20D",
+                      "threshold": 2.395,
+                      "samples": 23,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.1,
+                        "prediction": 0,
+                        "samples": 10
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 13
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "volatility20D",
+                "volatility5D",
+                "trendDistanceSMA50",
+                "returns20D",
+                "emaSpread10_20",
+                "volumeChange1D",
+                "returns10D",
+                "dailyRange",
+                "rsi14",
+                "bodySize",
+                "atr14Percent",
+                "returns5D",
+                "rsi7"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "volumeChange1D",
+                "threshold": 39.07,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volumeChange1D",
+                  "threshold": -34.605,
+                  "samples": 968,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volatility20D",
+                    "threshold": 1.615,
+                    "samples": 192,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 77.65,
+                      "samples": 133,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.718,
+                        "prediction": 1,
+                        "samples": 117
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.25,
+                        "prediction": 0,
+                        "samples": 16
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 3.065,
+                      "samples": 59,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.378,
+                        "prediction": 0,
+                        "samples": 45
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.857,
+                        "prediction": 1,
+                        "samples": 14
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volatility20D",
+                    "threshold": 1.335,
+                    "samples": 776,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility20D",
+                      "threshold": 0.835,
+                      "samples": 385,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.711,
+                        "prediction": 1,
+                        "samples": 38
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.481,
+                        "prediction": 0,
+                        "samples": 347
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": 9.285,
+                      "samples": 391,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.359,
+                        "prediction": 0,
+                        "samples": 273
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.551,
+                        "prediction": 1,
+                        "samples": 118
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "bodySize",
+                  "threshold": 0.915,
+                  "samples": 247,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "rsi7",
+                    "threshold": 60.2,
+                    "samples": 96,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": 52.745,
+                      "samples": 63,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.778,
+                        "prediction": 1,
+                        "samples": 18
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.511,
+                        "prediction": 1,
+                        "samples": 45
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns10D",
+                      "threshold": 3.295,
+                      "samples": 33,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.333,
+                        "prediction": 0,
+                        "samples": 21
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0,
+                        "prediction": 0,
+                        "samples": 12
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns10D",
+                    "threshold": -0.465,
+                    "samples": 151,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns10D",
+                      "threshold": -1.475,
+                      "samples": 60,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.396,
+                        "prediction": 0,
+                        "samples": 48
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.917,
+                        "prediction": 1,
+                        "samples": 12
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": 1.95,
+                      "samples": 91,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.864,
+                        "prediction": 1,
+                        "samples": 81
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.3,
+                        "prediction": 0,
+                        "samples": 10
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "volumeChange1D",
+                "bodySize",
+                "atr14Percent",
+                "returns20D",
+                "trendDistanceSMA20",
+                "volatility5D",
+                "dailyRange",
+                "macdHist",
+                "rsi14",
+                "returns10D",
+                "volumeZScore",
+                "trendDistanceSMA50",
+                "returns5D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "volumeChange1D",
+                "threshold": -41.045,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "returns5D",
+                  "threshold": -1.945,
+                  "samples": 121,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": -3.23,
+                    "samples": 24,
+                    "left": {
+                      "isLeaf": true,
+                      "probability": 0.571,
+                      "prediction": 1,
+                      "samples": 14
+                    },
+                    "right": {
+                      "isLeaf": true,
+                      "probability": 0.2,
+                      "prediction": 0,
+                      "samples": 10
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volumeChange1D",
+                    "threshold": -52.16,
+                    "samples": 97,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA20",
+                      "threshold": 3.805,
+                      "samples": 45,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.719,
+                        "prediction": 1,
+                        "samples": 32
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.154,
+                        "prediction": 0,
+                        "samples": 13
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 60.8,
+                      "samples": 52,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.72,
+                        "prediction": 1,
+                        "samples": 25
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.926,
+                        "prediction": 1,
+                        "samples": 27
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA50",
+                  "threshold": -2.93,
+                  "samples": 1094,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": -4.815,
+                    "samples": 218,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "bodySize",
+                      "threshold": 0.725,
+                      "samples": 147,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.357,
+                        "prediction": 0,
+                        "samples": 56
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.593,
+                        "prediction": 1,
+                        "samples": 91
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": -0.31,
+                      "samples": 71,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.524,
+                        "prediction": 1,
+                        "samples": 21
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.84,
+                        "prediction": 1,
+                        "samples": 50
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "rsi14",
+                    "threshold": 53.95,
+                    "samples": 876,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi14",
+                      "threshold": 51.45,
+                      "samples": 348,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.392,
+                        "prediction": 0,
+                        "samples": 306
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.69,
+                        "prediction": 1,
+                        "samples": 42
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA20",
+                      "threshold": 2.255,
+                      "samples": 528,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.601,
+                        "prediction": 1,
+                        "samples": 208
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.491,
+                        "prediction": 0,
+                        "samples": 320
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "trendDistanceSMA50",
+                "returns5D",
+                "macdHist",
+                "volatility14D",
+                "bodySize",
+                "trendDistanceSMA20",
+                "upperWick",
+                "rsi14",
+                "emaSpread10_20",
+                "returns3D",
+                "volatility20D",
+                "returns1D",
+                "volumeChange1D"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "returns5D",
+                "threshold": -2.375,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "trendDistanceSMA20",
+                  "threshold": -3.995,
+                  "samples": 242,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns5D",
+                    "threshold": -5.925,
+                    "samples": 96,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility20D",
+                      "threshold": 1.57,
+                      "samples": 36,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 15
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.524,
+                        "prediction": 1,
+                        "samples": 21
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.765,
+                      "samples": 60,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.548,
+                        "prediction": 1,
+                        "samples": 42
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.167,
+                        "prediction": 0,
+                        "samples": 18
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "upperWick",
+                    "threshold": 0.71,
+                    "samples": 146,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA50",
+                      "threshold": -0.695,
+                      "samples": 112,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.455,
+                        "prediction": 0,
+                        "samples": 44
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.191,
+                        "prediction": 0,
+                        "samples": 68
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "macdHist",
+                      "threshold": -0.015,
+                      "samples": 34,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.333,
+                        "prediction": 0,
+                        "samples": 18
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.813,
+                        "prediction": 1,
+                        "samples": 16
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "bodySize",
+                  "threshold": 1.425,
+                  "samples": 973,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "returns3D",
+                    "threshold": 3.045,
+                    "samples": 776,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns5D",
+                      "threshold": 1.575,
+                      "samples": 693,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.518,
+                        "prediction": 1,
+                        "samples": 483
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.605,
+                        "prediction": 1,
+                        "samples": 210
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.9,
+                      "samples": 83,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.234,
+                        "prediction": 0,
+                        "samples": 64
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.737,
+                        "prediction": 1,
+                        "samples": 19
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "macdHist",
+                    "threshold": -0.435,
+                    "samples": 197,
+                    "left": {
+                      "isLeaf": true,
+                      "probability": 0.316,
+                      "prediction": 0,
+                      "samples": 19
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "trendDistanceSMA50",
+                      "threshold": -2.53,
+                      "samples": 178,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.912,
+                        "prediction": 1,
+                        "samples": 34
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.639,
+                        "prediction": 1,
+                        "samples": 144
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "gapPercent",
+                "emaSpread10_20",
+                "bodySize",
+                "volatility20D",
+                "returns1D",
+                "volatility14D",
+                "volumeZScore",
+                "atr14Percent",
+                "lowerWick",
+                "upperWick",
+                "trendDistanceSMA20",
+                "returns3D",
+                "macdHist"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "returns3D",
+                "threshold": 2.24,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "upperWick",
+                  "threshold": 0.385,
+                  "samples": 968,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volumeZScore",
+                    "threshold": 1.25,
+                    "samples": 480,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns3D",
+                      "threshold": -0.485,
+                      "samples": 432,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.581,
+                        "prediction": 1,
+                        "samples": 172
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.446,
+                        "prediction": 0,
+                        "samples": 260
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "emaSpread10_20",
+                      "threshold": 0.385,
+                      "samples": 48,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.594,
+                        "prediction": 1,
+                        "samples": 32
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 16
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns3D",
+                    "threshold": 0.415,
+                    "samples": 488,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "gapPercent",
+                      "threshold": -0.015,
+                      "samples": 336,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.689,
+                        "prediction": 1,
+                        "samples": 132
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.485,
+                        "prediction": 0,
+                        "samples": 204
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": -0.035,
+                      "samples": 152,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.833,
+                        "prediction": 1,
+                        "samples": 90
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.532,
+                        "prediction": 1,
+                        "samples": 62
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "lowerWick",
+                  "threshold": 0.885,
+                  "samples": 247,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "upperWick",
+                    "threshold": 0.315,
+                    "samples": 192,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.14,
+                      "samples": 76,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.357,
+                        "prediction": 0,
+                        "samples": 14
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.726,
+                        "prediction": 1,
+                        "samples": 62
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 1.845,
+                      "samples": 116,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.636,
+                        "prediction": 1,
+                        "samples": 33
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.361,
+                        "prediction": 0,
+                        "samples": 83
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "bodySize",
+                    "threshold": 0.175,
+                    "samples": 55,
+                    "left": {
+                      "isLeaf": true,
+                      "probability": 0.6,
+                      "prediction": 1,
+                      "samples": 10
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility20D",
+                      "threshold": 1.755,
+                      "samples": 45,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.042,
+                        "prediction": 0,
+                        "samples": 24
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.333,
+                        "prediction": 0,
+                        "samples": 21
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "volumeZScore",
+                "returns1D",
+                "gapPercent",
+                "returns3D",
+                "volatility14D",
+                "returns5D",
+                "upperWick",
+                "returns10D",
+                "returns20D",
+                "bodySize",
+                "atr14Percent",
+                "lowerWick",
+                "dailyRange"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "bodySize",
+                "threshold": 1.035,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "dailyRange",
+                  "threshold": 1.155,
+                  "samples": 726,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "volumeZScore",
+                    "threshold": -0.905,
+                    "samples": 144,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "upperWick",
+                      "threshold": 0.16,
+                      "samples": 42,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.625,
+                        "prediction": 1,
+                        "samples": 16
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.962,
+                        "prediction": 1,
+                        "samples": 26
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility14D",
+                      "threshold": 1.505,
+                      "samples": 102,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.567,
+                        "prediction": 1,
+                        "samples": 90
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.083,
+                        "prediction": 0,
+                        "samples": 12
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "returns20D",
+                    "threshold": 3.815,
+                    "samples": 582,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "lowerWick",
+                      "threshold": 1.065,
+                      "samples": 348,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.533,
+                        "prediction": 1,
+                        "samples": 306
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.262,
+                        "prediction": 0,
+                        "samples": 42
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "dailyRange",
+                      "threshold": 1.565,
+                      "samples": 234,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.261,
+                        "prediction": 0,
+                        "samples": 92
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.437,
+                        "prediction": 0,
+                        "samples": 142
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "returns1D",
+                  "threshold": 1.335,
+                  "samples": 489,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "upperWick",
+                    "threshold": 0.875,
+                    "samples": 336,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": -0.285,
+                      "samples": 297,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.353,
+                        "prediction": 0,
+                        "samples": 116
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.597,
+                        "prediction": 1,
+                        "samples": 181
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volumeZScore",
+                      "threshold": 1.235,
+                      "samples": 39,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.926,
+                        "prediction": 1,
+                        "samples": 27
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.25,
+                        "prediction": 0,
+                        "samples": 12
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volumeZScore",
+                    "threshold": -0.285,
+                    "samples": 153,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "returns3D",
+                      "threshold": 0.3,
+                      "samples": 30,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.917,
+                        "prediction": 1,
+                        "samples": 12
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 18
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns1D",
+                      "threshold": 1.95,
+                      "samples": 123,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.806,
+                        "prediction": 1,
+                        "samples": 36
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.575,
+                        "prediction": 1,
+                        "samples": 87
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "DECISION_TREE",
+              "maxDepth": 4,
+              "minSamplesSplit": 15,
+              "minSamplesLeaf": 10,
+              "featureNames": [
+                "rsi7",
+                "emaSpread10_20",
+                "atr14Percent",
+                "volatility20D",
+                "returns1D",
+                "returns3D",
+                "macdHist",
+                "upperWick",
+                "dailyRange",
+                "volatility5D",
+                "volumeChange1D",
+                "returns10D",
+                "rsi14"
+              ],
+              "root": {
+                "isLeaf": false,
+                "feature": "atr14Percent",
+                "threshold": 1.46,
+                "samples": 1215,
+                "left": {
+                  "isLeaf": false,
+                  "feature": "volatility5D",
+                  "threshold": 0.46,
+                  "samples": 121,
+                  "left": {
+                    "isLeaf": true,
+                    "probability": 0.25,
+                    "prediction": 0,
+                    "samples": 12
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "volatility20D",
+                    "threshold": 0.795,
+                    "samples": 109,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "rsi7",
+                      "threshold": 56.05,
+                      "samples": 30,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.917,
+                        "prediction": 1,
+                        "samples": 12
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 1,
+                        "prediction": 1,
+                        "samples": 18
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "returns3D",
+                      "threshold": -0.88,
+                      "samples": 79,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.905,
+                        "prediction": 1,
+                        "samples": 21
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.534,
+                        "prediction": 1,
+                        "samples": 58
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "isLeaf": false,
+                  "feature": "dailyRange",
+                  "threshold": 2.67,
+                  "samples": 1094,
+                  "left": {
+                    "isLeaf": false,
+                    "feature": "rsi7",
+                    "threshold": 20.7,
+                    "samples": 872,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "atr14Percent",
+                      "threshold": 1.965,
+                      "samples": 87,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.525,
+                        "prediction": 1,
+                        "samples": 40
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.83,
+                        "prediction": 1,
+                        "samples": 47
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "upperWick",
+                      "threshold": 0.165,
+                      "samples": 785,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.385,
+                        "prediction": 0,
+                        "samples": 156
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.488,
+                        "prediction": 0,
+                        "samples": 629
+                      }
+                    }
+                  },
+                  "right": {
+                    "isLeaf": false,
+                    "feature": "emaSpread10_20",
+                    "threshold": -1.815,
+                    "samples": 222,
+                    "left": {
+                      "isLeaf": false,
+                      "feature": "volumeChange1D",
+                      "threshold": 13.18,
+                      "samples": 22,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.083,
+                        "prediction": 0,
+                        "samples": 12
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.6,
+                        "prediction": 1,
+                        "samples": 10
+                      }
+                    },
+                    "right": {
+                      "isLeaf": false,
+                      "feature": "volatility5D",
+                      "threshold": 1.125,
+                      "samples": 200,
+                      "left": {
+                        "isLeaf": true,
+                        "probability": 0.3,
+                        "prediction": 0,
+                        "samples": 20
+                      },
+                      "right": {
+                        "isLeaf": true,
+                        "probability": 0.694,
+                        "prediction": 1,
+                        "samples": 180
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "gb": {
+          "type": "GRADIENT_BOOSTING",
+          "nEstimators": 25,
+          "learningRate": 0.08,
+          "initialLogOdds": 0.07410797215372183,
+          "featureNames": [
+            "returns1D",
+            "returns3D",
+            "returns5D",
+            "returns10D",
+            "returns20D",
+            "trendDistanceSMA20",
+            "trendDistanceSMA50",
+            "emaSpread10_20",
+            "rsi14",
+            "rsi7",
+            "macdHist",
+            "volatility5D",
+            "volatility14D",
+            "volatility20D",
+            "atr14Percent",
+            "volumeChange1D",
+            "volumeZScore",
+            "dailyRange",
+            "bodySize",
+            "upperWick",
+            "lowerWick",
+            "gapPercent"
+          ],
+          "stumps": [
+            {
+              "feature": "bodySize",
+              "threshold": 1.065,
+              "leftVal": -0.03,
+              "rightVal": 0.051
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.178,
+              "rightVal": -0.009
+            },
+            {
+              "feature": "bodySize",
+              "threshold": 0.915,
+              "leftVal": -0.034,
+              "rightVal": 0.044
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.175,
+              "rightVal": -0.008
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": 0.655,
+              "leftVal": -0.018,
+              "rightVal": 0.079
+            },
+            {
+              "feature": "returns5D",
+              "threshold": 3.415,
+              "leftVal": 0.016,
+              "rightVal": -0.09
+            },
+            {
+              "feature": "bodySize",
+              "threshold": 1.065,
+              "leftVal": -0.029,
+              "rightVal": 0.049
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.171,
+              "rightVal": -0.008
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": -0.585,
+              "leftVal": -0.056,
+              "rightVal": 0.025
+            },
+            {
+              "feature": "returns5D",
+              "threshold": 3.415,
+              "leftVal": 0.016,
+              "rightVal": -0.089
+            },
+            {
+              "feature": "bodySize",
+              "threshold": 0.915,
+              "leftVal": -0.033,
+              "rightVal": 0.042
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.168,
+              "rightVal": -0.008
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": 0.655,
+              "leftVal": -0.018,
+              "rightVal": 0.076
+            },
+            {
+              "feature": "returns5D",
+              "threshold": 3.415,
+              "leftVal": 0.015,
+              "rightVal": -0.087
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": -0.585,
+              "leftVal": -0.055,
+              "rightVal": 0.024
+            },
+            {
+              "feature": "returns3D",
+              "threshold": 3.375,
+              "leftVal": 0.012,
+              "rightVal": -0.112
+            },
+            {
+              "feature": "bodySize",
+              "threshold": 0.915,
+              "leftVal": -0.032,
+              "rightVal": 0.041
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.164,
+              "rightVal": -0.008
+            },
+            {
+              "feature": "trendDistanceSMA50",
+              "threshold": 1.285,
+              "leftVal": 0.036,
+              "rightVal": -0.036
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": 0.655,
+              "leftVal": -0.017,
+              "rightVal": 0.075
+            },
+            {
+              "feature": "returns3D",
+              "threshold": 3.375,
+              "leftVal": 0.012,
+              "rightVal": -0.11
+            },
+            {
+              "feature": "volumeZScore",
+              "threshold": -0.585,
+              "leftVal": -0.053,
+              "rightVal": 0.024
+            },
+            {
+              "feature": "returns1D",
+              "threshold": -2.655,
+              "leftVal": 0.187,
+              "rightVal": -0.007
+            },
+            {
+              "feature": "volatility20D",
+              "threshold": 0.815,
+              "leftVal": 0.161,
+              "rightVal": -0.008
+            },
+            {
+              "feature": "returns5D",
+              "threshold": 3.415,
+              "leftVal": 0.015,
+              "rightVal": -0.084
+            }
+          ]
+        }
+      }
+    }
+  },
+  "calibration": {
+    "method": "PLATT_SCALING",
+    "A": -0.835,
+    "B": 0.345,
+    "brierScore": 0.2491,
+    "expectedCalibrationError": 0.0053,
+    "reliabilityBins": [
+      {
+        "range": "[0.0, 0.1]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.1, 0.2]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.2, 0.3]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.3, 0.4]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.4, 0.5]",
+        "count": 244,
+        "avgConfidence": 0.478,
+        "empiricalAccuracy": 0.484,
+        "gap": 0.005
+      },
+      {
+        "range": "[0.5, 0.6]",
+        "count": 2,
+        "avgConfidence": 0.501,
+        "empiricalAccuracy": 0.5,
+        "gap": 0.001
+      },
+      {
+        "range": "[0.6, 0.7]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.7, 0.8]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.8, 0.9]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      },
+      {
+        "range": "[0.9, 1.0]",
+        "count": 0,
+        "avgConfidence": 0,
+        "empiricalAccuracy": 0,
+        "gap": 0
+      }
+    ]
+  },
+  "selectiveHurdles": {
+    "defaultConfidenceThreshold": 0.85,
+    "minAgreementRatio": 0.75,
+    "confidenceCurves": {
+      "validation": [
+        {
+          "threshold": 80,
+          "thresholdValue": 0.8,
+          "totalSamples": 246,
+          "tradeCount": 41,
+          "coveragePct": 16.7,
+          "accuracy": 0.463,
+          "precision": 0.462,
+          "recall": 0.947,
+          "f1": 0.621,
+          "winRatePct": 46.3,
+          "profitFactor": 0.6,
+          "sharpeRatio": -3.26,
+          "meanReturnPct": -0.24
+        },
+        {
+          "threshold": 85,
+          "thresholdValue": 0.85,
+          "totalSamples": 246,
+          "tradeCount": 18,
+          "coveragePct": 7.3,
+          "accuracy": 0.444,
+          "precision": 0.444,
+          "recall": 1,
+          "f1": 0.615,
+          "winRatePct": 44.4,
+          "profitFactor": 0.54,
+          "sharpeRatio": -3.97,
+          "meanReturnPct": -0.31
+        },
+        {
+          "threshold": 90,
+          "thresholdValue": 0.9,
+          "totalSamples": 246,
+          "tradeCount": 3,
+          "coveragePct": 1.2,
+          "accuracy": 0.667,
+          "precision": 0.667,
+          "recall": 1,
+          "f1": 0.8,
+          "winRatePct": 66.7,
+          "profitFactor": 0.71,
+          "sharpeRatio": -1.85,
+          "meanReturnPct": -0.27
+        },
+        {
+          "threshold": 92.5,
+          "thresholdValue": 0.925,
+          "totalSamples": 246,
+          "tradeCount": 2,
+          "coveragePct": 0.8,
+          "accuracy": 1,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1,
+          "winRatePct": 100,
+          "profitFactor": 10,
+          "sharpeRatio": 17.7,
+          "meanReturnPct": 1.02
+        },
+        {
+          "threshold": 95,
+          "thresholdValue": 0.95,
+          "totalSamples": 246,
+          "tradeCount": 1,
+          "coveragePct": 0.4,
+          "accuracy": 1,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1,
+          "winRatePct": 100,
+          "profitFactor": 10,
+          "sharpeRatio": 263675.58,
+          "meanReturnPct": 1.66
+        },
+        {
+          "threshold": 97.5,
+          "thresholdValue": 0.975,
+          "coveragePct": 0,
+          "tradeCount": 0,
+          "accuracy": 0,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "winRatePct": 0,
+          "profitFactor": 0,
+          "sharpeRatio": 0
+        }
+      ],
+      "test": [
+        {
+          "threshold": 80,
+          "thresholdValue": 0.8,
+          "totalSamples": 247,
+          "tradeCount": 81,
+          "coveragePct": 32.8,
+          "accuracy": 0.444,
+          "precision": 0.444,
+          "recall": 1,
+          "f1": 0.615,
+          "winRatePct": 44.4,
+          "profitFactor": 1.17,
+          "sharpeRatio": 0.82,
+          "meanReturnPct": 0.08
+        },
+        {
+          "threshold": 85,
+          "thresholdValue": 0.85,
+          "totalSamples": 247,
+          "tradeCount": 44,
+          "coveragePct": 17.8,
+          "accuracy": 0.409,
+          "precision": 0.409,
+          "recall": 1,
+          "f1": 0.581,
+          "winRatePct": 40.9,
+          "profitFactor": 1.08,
+          "sharpeRatio": 0.41,
+          "meanReturnPct": 0.04
+        },
+        {
+          "threshold": 90,
+          "thresholdValue": 0.9,
+          "totalSamples": 247,
+          "tradeCount": 14,
+          "coveragePct": 5.7,
+          "accuracy": 0.429,
+          "precision": 0.429,
+          "recall": 1,
+          "f1": 0.6,
+          "winRatePct": 42.9,
+          "profitFactor": 0.53,
+          "sharpeRatio": -3.13,
+          "meanReturnPct": -0.19
+        },
+        {
+          "threshold": 92.5,
+          "thresholdValue": 0.925,
+          "totalSamples": 247,
+          "tradeCount": 7,
+          "coveragePct": 2.8,
+          "accuracy": 0.429,
+          "precision": 0.429,
+          "recall": 1,
+          "f1": 0.6,
+          "winRatePct": 42.9,
+          "profitFactor": 1.27,
+          "sharpeRatio": 1.4,
+          "meanReturnPct": 0.06
+        },
+        {
+          "threshold": 95,
+          "thresholdValue": 0.95,
+          "totalSamples": 247,
+          "tradeCount": 3,
+          "coveragePct": 1.2,
+          "accuracy": 0.333,
+          "precision": 0.333,
+          "recall": 1,
+          "f1": 0.5,
+          "winRatePct": 33.3,
+          "profitFactor": 1.29,
+          "sharpeRatio": 1.49,
+          "meanReturnPct": 0.07
+        },
+        {
+          "threshold": 97.5,
+          "thresholdValue": 0.975,
+          "totalSamples": 247,
+          "tradeCount": 1,
+          "coveragePct": 0.4,
+          "accuracy": 0,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "winRatePct": 0,
+          "profitFactor": 0,
+          "sharpeRatio": -46194.82,
+          "meanReturnPct": -0.29
+        }
+      ]
+    }
+  },
+  "reproducedMetrics": {
+    "validation": {
+      "diagnostics": {
+        "trainAccuracy": 0.656,
+        "validationAccuracy": 0.463,
+        "overfitFlag": false,
+        "suspiciousFlag": false
+      },
+      "metricsAt85": {
+        "threshold": 85,
+        "thresholdValue": 0.85,
+        "totalSamples": 246,
+        "tradeCount": 18,
+        "coveragePct": 7.3,
+        "accuracy": 0.444,
+        "precision": 0.444,
+        "recall": 1,
+        "f1": 0.615,
+        "winRatePct": 44.4,
+        "profitFactor": 0.54,
+        "sharpeRatio": -3.97,
+        "meanReturnPct": -0.31
+      }
+    },
+    "test": {
+      "baseline": {
+        "totalSamples": 247,
+        "tradeCount": 232,
+        "coveragePct": 93.9,
+        "accuracy": 0.435,
+        "precision": 0.432,
+        "recall": 0.941,
+        "f1": 0.592,
+        "winRatePct": 43.5,
+        "profitFactor": 0.84,
+        "sharpeRatio": -1.01,
+        "meanReturnPct": -0.08
+      },
+      "selective85": {
+        "totalSamples": 247,
+        "tradeCount": 44,
+        "coveragePct": 17.8,
+        "accuracy": 0.409,
+        "precision": 0.409,
+        "recall": 1,
+        "f1": 0.581,
+        "winRatePct": 40.9,
+        "profitFactor": 1.08,
+        "sharpeRatio": 0.41,
+        "meanReturnPct": 0.04
+      }
+    }
+  },
+  "provenance": {
+    "trainBars": 1215,
+    "valBars": 246,
+    "testBars": 247,
+    "totalCleanBars": 1729,
+    "seed": 42,
+    "nodeVersion": "v24.18.1"
+  },
+  "artifactHash": "d31dd61171a055661104440acb874dd6eef550a1d5f4e2dd2b752244c834a69c"
+}

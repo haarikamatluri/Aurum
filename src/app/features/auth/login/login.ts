@@ -52,7 +52,7 @@ declare const google: any;
               </div>
               <input id="password" type="password" class="input" formControlName="password" autocomplete="current-password" placeholder="••••••••" />
             </div>
-            <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
+            <button type="submit" class="btn btn-primary submit-btn">
               {{ submitting() ? 'Signing in…' : 'Sign in' }}
             </button>
           </form>
@@ -190,7 +190,12 @@ export class LoginPage implements OnInit, OnDestroy {
   totpCode = '';
 
   async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.submitting()) return;
+    
     this.submitting.set(true);
     this.errorMessage.set(null);
     const { email, password } = this.form.getRawValue();

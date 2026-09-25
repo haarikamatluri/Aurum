@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed, input, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed, input, effect, HostBinding } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { PortfolioService } from '../../../core/services/portfolio.service';
@@ -9,7 +9,7 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
   standalone: true,
   imports: [FormsModule, DecimalPipe],
   template: `
-    <div class="overlay" (click)="close.emit()">
+    <div class="overlay" (click)="!isEmbedded() && close.emit()">
       <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <!-- Header -->
         <div class="modal-header">
@@ -212,6 +212,9 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddStockModal {
+  isEmbedded = input<boolean>(false);
+  @HostBinding('class.embedded-mode') get embedded() { return this.isEmbedded(); }
+
   readonly defaultMarket = input<MarketRegion>('US');
   @Output() close = new EventEmitter<void>();
   @Output() added = new EventEmitter<AddHoldingRequest>();

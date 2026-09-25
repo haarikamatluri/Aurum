@@ -1,0 +1,258 @@
+{
+  "src\\server\\ml\\backtest-engine.js": [
+    {
+      "line": 16,
+      "text": "const change = (Math.sin(i * 0.4) * 1.5 + (Math.random() - 0.48) * 2.2);",
+      "pattern": "/Math\\.random\\(\\)/"
+    },
+    {
+      "line": 18,
+      "text": "const open = Math.round((current * (1 + (Math.random() - 0.5) * 0.01)) * 100) / 100;",
+      "pattern": "/Math\\.random\\(\\)/"
+    },
+    {
+      "line": 21,
+      "text": "const volume = Math.floor(1200000 + Math.random() * 800000);",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\server\\ml\\calibration\\probability-calibrator.js": [
+    {
+      "line": 129,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\ensemble\\ensemble-engine.js": [
+    {
+      "line": 181,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\model-runner.js": [
+    {
+      "line": 72,
+      "text": "const latencyMs = Math.round((Date.now() - startTime + (Math.random() * 2 + 1)) * 10) / 10;",
+      "pattern": "/Math\\.random\\(\\)/"
+    },
+    {
+      "line": 127,
+      "text": "const latency = Math.round((Date.now() - startTime + (Math.random() * 2 + 1)) * 10) / 10;",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\server\\ml\\tests\\test_ml_v2.js": [
+    {
+      "line": 254,
+      "text": "const mockPredictions = {",
+      "pattern": "/MOCK/i"
+    },
+    {
+      "line": 260,
+      "text": "const ag = ensemble.evaluateModelAgreement(mockPredictions);",
+      "pattern": "/MOCK/i"
+    }
+  ],
+  "src\\server\\ml\\training\\models\\decision-tree.js": [
+    {
+      "line": 182,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\training\\models\\gradient-boosting.js": [
+    {
+      "line": 28,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    },
+    {
+      "line": 172,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\training\\models\\logistic-regression.js": [
+    {
+      "line": 117,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\training\\models\\random-forest.js": [
+    {
+      "line": 97,
+      "text": "static fromJSON(data) {",
+      "pattern": "/STATIC/i"
+    }
+  ],
+  "src\\server\\ml\\training\\train-ensemble-v2.js": [
+    {
+      "line": 61,
+      "text": "const shuffledValues = valSet.map((r) => r[feat]).sort(() => Math.random() - 0.5);",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\app\\core\\models\\common.model.ts": [
+    {
+      "line": 53,
+      "text": "/** Marks any payload as originating from the mock/demo data layer. */",
+      "pattern": "/MOCK/i"
+    },
+    {
+      "line": 56,
+      "text": "simulatedAsOf: string;",
+      "pattern": "/SIMULATED/i"
+    }
+  ],
+  "src\\app\\core\\services\\ai-analyst.service.ts": [
+    {
+      "line": 891,
+      "text": "marketData: 'Live (Simulated)',",
+      "pattern": "/SIMULATED/i"
+    },
+    {
+      "line": 935,
+      "text": "const timeoutId = setTimeout(() => controller.abort(), 12000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 1210,
+      "text": "marketData: 'Delayed (Simulated)',",
+      "pattern": "/SIMULATED/i"
+    },
+    {
+      "line": 1620,
+      "text": "'Maintain a 5-10% liquid cash buffer to capitalize on panic mispricings during the simulated volatility spike.',",
+      "pattern": "/SIMULATED/i"
+    },
+    {
+      "line": 1653,
+      "text": "return new Promise((resolve) => setTimeout(resolve, ms));",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\core\\services\\monitoring.service.ts": [
+    {
+      "line": 35,
+      "text": "setTimeout(() => this.runPriceCycle(), 500);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 207,
+      "text": "id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\app\\core\\services\\trading.service.ts": [
+    {
+      "line": 127,
+      "text": "const idempotencyKey = `idemp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\app\\core\\services\\voice\\command-orchestrator.service.ts": [
+    {
+      "line": 88,
+      "text": "const id = `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;",
+      "pattern": "/Math\\.random\\(\\)/"
+    },
+    {
+      "line": 174,
+      "text": "setTimeout(() => {",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\core\\services\\voice\\command-planner.service.ts": [
+    {
+      "line": 47,
+      "text": "const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;",
+      "pattern": "/Math\\.random\\(\\)/"
+    },
+    {
+      "line": 210,
+      "text": "id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\app\\core\\services\\voice\\voice-audit.service.ts": [
+    {
+      "line": 23,
+      "text": "id: `vaudit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,",
+      "pattern": "/Math\\.random\\(\\)/"
+    }
+  ],
+  "src\\app\\features\\ai-analyst\\ai-analyst.ts": [
+    {
+      "line": 590,
+      "text": "setTimeout(() => this.reportSavedSuccess.set(false), 3000);",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\features\\auth\\login\\login.ts": [
+    {
+      "line": 244,
+      "text": "setTimeout(() => this.resetSuccessNotice.set(null), 6000);",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\features\\dashboard\\add-stock-modal\\add-stock-modal.ts": [
+    {
+      "line": 317,
+      "text": "this.searchDebounceTimer = setTimeout(async () => {",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\features\\dashboard\\automation-modal\\automation-modal.ts": [
+    {
+      "line": 309,
+      "text": "<span class=\"lbl\">Simulated Positions</span>",
+      "pattern": "/SIMULATED/i"
+    }
+  ],
+  "src\\app\\features\\dashboard\\dashboard.ts": [
+    {
+      "line": 1372,
+      "text": "setTimeout(() => this.toastMessage.set(null), 4500);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 1469,
+      "text": "setTimeout(() => this.toastMessage.set(null), 5000);",
+      "pattern": "/setTimeout\\(/"
+    }
+  ],
+  "src\\app\\features\\settings\\settings.ts": [
+    {
+      "line": 446,
+      "text": "setTimeout(() => this.savedNotice.set(false), 4000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 505,
+      "text": "setTimeout(() => this.pushMessage.set(''), 4000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 527,
+      "text": "setTimeout(() => this.pushMessage.set(''), 4000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 555,
+      "text": "setTimeout(() => this.pushMessage.set(''), 4000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 567,
+      "text": "setTimeout(() => this.pushMessage.set(''), 4000);",
+      "pattern": "/setTimeout\\(/"
+    },
+    {
+      "line": 578,
+      "text": "setTimeout(() => this.pushMessage.set(''), 5000);",
+      "pattern": "/setTimeout\\(/"
+    }
+  ]
+}

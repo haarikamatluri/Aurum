@@ -80,7 +80,7 @@ export class MonitoringService implements OnDestroy {
     const currentLevel = this.computeThresholdLevel(movementPct);
 
     // Detect crossing
-    this.detectAndFireAlerts(state, holding.id, symbol, holding.companyName, newPrice, currentLevel);
+    this.detectAndFireAlerts(state, holding.id, symbol, holding.companyName, newPrice, currentLevel, movementPct);
 
     // Update state
     state.lastCheckedPrice = newPrice;
@@ -152,7 +152,8 @@ export class MonitoringService implements OnDestroy {
     symbol: string,
     companyName: string,
     newPrice: number,
-    currentLevel: number
+    currentLevel: number,
+    movementPct: number
   ): void {
     if (currentLevel === 0) return; // No 5% threshold reached yet
 
@@ -163,7 +164,7 @@ export class MonitoringService implements OnDestroy {
         for (let l = state.lastUpThreshold + THRESHOLD_STEP; l <= currentLevel; l += THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'UP');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'UP', movementPct);
         state.lastUpThreshold = currentLevel;
         if (currentLevel > 0) state.lastDownThreshold = 0;
       }
@@ -174,7 +175,7 @@ export class MonitoringService implements OnDestroy {
         for (let l = state.lastDownThreshold - THRESHOLD_STEP; l >= currentLevel; l -= THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'DOWN');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'DOWN', movementPct);
         state.lastDownThreshold = currentLevel;
         if (currentLevel < 0) state.lastUpThreshold = 0;
       }
@@ -189,27 +190,22 @@ export class MonitoringService implements OnDestroy {
     referencePrice: number,
     currency: CurrencyCode,
     levels: number[],
-    direction: 'UP' | 'DOWN'
+    direction: 'UP' | 'DOWN',
+    movementPct: number
   ): void {
-    const thresholdPct = Math.abs(levels[levels.length - 1]);
-    const directionWord = direction === 'UP' ? 'increased' : 'dropped';
-    const levelStr = levels.map((l) => (l > 0 ? `+${l}%` : `${l}%`)).join(', ');
-    const currSymbol = currency === 'INR' ? '₹' : '$';
-
-    let message: string;
-    if (levels.length === 1) {
-      message = `${symbol} ${directionWord} ${thresholdPct}% from your reference price of ${currSymbol}${referencePrice.toFixed(2)}.`;
-    } else {
-      message = `${symbol} moved through multiple thresholds (${levelStr}) from ${currSymbol}${referencePrice.toFixed(2)}.`;
-    }
+    const thresholdPct = direction === 'UP' ? Math.abs(levels[levels.length - 1]) : -Math.abs(levels[levels.length - 1]);
+    const directionWord = direction === 'UP' ? 'up' : 'down';
+    const message = `Price moved ${directionWord} by ${Math.abs(movementPct).toFixed(2)}% today`;
 
     const notification: MoneyNotification = {
-      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `notif-${Date.now()}-${crypto.randomUUID().slice(0, 5)}`,
       holdingId,
       symbol,
       companyName,
       direction,
-      thresholdPct: direction === 'UP' ? thresholdPct : -thresholdPct,
+      threshold: thresholdPct,
+      thresholdsCrossed: levels,
+      movementPercent: movementPct,
       price,
       referencePrice,
       message,

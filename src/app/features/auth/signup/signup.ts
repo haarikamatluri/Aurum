@@ -58,7 +58,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
               <span class="field-error">Passwords don't match</span>
             }
           </div>
-          <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
+          <button type="submit" class="btn btn-primary submit-btn">
             {{ submitting() ? 'Creating account…' : 'Create account' }}
           </button>
         </form>
@@ -150,13 +150,19 @@ export class SignupPage implements OnInit, OnDestroy {
   }
 
   async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.submitting()) return;
+    
     this.submitting.set(true);
     this.errorMessage.set(null);
     const { name, email, password } = this.form.getRawValue();
     try {
       await this.auth.signup(name, email, password);
-      this.router.navigateByUrl('/money');
+      await this.auth.logout(); // Logout so user can manually sign in
+      this.router.navigateByUrl('/login');
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Could not create your account');
     } finally {
