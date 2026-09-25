@@ -179,7 +179,7 @@
             <div class="symbol-title-group">
               <h1 class="stock-ticker">{{ target.symbol }}</h1>
               <span class="company-subname">{{ target.companyName }}</span>
-              <span class="meta-subtext">{{ target.exchange }} · {{ target.market === 'IN' ? 'TCS' : target.symbol }} · Updated {{ getFormattedMarketTime() }}</span>
+              <span class="meta-subtext">{{ target.exchange }} · {{ target.symbol }} · Updated {{ getFormattedMarketTime() }}</span>
             </div>
             
             <div class="price-hierarchy-block">
@@ -941,8 +941,8 @@
                         <tr>
                           <td class="font-bold">{{ row.period }}</td>
                           <td>{{ row.reportedDate }}</td>
-                          <td>{{ row.epsActual !== null ? (selectedTarget()?.currency === 'INR' ? '₹' : '$') + row.epsActual.toFixed(2) : '—' }}</td>
-                          <td>{{ row.epsEstimate !== null ? (selectedTarget()?.currency === 'INR' ? '₹' : '$') + row.epsEstimate.toFixed(2) : '—' }}</td>
+                          <td>{{ row.epsActual !== null ? targetCurrencySymbol + row.epsActual.toFixed(2) : '—' }}</td>
+                          <td>{{ row.epsEstimate !== null ? targetCurrencySymbol + row.epsEstimate.toFixed(2) : '—' }}</td>
                           <td>
                             @if (row.epsSurprise !== null && row.epsEstimate !== null) {
                               <span class="badge-surprise" [class.beat]="row.epsSurprise > 0" [class.miss]="row.epsSurprise < 0">
@@ -953,8 +953,8 @@
                               <span class="text-muted">Uncovered</span>
                             }
                           </td>
-                          <td>{{ row.revenueActual ? (selectedTarget()?.currency === 'INR' ? '₹' + (row.revenueActual / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueActual / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
-                          <td>{{ row.revenueEstimate ? (selectedTarget()?.currency === 'INR' ? '₹' + (row.revenueEstimate / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueEstimate / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
+                          <td>{{ row.revenueActual ? (targetCurrencyCode === 'INR' ? '₹' + (row.revenueActual / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueActual / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
+                          <td>{{ row.revenueEstimate ? (targetCurrencyCode === 'INR' ? '₹' + (row.revenueEstimate / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueEstimate / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
                           <td>
                             @if (row.revenueSurprisePct !== null && row.revenueEstimate) {
                               <span [class.pos]="row.revenueSurprisePct > 0" [class.neg]="row.revenueSurprisePct < 0">

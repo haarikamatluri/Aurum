@@ -705,12 +705,23 @@ export class AiAnalystPage implements OnInit {
     return new Date().toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' IST';
   }
 
-  formatCurrency(val: number | null, cCode: string = 'INR'): string {
+  get targetCurrencySymbol(): string {
+    const t = this.selectedTarget();
+    return (t?.currency === 'INR' || t?.market === 'IN') ? '₹' : '$';
+  }
+
+  get targetCurrencyCode(): string {
+    const t = this.selectedTarget();
+    return (t?.currency === 'INR' || t?.market === 'IN') ? 'INR' : 'USD';
+  }
+
+  formatCurrency(val: number | null, cCode?: string): string {
     if (val === null || val === undefined || isNaN(val)) return '—';
+    const currency = cCode || this.selectedTarget()?.currency || (this.selectedTarget()?.market === 'IN' ? 'INR' : 'USD');
     const absVal = Math.abs(val);
     const prefix = val < 0 ? '-' : '';
 
-    if (cCode === 'INR') {
+    if (currency === 'INR') {
       const inrStr = absVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return `${prefix}₹${inrStr}`;
     } else {
