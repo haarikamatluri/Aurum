@@ -4142,6 +4142,45 @@ app.delete('/api/watchlist/:symbol', async (req, res) => {
   }
 });
 
+function extractSymbolFromTranscript(transcript, pageContext) {
+  if (!transcript) return pageContext?.symbol || null;
+  const lower = transcript.toLowerCase();
+  
+  const symbolMap = {
+    tcs: 'TCS', 'tata consultancy': 'TCS', 'tata consultancy services': 'TCS',
+    reliance: 'RELIANCE', ril: 'RELIANCE', 'reliance industries': 'RELIANCE',
+    nvda: 'NVDA', nvidia: 'NVDA',
+    aapl: 'AAPL', apple: 'AAPL',
+    msft: 'MSFT', microsoft: 'MSFT',
+    infy: 'INFY', infosys: 'INFY',
+    googl: 'GOOGL', google: 'GOOGL', alphabet: 'GOOGL',
+    amzn: 'AMZN', amazon: 'AMZN',
+    tsla: 'TSLA', tesla: 'TSLA',
+    hdfc: 'HDFCBANK', 'hdfc bank': 'HDFCBANK',
+    icici: 'ICICIBANK', 'icici bank': 'ICICIBANK',
+    tatamotors: 'TATAMOTORS', 'tata motors': 'TATAMOTORS',
+    tata: 'TATASTEEL', 'tata steel': 'TATASTEEL', tatasteel: 'TATASTEEL',
+    wipro: 'WIPRO', sbin: 'SBIN', sbi: 'SBIN', 'state bank': 'SBIN',
+    itc: 'ITC', amd: 'AMD', pltr: 'PLTR', palantir: 'PLTR',
+    meta: 'META', facebook: 'META'
+  };
+
+  for (const [key, sym] of Object.entries(symbolMap)) {
+    const reg = new RegExp(`\\b${key}\\b`, 'i');
+    if (reg.test(lower)) return sym;
+  }
+
+  const words = transcript.split(/\s+/);
+  for (const w of words) {
+    const clean = w.replace(/[^A-Za-z]/g, '').toUpperCase();
+    if (clean.length >= 2 && clean.length <= 5 && !['AND', 'THE', 'FOR', 'ALL', 'BUY', 'NOT', 'SHOW', 'OPEN', 'WHY', 'GET', 'HOW', 'MUCH'].includes(clean)) {
+      return clean;
+    }
+  }
+
+  return pageContext?.symbol || null;
+}
+
 app.post('/api/voice/query', async (req, res) => {
   try {
     const { sessionId, transcript, pageContext } = req.body;
@@ -4154,35 +4193,31 @@ app.post('/api/voice/query', async (req, res) => {
 
     // 1. FAST DETERMINISTIC INTENT: STOCK PRICE
     if ((lowerText.includes('price') || lowerText.includes('quote') || lowerText.includes('how much is')) && !lowerText.includes('why')) {
-      let detectedSym = 'TCS';
-      if (lowerText.includes('reliance')) detectedSym = 'RELIANCE';
-      else if (lowerText.includes('nvda') || lowerText.includes('nvidia')) detectedSym = 'NVDA';
-      else if (lowerText.includes('aapl') || lowerText.includes('apple')) detectedSym = 'AAPL';
-      else if (lowerText.includes('msft') || lowerText.includes('microsoft')) detectedSym = 'MSFT';
-      else if (lowerText.includes('infy') || lowerText.includes('infosys')) detectedSym = 'INFY';
-
-      const ticker = detectedSym === 'TCS' ? 'TCS.NS' : (detectedSym === 'RELIANCE' ? 'RELIANCE.NS' : (detectedSym === 'INFY' ? 'INFY.NS' : detectedSym));
-      const qData = await fetchYahooQuote(ticker);
-      if (qData) {
-        const isIndian = ticker.endsWith('.NS') || ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS'].includes(detectedSym);
-        const currSym = isIndian ? '₹' : '$';
-        const locale = isIndian ? 'en-IN' : 'en-US';
-        const price = qData.price || 0;
-        const change = qData.change || 0;
-        const changePct = qData.changePercent || 0;
-        const spoken = `${detectedSym} is trading at ${currSym}${price.toLocaleString(locale)}, ${change >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(2)}% today.`;
-        const respPayload = {
-          intent: 'STOCK_QUOTE',
-          symbol: detectedSym,
-          spokenAnswer: spoken,
-          answer: `## ${detectedSym} Stock Quote\n\n**Price:** ${currSym}${price.toLocaleString(locale)}\n**Today's Change:** ${change >= 0 ? '+' : ''}${currSym}${change.toFixed(2)} (${changePct.toFixed(2)}%)\n**Day High:** ${currSym}${qData.high?.toFixed(2) || 'N/A'}\n**Day Low:** ${currSym}${qData.low?.toFixed(2) || 'N/A'}`,
-          actions: [],
-          sources: [],
-          timestamp: new Date().toISOString()
-        };
-        const message = { id: `vmsg-${Date.now()}`, sessionId, transcript, response: respPayload, createdAt: new Date().toISOString() };
-        try { if (isMongoConnected && db) await db.collection('voice_messages').insertOne(message); } catch (e) {}
-        return res.json(respPayload);
+      const detectedSym = extractSymbolFromTranscript(transcript, pageContext);
+      if (detectedSym) {
+        const ticker = detectedSym === 'TCS' ? 'TCS.NS' : (detectedSym === 'RELIANCE' ? 'RELIANCE.NS' : (detectedSym === 'INFY' ? 'INFY.NS' : detectedSym));
+        const qData = await fetchYahooQuote(ticker);
+        if (qData) {
+          const isIndian = ticker.endsWith('.NS') || ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATAMOTORS', 'TATASTEEL'].includes(detectedSym);
+          const currSym = isIndian ? '₹' : '$';
+          const locale = isIndian ? 'en-IN' : 'en-US';
+          const price = qData.price || 0;
+          const change = qData.change || 0;
+          const changePct = qData.changePercent || 0;
+          const spoken = `${detectedSym} is trading at ${currSym}${price.toLocaleString(locale)}, ${change >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(2)}% today.`;
+          const respPayload = {
+            intent: 'STOCK_QUOTE',
+            symbol: detectedSym,
+            spokenAnswer: spoken,
+            answer: `## ${detectedSym} Stock Quote\n\n**Price:** ${currSym}${price.toLocaleString(locale)}\n**Today's Change:** ${change >= 0 ? '+' : ''}${currSym}${change.toFixed(2)} (${changePct.toFixed(2)}%)\n**Day High:** ${currSym}${qData.high?.toFixed(2) || 'N/A'}\n**Day Low:** ${currSym}${qData.low?.toFixed(2) || 'N/A'}`,
+            actions: [],
+            sources: [],
+            timestamp: new Date().toISOString()
+          };
+          const message = { id: `vmsg-${Date.now()}`, sessionId, transcript, response: respPayload, createdAt: new Date().toISOString() };
+          try { if (isMongoConnected && db) await db.collection('voice_messages').insertOne(message); } catch (e) {}
+          return res.json(respPayload);
+        }
       }
     }
 
@@ -4311,47 +4346,39 @@ app.post('/api/voice/query', async (req, res) => {
     // 5. FAST ANALYST INTENT: FILINGS
     if (lowerText.includes('filing') || lowerText.includes('annual report') || lowerText.includes('sec report')) {
       const { getCompanyFilings } = require('./src/server/analyst/providers/filings-provider');
-      let targetSym = 'TCS';
-      if (lowerText.includes('reliance')) targetSym = 'RELIANCE';
-      else if (lowerText.includes('nvda') || lowerText.includes('nvidia')) targetSym = 'NVDA';
-      else if (lowerText.includes('aapl') || lowerText.includes('apple')) targetSym = 'AAPL';
-      else if (lowerText.includes('infy') || lowerText.includes('infosys')) targetSym = 'INFY';
+      let targetSym = extractSymbolFromTranscript(transcript, pageContext);
+      if (targetSym) {
+        const isIndia = ['TCS', 'RELIANCE', 'INFY', 'TATASTEEL', 'HDFCBANK', 'ICICIBANK', 'SBIN'].includes(targetSym);
+        const filEnv = await getCompanyFilings(targetSym, isIndia ? 'IN' : 'US');
+        const filings = filEnv.data?.filings || [];
 
-      const isIndia = ['TCS', 'RELIANCE', 'INFY'].includes(targetSym);
-      const filEnv = await getCompanyFilings(targetSym, isIndia ? 'IN' : 'US');
-      const filings = filEnv.data?.filings || [];
+        if (filings.length > 0) {
+          const topF = filings[0];
+          const spoken = `The latest official regulatory disclosure for ${targetSym} is a ${topF.filingType} filed on ${topF.filingDate}.`;
+          const answer = `## 📄 ${targetSym} Regulatory Disclosures & Filings\n\n` +
+            filings.map((f, i) => `### ${i + 1}. ${f.filingType} (${f.filingDate})\n**Title:** ${f.title}\n**Source:** [${f.source}](${f.sourceUrl})\n**Summary:** ${f.summary}\n**Importance:** \`${f.importance}\`\n`).join('\n');
 
-      if (filings.length > 0) {
-        const topF = filings[0];
-        const spoken = `The latest official regulatory disclosure for ${targetSym} is a ${topF.filingType} filed on ${topF.filingDate}.`;
-        const answer = `## 📄 ${targetSym} Regulatory Disclosures & Filings\n\n` +
-          filings.map((f, i) => `### ${i + 1}. ${f.filingType} (${f.filingDate})\n**Title:** ${f.title}\n**Source:** [${f.source}](${f.sourceUrl})\n**Summary:** ${f.summary}\n**Importance:** \`${f.importance}\`\n`).join('\n');
-
-        const respPayload = {
-          intent: 'FILINGS',
-          symbol: targetSym,
-          spokenAnswer: spoken,
-          answer,
-          actions: [{ type: 'NAVIGATE', payload: { route: '/money/ai-analyst', tab: 'EARNINGS_FILINGS' } }],
-          sources: filings.map(f => ({ name: f.source, url: f.sourceUrl })),
-          timestamp: new Date().toISOString()
-        };
-        return res.json(respPayload);
+          const respPayload = {
+            intent: 'FILINGS',
+            symbol: targetSym,
+            spokenAnswer: spoken,
+            answer,
+            actions: [{ type: 'NAVIGATE', payload: { route: '/money/ai-analyst', tab: 'EARNINGS_FILINGS' } }],
+            sources: filings.map(f => ({ name: f.source, url: f.sourceUrl })),
+            timestamp: new Date().toISOString()
+          };
+          return res.json(respPayload);
+        }
       }
     }
 
     // 6. FAST ANALYST INTENT: EARNINGS
     if (lowerText.includes('earning') || (lowerText.includes('when is') && lowerText.includes('report'))) {
       const { getStockEarnings, getEarningsCalendar } = require('./src/server/analyst/providers/earnings-provider');
-      let targetSym = null;
-      if (lowerText.includes('tcs')) targetSym = 'TCS';
-      else if (lowerText.includes('reliance')) targetSym = 'RELIANCE';
-      else if (lowerText.includes('nvda') || lowerText.includes('nvidia')) targetSym = 'NVDA';
-      else if (lowerText.includes('aapl') || lowerText.includes('apple')) targetSym = 'AAPL';
-      else if (lowerText.includes('infy') || lowerText.includes('infosys')) targetSym = 'INFY';
+      let targetSym = extractSymbolFromTranscript(transcript, pageContext);
 
       if (targetSym) {
-        const isIndia = ['TCS', 'RELIANCE', 'INFY'].includes(targetSym);
+        const isIndia = ['TCS', 'RELIANCE', 'INFY', 'TATASTEEL', 'HDFCBANK', 'ICICIBANK', 'SBIN'].includes(targetSym);
         const earnEnv = await getStockEarnings(targetSym, isIndia ? 'IN' : 'US');
         const ed = earnEnv.data;
         if (ed && ed.history?.length > 0) {
@@ -4397,39 +4424,36 @@ app.post('/api/voice/query', async (req, res) => {
     }
 
     // 7. FAST ANALYST INTENT: EQUITY RESEARCH REPORT
-    if (lowerText.includes('report on') || lowerText.includes('deep dive on') || (lowerText.includes('research') && (lowerText.includes('tcs') || lowerText.includes('reliance') || lowerText.includes('nvda') || lowerText.includes('aapl')))) {
+    if (lowerText.includes('report on') || lowerText.includes('deep dive on') || lowerText.includes('research')) {
       const { generateStockReport } = require('./src/server/analyst/engines/stock-report-engine');
-      let targetSym = 'TCS';
-      if (lowerText.includes('reliance')) targetSym = 'RELIANCE';
-      else if (lowerText.includes('nvda') || lowerText.includes('nvidia')) targetSym = 'NVDA';
-      else if (lowerText.includes('aapl') || lowerText.includes('apple')) targetSym = 'AAPL';
-      else if (lowerText.includes('infy') || lowerText.includes('infosys')) targetSym = 'INFY';
+      let targetSym = extractSymbolFromTranscript(transcript, pageContext);
+      if (targetSym) {
+        const isIndia = ['TCS', 'RELIANCE', 'INFY', 'TATASTEEL', 'HDFCBANK', 'ICICIBANK', 'SBIN'].includes(targetSym);
+        const repEnv = await generateStockReport({ symbol: targetSym, market: isIndia ? 'IN' : 'US', geminiCaller: callGeminiBackend });
+        const rd = repEnv.data;
+        const synth = rd.aiSynthesis || {};
+        const spoken = `Here is the equity research report on ${targetSym}. ${synth.executiveSummary || `${targetSym} is trading at ₹${rd.price?.currentPrice}.`}`;
 
-      const isIndia = ['TCS', 'RELIANCE', 'INFY'].includes(targetSym);
-      const repEnv = await generateStockReport({ symbol: targetSym, market: isIndia ? 'IN' : 'US', geminiCaller: callGeminiBackend });
-      const rd = repEnv.data;
-      const synth = rd.aiSynthesis || {};
-      const spoken = `Here is the equity research report on ${targetSym}. ${synth.executiveSummary || `${targetSym} is trading at ₹${rd.price?.currentPrice}.`}`;
+        const answer = `## 📑 ${targetSym} Comprehensive Equity Research Report\n\n` +
+          `**Current Price:** ₹${rd.price?.currentPrice} (${rd.price?.changePercent >= 0 ? '+' : ''}${rd.price?.changePercent}%)\n` +
+          `**Valuation:** P/E ${rd.fundamentals?.peRatio ? rd.fundamentals.peRatio + 'x' : 'N/A'} | Market Cap ₹${(rd.fundamentals?.marketCap / 1e7).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr\n` +
+          `**Technical Setup:** RSI ${rd.technicals?.rsi14} (${rd.technicals?.trend} Trend)\n\n` +
+          `### Executive Summary:\n${synth.executiveSummary}\n\n` +
+          `### Bull Case Catalysts:\n` + (synth.bullCase?.map(b => `- ${b}`).join('\n') || '- Long-term secular contract execution.') + '\n\n' +
+          `### Bear Case Risks:\n` + (synth.bearCase?.map(b => `- ${b}`).join('\n') || '- Macro multiple compression.') + '\n\n' +
+          `### What to Monitor:\n` + (synth.whatToMonitor?.map(w => `- ${w}`).join('\n') || '- Upcoming quarterly results.');
 
-      const answer = `## 📑 ${targetSym} Comprehensive Equity Research Report\n\n` +
-        `**Current Price:** ₹${rd.price?.currentPrice} (${rd.price?.changePercent >= 0 ? '+' : ''}${rd.price?.changePercent}%)\n` +
-        `**Valuation:** P/E ${rd.fundamentals?.peRatio ? rd.fundamentals.peRatio + 'x' : 'N/A'} | Market Cap ₹${(rd.fundamentals?.marketCap / 1e7).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr\n` +
-        `**Technical Setup:** RSI ${rd.technicals?.rsi14} (${rd.technicals?.trend} Trend)\n\n` +
-        `### Executive Summary:\n${synth.executiveSummary}\n\n` +
-        `### Bull Case Catalysts:\n` + (synth.bullCase?.map(b => `- ${b}`).join('\n') || '- Long-term secular contract execution.') + '\n\n' +
-        `### Bear Case Risks:\n` + (synth.bearCase?.map(b => `- ${b}`).join('\n') || '- Macro multiple compression.') + '\n\n' +
-        `### What to Monitor:\n` + (synth.whatToMonitor?.map(w => `- ${w}`).join('\n') || '- Upcoming quarterly results.');
-
-      const respPayload = {
-        intent: 'STOCK_REPORT',
-        symbol: targetSym,
-        spokenAnswer: spoken,
-        answer,
-        actions: [{ type: 'NAVIGATE', payload: { route: '/money/ai-analyst', symbol: targetSym } }],
-        sources: rd.sources || [],
-        timestamp: new Date().toISOString()
-      };
-      return res.json(respPayload);
+        const respPayload = {
+          intent: 'STOCK_REPORT',
+          symbol: targetSym,
+          spokenAnswer: spoken,
+          answer,
+          actions: [{ type: 'NAVIGATE', payload: { route: '/money/ai-analyst', symbol: targetSym } }],
+          sources: rd.sources || [],
+          timestamp: new Date().toISOString()
+        };
+        return res.json(respPayload);
+      }
     }
 
     // 8. FAST ANALYST INTENT: COMPANY COMPARISON

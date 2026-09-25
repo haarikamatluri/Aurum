@@ -1098,5 +1098,25 @@ export class CapabilityRegistryService {
       supportsContextInheritance: false,
       keywords: ['book flight', 'send email', 'transfer money', 'bank password', 'order pizza']
     });
+
+    this.registerCapability({
+      id: 'NEEDS_CLARIFICATION',
+      name: 'Needs Clarification',
+      description: 'Prompts the user for clarification when their intent or entity reference is ambiguous or incomplete without executing default actions.',
+      category: 'GENERAL',
+      aliases: ['clarify', 'need clarification', 'ambiguous request', 'unknown intent'],
+      parameters: [
+        { name: 'query', type: 'string', required: true, description: 'Raw user request' },
+        { name: 'reason', type: 'string', required: false, description: 'Reason for clarification' }
+      ],
+      riskLevel: 'READ_ONLY',
+      confirmationRequired: false,
+      reversible: true,
+      requiresAuthentication: false,
+      examples: ['What stock do you mean?', 'Please clarify your request.'],
+      supportsCompoundCommand: false,
+      supportsContextInheritance: false,
+      keywords: ['clarify', 'ambiguous', 'unknown intent']
+    });
   }
 }

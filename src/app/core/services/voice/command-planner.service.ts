@@ -195,23 +195,32 @@ export class CommandPlannerService {
     // Dynamic Discovery: Use CapabilityDiscoveryService to rank & find target capability
     const candidate: CapabilityCandidate = this.discovery.discoverCapability(raw);
 
-    // If candidate capability is discovered
     if (candidate && candidate.capability) {
       const cap = candidate.capability;
       const params = candidate.extractedParameters || {};
 
+      if (cap.id === 'UNSUPPORTED_CAPABILITY') {
+        nodes.push(this.createNode('UNSUPPORTED_CAPABILITY', { query: raw }));
+        return this.wrapPlan(planId, raw, 'UNSUPPORTED', entities, nodes, false);
+      }
+
+      if (cap.id === 'NEEDS_CLARIFICATION') {
+        nodes.push(this.createNode('NEEDS_CLARIFICATION', { query: raw, reason: params['reason'] }));
+        return this.wrapPlan(planId, raw, 'NEEDS_CLARIFICATION', entities, nodes, false);
+      }
+
       // If capability requires symbol and it wasn't extracted, inherit from context
       if (cap.requiredContext?.includes('symbol') && !params['symbol']) {
-        params['symbol'] = entities.symbol || context.currentSymbol || 'TCS';
+        params['symbol'] = entities.symbol || context.currentSymbol;
       }
 
       nodes.push(this.createNode(cap.id, params));
       return this.wrapPlan(planId, raw, cap.category, entities, nodes);
     }
 
-    // Safe Fallback: General research analysis without claiming non-existent operations
-    nodes.push(this.createNode('ANALYZE_STOCK_MOVEMENT', { symbol: entities.symbol || context.currentSymbol || 'TCS' }));
-    return this.wrapPlan(planId, raw, 'RESEARCH', entities, nodes);
+    // Fail-Closed Guard: Return NEEDS_CLARIFICATION rather than executing a default command
+    nodes.push(this.createNode('NEEDS_CLARIFICATION', { query: raw }));
+    return this.wrapPlan(planId, raw, 'NEEDS_CLARIFICATION', entities, nodes, false);
   }
 
   private createNode(capabilityId: string, parameters: Record<string, any>, dependencies: string[] = []): ActionNode {

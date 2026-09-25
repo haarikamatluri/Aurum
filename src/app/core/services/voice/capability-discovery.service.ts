@@ -100,32 +100,32 @@ export class CapabilityDiscoveryService {
       };
     }
 
-    // 4. LOW CONFIDENCE CHECK — If no Aurum capability matches at all:
-    // If the words don't match any Aurum concepts, reject as unsupported rather than pretending to know
-    const financialTokens = ['stock', 'share', 'portfolio', 'invest', 'p&l', 'gain', 'loss', 'market', 'chart', 'tcs', 'nvda', 'infy', 'price', 'alert', 'ml', 'backtest', 'strategy', 'bot', 'trade', 'order'];
+    // 4. LOW CONFIDENCE & FAIL-CLOSED SAFETY CHECK
+    // If no capability matches with score >= 4, reject or ask for clarification without executing default commands.
+    const financialTokens = ['stock', 'share', 'portfolio', 'invest', 'p&l', 'gain', 'loss', 'market', 'chart', 'price', 'alert', 'ml', 'backtest', 'strategy', 'bot', 'trade', 'order', 'nifty', 'sensex', 'nasdaq', 'nyse', 'earnings', 'filings', 'news', 'pe', 'eps', 'revenue', 'report', 'compare', 'vs', 'mover', 'decliner', 'loser', 'winner', 'holding', 'position', 'exposure', 'broker', 'kill switch', 'automation', 'dashboard', 'settings', 'notification'];
     const hasAnyFinancialToken = financialTokens.some((tok) => lower.includes(tok));
 
-    if (!hasAnyFinancialToken && candidates.length === 0) {
+    if (!hasAnyFinancialToken) {
       const unsupportedCap = this.registry.getCapability('UNSUPPORTED_CAPABILITY')!;
       return {
         capability: unsupportedCap,
-        confidence: 0.92,
+        confidence: 0.99,
         extractedParameters: { query: raw },
         matchedQuery: raw,
-        reasoning: 'Zero semantic overlap with Aurum capabilities or financial domain. Safe fail-closed rejection.',
+        reasoning: 'Out-of-domain request. Safe fail-closed rejection without executing default actions.',
         isContextual: false,
         isRepetition: false
       };
     }
 
-    // 5. COMPLEX FINANCIAL / RESEARCH FALLBACK (AI Analyst with Grounding)
-    const fallbackCap = this.registry.getCapability('ANALYZE_STOCK_MOVEMENT')!;
+    // Financial query with unclear capability -> Prompt user for clarification
+    const needsClarificationCap = this.registry.getCapability('NEEDS_CLARIFICATION')!;
     return {
-      capability: fallbackCap,
-      confidence: 0.70,
-      extractedParameters: { symbol: entities.symbol || context.currentSymbol || 'TCS' },
+      capability: needsClarificationCap,
+      confidence: 0.50,
+      extractedParameters: { query: raw, reason: 'Ambiguous financial query without clear capability match' },
       matchedQuery: raw,
-      reasoning: 'Synthesizing complex financial question via AI research dossier.',
+      reasoning: 'Financial query is ambiguous. Asking user for clarification rather than running a default command.',
       isContextual: entities.isContextual,
       isRepetition: false
     };

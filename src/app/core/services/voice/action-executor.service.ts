@@ -646,8 +646,22 @@ export class ActionExecutorService {
       }
 
       // =======================================================================
-      // 11. UNSUPPORTED OUT-OF-DOMAIN HANDLING (NO HALLUCINATIONS)
+      // 11. UNSUPPORTED & AMBIGUOUS HANDLING (NO RANDOM DEFAULT ACTIONS)
       // =======================================================================
+      case 'NEEDS_CLARIFICATION': {
+        const query = params.query || '';
+        const prompt = params.reason
+          ? `I'm not completely sure what you mean. ${params.reason}`
+          : `I'm not sure which action or stock you mean. Try asking "Show TCS price", "Portfolio P&L", or "Why is Nvidia moving?".`;
+        return {
+          success: false,
+          actionName: 'NEEDS_CLARIFICATION',
+          uiFeedback: 'Needs Clarification',
+          spokenFeedback: prompt,
+          data: { query }
+        };
+      }
+
       case 'UNSUPPORTED_CAPABILITY': {
         return this.actionRegistry.unsupportedCapability(params.query || '');
       }
