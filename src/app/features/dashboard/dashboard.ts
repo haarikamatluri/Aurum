@@ -14,7 +14,7 @@ import { AiAnalystService, MorningBriefing } from '../../core/services/ai-analys
 import { BrokerSyncModalComponent } from './broker-sync-modal/broker-sync-modal';
 import { OrderModalComponent } from './order-modal/order-modal';
 import { AutomationModalComponent } from './automation-modal/automation-modal';
-import { CommandCenterModalComponent } from './command-center-modal/command-center-modal';
+
 
 type SortMode = 'gain-desc' | 'gain-asc' | 'alpha' | 'recent';
 type MarketFilter = 'ALL' | 'US' | 'IN';
