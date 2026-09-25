@@ -199,6 +199,38 @@
             flex-direction: column;
             overflow: hidden;
 
+            .symbol-meta-row {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+
+              .exchange-tag {
+                font-size: 0.62rem;
+                font-weight: 600;
+                color: var(--aurum-text-muted);
+                background: #f1f5f9;
+                padding: 1px 4px;
+                border-radius: 4px;
+              }
+
+              .market-badge {
+                font-size: 0.62rem;
+                font-weight: 600;
+                padding: 1px 4px;
+                border-radius: 4px;
+
+                &.market-in {
+                  background: #ecfdf5;
+                  color: #047857;
+                }
+
+                &.market-us {
+                  background: #eff6ff;
+                  color: #1d4ed8;
+                }
+              }
+            }
+
             .symbol {
               font-size: 0.82rem;
               font-weight: 700;

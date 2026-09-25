@@ -182,14 +182,27 @@ export class PortfolioService {
     ).slice(0, 10);
   }
 
-  /** Remote live search querying live market ticker databases (NSE/BSE & US) */
+  /** Remote live search querying live security master & market ticker databases (NSE/BSE & US) */
   async searchStocksRemote(query: string, marketFilter?: MarketRegion): Promise<StockSearchResult[]> {
     if (!query || query.trim().length < 1) return [];
     const q = query.trim();
-    const market = marketFilter || 'IN';
+    const marketParam = marketFilter ? `&market=${marketFilter}` : '';
 
     try {
-      const res = await fetch(`/api/market/search?q=${encodeURIComponent(q)}&market=${market}`);
+      const res = await fetch(`/api/securities/search?q=${encodeURIComponent(q)}${marketParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        const results: StockSearchResult[] = data.results || [];
+        if (results.length > 0) {
+          return results;
+        }
+      }
+    } catch {
+      // fallback to market search
+    }
+
+    try {
+      const res = await fetch(`/api/market/search?q=${encodeURIComponent(q)}${marketParam}`);
       if (res.ok) {
         const data = await res.json();
         const results: StockSearchResult[] = data.results || [];

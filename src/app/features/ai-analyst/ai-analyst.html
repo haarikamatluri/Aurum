@@ -17,7 +17,7 @@
       </svg>
       <input
         type="text"
-        placeholder="Search ticker (e.g. TCS, NVDA)..."
+        placeholder="Search stocks, companies, ticker (e.g. TCS, AAPL, NVDA)..."
         [(ngModel)]="searchQuery"
         (input)="onSearchInput()"
         id="ai-stock-search-input"
@@ -34,15 +34,21 @@
         <div class="section-group">
           <div class="group-label">SEARCH RESULTS ({{ searchResults().length }})</div>
           <div class="stock-list">
-            @for (item of searchResults(); track item.symbol) {
+            @for (item of searchResults(); track item.symbol + ':' + item.market) {
               <button
                 type="button"
-                class="stock-item"
+                class="stock-item search-result-item"
                 [class.active]="selectedTarget()?.symbol === item.symbol"
                 (click)="selectSearchResult(item)"
               >
                 <div class="stock-info">
-                  <span class="symbol">{{ item.symbol }}</span>
+                  <div class="symbol-meta-row">
+                    <span class="symbol">{{ item.symbol }}</span>
+                    <span class="exchange-tag">{{ item.exchange }}</span>
+                    <span class="market-badge" [class.market-in]="item.market === 'IN'" [class.market-us]="item.market === 'US'">
+                      {{ item.market === 'IN' ? '🇮🇳 IN' : '🇺🇸 US' }}
+                    </span>
+                  </div>
                   <span class="name">{{ item.companyName }}</span>
                 </div>
                 <span class="badge-tag">Analyze</span>
