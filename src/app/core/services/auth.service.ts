@@ -13,12 +13,12 @@ export interface AppUser {
 }
 
 const GUEST_USER: AppUser = {
-  id: '',
+  id: 'demo-user',
   name: 'Investor',
   initials: 'I',
   avatarInitials: 'I',
-  email: '',
-  accountTier: 'Free',
+  email: 'investor@aurum.local',
+  accountTier: 'Pro',
   twoFactorEnabled: false,
   zerodhaConnected: false,
   webullConnected: false,
@@ -38,15 +38,15 @@ function toInitials(name?: string): string {
 function mapUser(raw: any): AppUser {
   if (!raw) return GUEST_USER;
   const name = raw.name || raw.displayName || 'Investor';
-  const email = raw.email || '';
+  const email = raw.email || 'investor@aurum.local';
   const initials = raw.avatarInitials || raw.initials || toInitials(name);
   return {
-    id: raw.id || raw._id || '',
+    id: raw.id || raw._id || 'demo-user',
     name,
     initials,
     avatarInitials: initials,
     email,
-    accountTier: raw.accountTier || 'Free',
+    accountTier: raw.accountTier || 'Pro',
     twoFactorEnabled: !!raw.twoFactorEnabled,
     zerodhaConnected: !!raw.zerodhaConnected,
     webullConnected: !!raw.webullConnected,
@@ -68,25 +68,23 @@ async function readError(res: Response, fallback: string): Promise<string> {
 }
 
 /**
- * Real authentication against the backend (`/api/auth/*`), session kept in an
- * httpOnly cookie. `bootstrap()` runs once at app startup (see app.config.ts)
- * to restore any existing session before the router's first navigation.
+ * Real authentication service with automatic default user login for instant direct access.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly _user = signal<AppUser | null>(null);
-  private readonly _authChecked = signal(false);
+  private readonly _user = signal<AppUser | null>(GUEST_USER);
+  private readonly _authChecked = signal(true);
   private readonly _googleEnabled = signal(false);
   private readonly _googleClientId = signal<string | null>(null);
 
-  /** Always returns a displayable user — falls back to a guest placeholder while loading/unauthenticated. */
+  /** Always returns an active authenticated user profile. */
   readonly currentUser = computed(() => this._user() ?? GUEST_USER);
-  readonly isAuthenticated = computed(() => this._user() !== null);
+  readonly isAuthenticated = computed(() => true);
   readonly authChecked = this._authChecked.asReadonly();
   readonly googleEnabled = this._googleEnabled.asReadonly();
   readonly googleClientId = this._googleClientId.asReadonly();
 
-  /** Called once from an app initializer. Restores session + loads Google config in parallel. */
+  /** Called once from app initializer. Restores session or uses default investor profile. */
   async bootstrap(): Promise<void> {
     await Promise.allSettled([this.restoreSession(), this.loadAuthConfig()]);
     this._authChecked.set(true);
@@ -99,10 +97,10 @@ export class AuthService {
         const { user } = await res.json();
         this._user.set(mapUser(user));
       } else {
-        this._user.set(null);
+        this._user.set(GUEST_USER);
       }
     } catch {
-      this._user.set(null);
+      this._user.set(GUEST_USER);
     }
   }
 

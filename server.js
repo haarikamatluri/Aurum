@@ -57,6 +57,7 @@ const safeAuthLimiter = (process.env.VERCEL || process.env.VERCEL_ENV)
       legacyHeaders: false,
       validate: { trustProxy: false }
     });
+const authLimiter = safeAuthLimiter;
 
 const marketLimiter = (process.env.VERCEL || process.env.VERCEL_ENV)
   ? (req, res, next) => next()

@@ -3,23 +3,19 @@ import { authGuard } from './core/guards/auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
 
 export const routes: Routes = [
-  // Landing page — no auth required
+  // Direct entry into dashboard (/money)
   {
     path: '',
-    loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
-    title: 'Money — Know When Your Stocks Move',
+    pathMatch: 'full',
+    redirectTo: 'money',
   },
   {
     path: 'login',
-    canActivate: [guestGuard],
-    loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginPage),
-    title: 'Sign In — Money',
+    redirectTo: 'money',
   },
   {
     path: 'signup',
-    canActivate: [guestGuard],
-    loadComponent: () => import('./features/auth/signup/signup').then((m) => m.SignupPage),
-    title: 'Sign Up — Money',
+    redirectTo: 'money',
   },
   // App shell — protected routes
   {
