@@ -147,35 +147,55 @@ function getMemoryStore(userId) {
 let mongoClient = null;
 let db = null;
 let isMongoConnected = false;
+let dbPromise = null;
 
-async function initMongoDB() {
-  if (!MONGODB_URI) {
-    console.info('[MongoDB] MONGODB_URI not provided. Running with in-memory / local storage mode.');
-    return;
+async function ensureDbConnected() {
+  if (isMongoConnected && db) return db;
+  if (!MONGODB_URI) return null;
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      try {
+        mongoClient = new MongoClient(MONGODB_URI, {
+          maxPoolSize: 10,
+          serverSelectionTimeoutMS: 5000
+        });
+        await mongoClient.connect();
+        db = mongoClient.db(MONGODB_DB_NAME);
+        isMongoConnected = true;
+        console.log(`[MongoDB] Connected to database (${MONGODB_DB_NAME})`);
+
+        try {
+          await db.collection('users').createIndex({ email: 1 }, { unique: true });
+          await db.collection('holdings').createIndex({ userId: 1, symbol: 1 });
+          await db.collection('transactions').createIndex({ userId: 1, holdingId: 1 });
+          await db.collection('notifications').createIndex({ userId: 1, createdAt: -1 });
+          await db.collection('alert_states').createIndex({ holdingId: 1, userId: 1 }, { unique: true });
+          await db.collection('voice_sessions').createIndex({ userId: 1, updatedAt: -1 });
+          await db.collection('voice_preferences').createIndex({ userId: 1 }, { unique: true });
+        } catch (idxErr) {
+          // Index existing or minor warning
+        }
+        return db;
+      } catch (err) {
+        console.error('[MongoDB] Connection error:', err.message);
+        isMongoConnected = false;
+        dbPromise = null;
+        return null;
+      }
+    })();
   }
-
-  try {
-    mongoClient = new MongoClient(MONGODB_URI);
-    await mongoClient.connect();
-    db = mongoClient.db(MONGODB_DB_NAME);
-    isMongoConnected = true;
-    console.log(`[MongoDB] Successfully connected to MongoDB Atlas / Cloud database (${MONGODB_DB_NAME})`);
-
-    // Create indexes for efficient querying
-    await db.collection('users').createIndex({ email: 1 }, { unique: true });
-    await db.collection('holdings').createIndex({ userId: 1, symbol: 1 });
-    await db.collection('transactions').createIndex({ userId: 1, holdingId: 1 });
-    await db.collection('notifications').createIndex({ userId: 1, createdAt: -1 });
-    await db.collection('alert_states').createIndex({ holdingId: 1, userId: 1 }, { unique: true });
-    await db.collection('voice_sessions').createIndex({ userId: 1, updatedAt: -1 });
-    await db.collection('voice_preferences').createIndex({ userId: 1 }, { unique: true });
-  } catch (err) {
-    console.error('[MongoDB] Connection error:', err.message);
-    isMongoConnected = false;
-  }
+  return dbPromise;
 }
 
-initMongoDB();
+ensureDbConnected();
+
+// Serverless DB middleware
+app.use(async (req, res, next) => {
+  if (!isMongoConnected && MONGODB_URI) {
+    await ensureDbConnected();
+  }
+  next();
+});
 
 // Health & DB status endpoints
 app.get('/health', (req, res) => {
@@ -4644,6 +4664,10 @@ app.use((req, res) => {
   res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Portfolio Intelligence is listening on port ${PORT} (0.0.0.0:${PORT})`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Portfolio Intelligence is listening on port ${PORT} (0.0.0.0:${PORT})`);
+  });
+}
