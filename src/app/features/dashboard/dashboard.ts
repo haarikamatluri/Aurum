@@ -32,7 +32,7 @@ interface MarketIndex {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, EditStockModal, SellStockModal, CommandCenterModalComponent],
+  imports: [DecimalPipe, RouterLink, EditStockModal, SellStockModal, AddStockModal],
   template: `
     <div class="dashboard-container">
       <!-- Top Header Row -->
@@ -78,13 +78,13 @@ interface MarketIndex {
             }
           </div>
 
-          <!-- Command Center Trigger -->
+          <!-- Add Stock Trigger -->
           <div class="add-stock-wrap">
-            <button class="btn-add-primary" (click)="openCommandCenter()" id="command-center-btn" title="Open Phase 4 Command Center">
+            <button class="btn-add-primary" (click)="openAddStockModal()" id="add-stock-btn" title="Add Stock">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span>Command Center</span>
+              <span>+ Add Stock</span>
             </button>
           </div>
 
@@ -495,14 +495,14 @@ interface MarketIndex {
               <button
                 type="button"
                 class="btn-import-sheet"
-                (click)="openCommandCenter()"
-                title="Upload Excel (.xlsx, .xls) or CSV sheet to import stock list"
-                id="btn-import-sheet"
+                (click)="openAddStockModal()"
+                title="Add stock to portfolio"
+                id="btn-add-stock-holdings"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
-                <span>Command Center</span>
+                <span>Add Stock</span>
               </button>
 
               <div class="sort-selector">
@@ -832,8 +832,8 @@ interface MarketIndex {
               <h3>No stocks in this portfolio yet</h3>
               <p>Add US (NASDAQ/NYSE) or Indian (NSE/BSE) stocks to begin tracking performance and receiving 5% movement alerts.</p>
               <div class="empty-btns">
-                <button type="button" class="btn btn-primary" (click)="openCommandCenter()">
-                  <span>Add Stocks or Link Broker</span>
+                <button type="button" class="btn btn-primary" (click)="openAddStockModal()">
+                  <span>+ Add Stock</span>
                 </button>
               </div>
             </div>
@@ -913,13 +913,12 @@ interface MarketIndex {
         />
       }
 
-      <!-- Command Center Modal (Consolidated Phase 4 Hub) -->
-      @if (commandCenterOpen()) {
-        <app-command-center-modal
-          (close)="commandCenterOpen.set(false)"
-          (stockAdded)="onStockAdded($event)"
-          (stocksImported)="onStocksImported($event)"
-          (brokerHoldingsImported)="onBrokerHoldingsImported($event)"
+      <!-- Add Stock Modal -->
+      @if (addStockOpen()) {
+        <app-add-stock-modal
+          [defaultMarket]="selectedMarket() === 'IN' ? 'IN' : 'US'"
+          (close)="addStockOpen.set(false)"
+          (added)="onAddStockAdded($event)"
         />
       }
 
@@ -951,7 +950,7 @@ export class Dashboard implements OnInit, OnDestroy {
   protected readonly editingHolding = signal<Holding | null>(null);
   protected readonly sellingHolding = signal<Holding | null>(null);
   protected readonly deleteTarget = signal<Holding | null>(null);
-  protected readonly commandCenterOpen = signal<boolean>(false);
+  protected readonly addStockOpen = signal<boolean>(false);
   protected readonly toastMessage = signal<string | null>(null);
   private sseSource: EventSource | null = null;
   protected readonly sortMode = signal<SortMode>('recent');
@@ -1180,9 +1179,16 @@ export class Dashboard implements OnInit, OnDestroy {
     this.marketMenuOpen.set(false);
   }
 
-  openCommandCenter(): void {
-    this.commandCenterOpen.set(true);
+  openAddStockModal(): void {
+    this.addStockOpen.set(true);
     this.addMenuOpen.set(false);
+  }
+
+  onAddStockAdded(req: AddHoldingRequest): void {
+    this.onStockAdded(req);
+    this.addStockOpen.set(false);
+    this.toastMessage.set(`Successfully added ${req.symbol} to portfolio!`);
+    setTimeout(() => this.toastMessage.set(null), 4000);
   }
 
   openStock(symbol: string): void {
