@@ -30,6 +30,8 @@ const { computeReturn1D, computeRsi14, computeVolatility14D, computeVolumeZScore
 const { FEATURE_VERSION_V2 } = require('./src/server/ml/features/feature-engineering-v2');
 
 const app = express();
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 4000;
 const DIST_DIR = path.join(__dirname, 'dist', 'portfolio-intelligence', 'browser');
 const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
@@ -52,6 +54,7 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false }
 });
 
 const marketLimiter = rateLimit({
@@ -60,6 +63,7 @@ const marketLimiter = rateLimit({
   message: { error: 'Market rate limit reached. Please slow down requests.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false }
 });
 
 // Web Push VAPID setup
@@ -346,15 +350,14 @@ app.get('/api/auth/config', (req, res) => {
   res.json({ googleEnabled: !!googleClient, googleClientId: GOOGLE_CLIENT_ID || null });
 });
 
-// POST /api/auth/signup
-app.post('/api/auth/signup', authLimiter, async (req, res) => {
+async function handleSignup(req, res) {
   try {
-    const name = (req.body.name || '').trim();
-    const email = (req.body.email || '').trim().toLowerCase();
-    const password = req.body.password || '';
+    const name = (req.body?.name || '').trim();
+    const email = (req.body?.email || '').trim().toLowerCase();
+    const password = req.body?.password || '';
 
     if (!name || !email || !password) {
-      return res.status(400).json({ error: 'name, email, and password are required' });
+      return res.status(400).json({ error: 'Name, email, and password are required' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -383,9 +386,14 @@ app.post('/api/auth/signup', authLimiter, async (req, res) => {
     setAuthCookie(res, signToken(user.id));
     return res.status(201).json({ user: publicUser(user) });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('[auth/signup] Error:', err.message);
+    return res.status(500).json({ error: err.message || 'Could not create account' });
   }
-});
+}
+
+// POST /api/auth/signup & /api/auth/register
+app.post('/api/auth/signup', authLimiter, handleSignup);
+app.post('/api/auth/register', authLimiter, handleSignup);
 
 // POST /api/auth/login
 app.post('/api/auth/login', authLimiter, async (req, res) => {
