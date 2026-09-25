@@ -1,26 +1,15 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
-import { guestGuard } from './core/guards/guest.guard';
 
 export const routes: Routes = [
-  // Direct entry into dashboard (/money)
+  // Landing Page
   {
     path: '',
-    pathMatch: 'full',
-    redirectTo: 'money',
+    loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
+    title: 'Aurum — Investment Intelligence',
   },
-  {
-    path: 'login',
-    redirectTo: 'money',
-  },
-  {
-    path: 'signup',
-    redirectTo: 'money',
-  },
-  // App shell — protected routes
+  // App shell — direct public portfolio access
   {
     path: 'money',
-    canActivate: [authGuard],
     loadComponent: () => import('./layout/shell/shell').then((m) => m.Shell),
     children: [
       {
