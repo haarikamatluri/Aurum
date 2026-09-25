@@ -47,23 +47,44 @@ if (JWT_SECRET === 'dev-insecure-secret-change-me') {
 app.use(express.json());
 app.use(cookieParser());
 
-// Security & Abuse Rate Limiters
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false }
-});
+const safeAuthLimiter = (process.env.VERCEL || process.env.VERCEL_ENV)
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 30,
+      message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false }
+    });
 
-const marketLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  message: { error: 'Market rate limit reached. Please slow down requests.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false }
+const marketLimiter = (process.env.VERCEL || process.env.VERCEL_ENV)
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 1000,
+      max: 200,
+      message: { error: 'Market rate limit reached. Please slow down requests.' },
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false }
+    });
+
+// Vercel Serverless URL Normalization Middleware
+app.use((req, res, next) => {
+  if (
+    req.url.startsWith('/auth/') ||
+    req.url.startsWith('/market/') ||
+    req.url.startsWith('/analyst/') ||
+    req.url.startsWith('/ml/') ||
+    req.url.startsWith('/portfolio/') ||
+    req.url.startsWith('/securities/') ||
+    req.url.startsWith('/voice/') ||
+    req.url.startsWith('/watchlist/') ||
+    req.url.startsWith('/alerts/')
+  ) {
+    req.url = '/api' + req.url;
+  }
+  next();
 });
 
 // Web Push VAPID setup
@@ -392,11 +413,11 @@ async function handleSignup(req, res) {
 }
 
 // POST /api/auth/signup & /api/auth/register
-app.post('/api/auth/signup', authLimiter, handleSignup);
-app.post('/api/auth/register', authLimiter, handleSignup);
+app.post('/api/auth/signup', safeAuthLimiter, handleSignup);
+app.post('/api/auth/register', safeAuthLimiter, handleSignup);
 
 // POST /api/auth/login
-app.post('/api/auth/login', authLimiter, async (req, res) => {
+app.post('/api/auth/login', safeAuthLimiter, async (req, res) => {
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     const password = req.body.password || '';

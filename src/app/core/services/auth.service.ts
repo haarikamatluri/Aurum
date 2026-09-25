@@ -55,8 +55,13 @@ function mapUser(raw: any): AppUser {
 
 async function readError(res: Response, fallback: string): Promise<string> {
   try {
-    const body = await res.json();
-    return body?.error || fallback;
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text);
+      return body?.error || body?.message || fallback;
+    } catch {
+      return text ? `Server error (${res.status}): ${text.slice(0, 100)}` : fallback;
+    }
   } catch {
     return fallback;
   }
