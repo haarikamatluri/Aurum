@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-landing',
@@ -247,9 +248,14 @@ import { Router } from '@angular/router';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LandingPage {
-  constructor(private router: Router) {}
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   enter(): void {
-    this.router.navigate(['/money']);
+    if (this.auth.isAuthenticated()) {
+      this.router.navigate(['/money']);
+    } else {
+      this.router.navigate(['/signup']);
+    }
   }
 }

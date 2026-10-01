@@ -161,7 +161,7 @@ export class SignupPage implements OnInit, OnDestroy {
     const { name, email, password } = this.form.getRawValue();
     try {
       await this.auth.signup(name, email, password);
-      this.router.navigateByUrl('/money');
+      this.router.navigate(['/login'], { queryParams: { registered: 'true', email } });
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Could not create your account');
     } finally {

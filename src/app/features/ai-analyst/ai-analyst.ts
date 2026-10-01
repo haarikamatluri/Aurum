@@ -27,7 +27,6 @@ import { WatchlistService } from '../../core/services/watchlist.service';
 import { Holding, MarketRegion, CurrencyCode, StockSearchResult } from '../../core/models/portfolio.model';
 
 import { OrderModalComponent } from '../dashboard/order-modal/order-modal';
-import { AutomationModalComponent } from '../dashboard/automation-modal/automation-modal';
 
 export interface ChatThreadMessage {
   id: string;
@@ -63,7 +62,7 @@ const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
 @Component({
   selector: 'app-ai-analyst',
   standalone: true,
-  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, SlicePipe, OrderModalComponent, AutomationModalComponent],
+  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, SlicePipe, OrderModalComponent],
   templateUrl: './ai-analyst.html',
   styleUrl: './ai-analyst.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -404,12 +403,29 @@ export class AiAnalystPage implements OnInit {
           this.selectedTarget.set(newTarget);
         }
 
-        const recText = d.recommendation
-          ? `**Aurum Analytical View: ${d.recommendation.action}** (Score: ${d.recommendation.score}/100, Confidence: ${d.recommendation.confidence}%)\n\n` +
-            `${d.reasoning?.summary || ''}\n\n` +
-            `**Key Drivers:**\n${(d.recommendation.keyDrivers || []).map((dr: string) => `• ${dr}`).join('\n')}\n\n` +
-            `**Key Risks:**\n${(d.recommendation.keyRisks || []).map((rk: string) => `• ${rk}`).join('\n')}`
-          : (d.reasoning?.summary || 'Analysis complete.');
+        let recText = '';
+        const intent = d.intent || '';
+        const summary = d.reasoning?.summary || '';
+        const drivers = d.recommendation?.keyDrivers || d.reasoning?.keyDrivers || [];
+        const risks = d.recommendation?.keyRisks || d.reasoning?.keyRisks || [];
+
+        if (intent === 'CONCEPT_EXPLANATION') {
+          recText = `${summary}`;
+        } else if (intent === 'BUY_SELL_DECISION_SUPPORT') {
+          recText = `**Analytical Conclusion: ${d.recommendation?.action || 'HOLD / WAIT'}** (Score: ${d.recommendation?.score || 50}/100)\n\n` +
+            `${summary}\n\n` +
+            (drivers.length ? `**Key Drivers:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
+            (risks.length ? `**Key Risks:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
+        } else if (intent === 'HOLDING_PERIOD') {
+          recText = `**Holding Horizon Analysis (${d.security?.symbol || ''}):**\n\n` +
+            `${summary}\n\n` +
+            (drivers.length ? `**Supporting Indicators:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
+            (risks.length ? `**Thesis Invalidation Risks:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
+        } else {
+          recText = `${summary}\n\n` +
+            (drivers.length ? `**Key Observations:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
+            (risks.length ? `**Risk Considerations:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
+        }
 
         const botMsg: ChatThreadMessage = {
           id: `amsg-${Date.now()}`,

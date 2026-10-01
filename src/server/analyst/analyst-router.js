@@ -621,10 +621,116 @@ function createAnalystRouter({ geminiBackendCaller, isMongoConnected, db, option
         { name: 'Refinitiv / Yahoo Global Markets', status: 'HEALTHY', latencyMs: 82, marketCoverage: ['US', 'GLOBAL'] },
         { name: 'Alpha Vantage Financial Intelligence', status: process.env.ALPHA_VANTAGE_API_KEY ? 'HEALTHY' : 'STANDBY', latencyMs: 120, marketCoverage: ['US', 'IN'] },
         { name: 'Finnhub Institutional Calendar', status: process.env.FINNHUB_API_KEY ? 'HEALTHY' : 'STANDBY', latencyMs: 95, marketCoverage: ['US'] },
-        { name: 'Google Search Grounding Newswire', status: 'HEALTHY', latencyMs: 110, marketCoverage: ['IN', 'US', 'GLOBAL'] },
-        { name: 'Aurum Quant ML Ensemble V2', status: 'HEALTHY', latencyMs: 15, marketCoverage: ['IN', 'US'] }
+        { name: 'Google Search Grounding Newswire', status: 'HEALTHY', latencyMs: 110, marketCoverage: ['IN', 'US', 'GLOBAL'] }
       ]
     });
+  });
+
+  // 16. Structured Evidence-Based Stock Analysis Contract
+  router.post('/stock-analysis', authMiddleware, async (req, res) => {
+    const start = Date.now();
+    try {
+      const { symbol, question, timeframe } = req.body || {};
+      if (!symbol) {
+        return res.status(400).json({ error: 'symbol parameter is required' });
+      }
+
+      const sym = String(symbol).trim().toUpperCase();
+      const cleanSym = sym.replace(/\.(NS|BO|O|N)$/i, '');
+      const isUS = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'].includes(cleanSym) || sym.endsWith('.O') || sym.endsWith('.N');
+      const market = isUS ? 'US' : 'IN';
+      const exchange = isUS ? 'NASDAQ/NYSE' : (sym.endsWith('.BO') ? 'BSE' : 'NSE');
+      const currency = isUS ? 'USD' : 'INR';
+
+      const mRes = await getStockMarketData(cleanSym, market);
+      const mData = mRes?.data || {};
+
+      if (!mData.price || isNaN(mData.price)) {
+        return res.json({
+          symbol: sym,
+          companyName: mData.companyName || cleanSym,
+          exchange,
+          currency,
+          dataStatus: 'UNAVAILABLE',
+          price: null,
+          priceTimestamp: null,
+          conclusion: 'INSUFFICIENT_EVIDENCE',
+          reasoning: ['Real-time market quote data unavailable for ' + sym],
+          technicalEvidence: [],
+          fundamentalEvidence: [],
+          risks: ['Market data provider unavailable'],
+          sources: [],
+          limitations: ['Data source was unreachable or returned an empty quote.'],
+          generatedAt: new Date().toISOString()
+        });
+      }
+
+      const userId = req.userId || 'demo-user';
+      let userHoldings = [];
+      if (isMongoConnected && db) {
+        try {
+          const docs = await db.collection('holdings').find({ userId }).toArray();
+          if (docs && docs.length > 0) userHoldings = docs;
+        } catch {}
+      }
+      if (userHoldings.length === 0 && typeof getMemoryStore === 'function') {
+        userHoldings = getMemoryStore(userId)?.holdings || [];
+      }
+
+      const { processAnalystQuery } = require('./engines/analyst-orchestrator');
+      const env = await processAnalystQuery({
+        question: question || `Analyze ${sym}`,
+        symbol: cleanSym,
+        market,
+        userId,
+        userHoldings,
+        geminiCaller: geminiBackendCaller
+      });
+
+      const data = env.data || {};
+      const rec = data.recommendation || {};
+      const fData = data.fundamentals || {};
+      const tData = data.technicals || {};
+
+      const conclusion = rec.conclusion || (
+        rec.score >= 64 ? 'BUY_THESIS_SUPPORTED' :
+        rec.score <= 38 ? 'SELL_THESIS_SUPPORTED' :
+        rec.score > 0 ? 'HOLD_WAIT' : 'INSUFFICIENT_EVIDENCE'
+      );
+
+      const responsePayload = {
+        symbol: sym,
+        companyName: data.security?.companyName || mData.companyName || cleanSym,
+        exchange,
+        currency: mData.currency || currency,
+        dataStatus: mData.status || 'LIVE',
+        price: mData.price,
+        priceTimestamp: new Date().toISOString(),
+        conclusion,
+        reasoning: rec.keyDrivers || data.reasoning?.keyDrivers || [],
+        technicalEvidence: [
+          { indicator: 'RSI(14)', value: tData.rsi14 || 50, signal: (tData.rsi14 || 50) < 35 ? 'BULLISH' : (tData.rsi14 || 50) > 70 ? 'BEARISH' : 'NEUTRAL' },
+          { indicator: 'Trend', value: tData.trend || 'NEUTRAL', signal: tData.trend === 'BULLISH' ? 'BULLISH' : 'NEUTRAL' }
+        ],
+        fundamentalEvidence: [
+          { metric: 'P/E Ratio', value: fData.peRatio ? `${fData.peRatio}x` : 'N/A' },
+          { metric: 'Return on Equity', value: fData.returnOnEquity ? `${fData.returnOnEquity}%` : 'N/A' }
+        ],
+        risks: rec.keyRisks || data.reasoning?.keyRisks || [],
+        sources: data.sources || [],
+        limitations: [
+          'Technical indicators describe historical price behavior and do not guarantee future performance.',
+          'Model outputs represent algorithmic analysis of available evidence and not personalized financial advice.'
+        ],
+        generatedAt: new Date().toISOString()
+      };
+
+      recordRequest('/api/analyst/stock-analysis', Date.now() - start);
+      return res.json(responsePayload);
+    } catch (err) {
+      recordError();
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   return router;

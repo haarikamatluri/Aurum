@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './core/guards/auth.guard';
+import { guestGuard } from './core/guards/guest.guard';
 
 export const routes: Routes = [
   // Landing Page
@@ -7,9 +9,29 @@ export const routes: Routes = [
     loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
     title: 'Aurum — Investment Intelligence',
   },
-  // App shell — direct public portfolio access
+  // Auth Pages
+  {
+    path: 'login',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginPage),
+    title: 'Sign In — Aurum',
+  },
+  {
+    path: 'signup',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/signup/signup').then((m) => m.SignupPage),
+    title: 'Create Account — Aurum',
+  },
+  {
+    path: 'register',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/signup/signup').then((m) => m.SignupPage),
+    title: 'Create Account — Aurum',
+  },
+  // App shell — protected portfolio access
   {
     path: 'money',
+    canActivate: [authGuard],
     loadComponent: () => import('./layout/shell/shell').then((m) => m.Shell),
     children: [
       {
@@ -46,11 +68,6 @@ export const routes: Routes = [
         path: 'settings',
         loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
         title: 'Settings — Money',
-      },
-      {
-        path: 'phase4',
-        loadComponent: () => import('./features/phase4/phase4').then((m) => m.Phase4Page),
-        title: 'Phase 4 Intelligence — Money',
       },
     ],
   },

@@ -139,8 +139,8 @@ import { AddHoldingRequest, StockSearchResult, MarketRegion } from '../../../cor
               [ngModel]="shares()"
               (ngModelChange)="shares.set($event)"
               name="shares"
-              min="0.0001"
-              step="any"
+              min="1"
+              step="1"
               required
             >
           </div>

@@ -72,19 +72,19 @@ async function readError(res: Response, fallback: string): Promise<string> {
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly _user = signal<AppUser | null>(GUEST_USER);
-  private readonly _authChecked = signal(true);
+  private readonly _user = signal<AppUser | null>(null);
+  private readonly _authChecked = signal(false);
   private readonly _googleEnabled = signal(false);
   private readonly _googleClientId = signal<string | null>(null);
 
-  /** Always returns an active authenticated user profile. */
+  /** Active authenticated user profile or fallback. */
   readonly currentUser = computed(() => this._user() ?? GUEST_USER);
-  readonly isAuthenticated = computed(() => true);
+  readonly isAuthenticated = computed(() => !!this._user());
   readonly authChecked = this._authChecked.asReadonly();
   readonly googleEnabled = this._googleEnabled.asReadonly();
   readonly googleClientId = this._googleClientId.asReadonly();
 
-  /** Called once from app initializer. Restores session or uses default investor profile. */
+  /** Called once from app initializer. Restores session if active cookie exists. */
   async bootstrap(): Promise<void> {
     await Promise.allSettled([this.restoreSession(), this.loadAuthConfig()]);
     this._authChecked.set(true);
@@ -97,10 +97,10 @@ export class AuthService {
         const { user } = await res.json();
         this._user.set(mapUser(user));
       } else {
-        this._user.set(GUEST_USER);
+        this._user.set(null);
       }
     } catch {
-      this._user.set(GUEST_USER);
+      this._user.set(null);
     }
   }
 
@@ -117,15 +117,15 @@ export class AuthService {
     }
   }
 
-  async signup(name: string, email: string, password: string): Promise<void> {
+  async signup(name: string, email: string, password: string): Promise<{ success: boolean; email: string }> {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password }),
     });
     if (!res.ok) throw new Error(await readError(res, 'Could not create your account'));
-    const { user } = await res.json();
-    this._user.set(mapUser(user));
+    // Do not set session user here — account creation requires explicit login
+    return { success: true, email };
   }
 
   async login(email: string, password: string): Promise<{ twoFactorRequired?: boolean; tempToken?: string }> {

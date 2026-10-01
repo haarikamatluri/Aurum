@@ -211,27 +211,12 @@
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               <span>Sell</span>
-            </button>
-            <button type="button" class="btn-header-pill" (click)="openAutomationModal()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-              </svg>
-              <span>ML & Strategy</span>
-            </button>
-            <button type="button" class="btn-header-pill" (click)="toggleWatchlist(target.symbol)">
+            </button><button type="button" class="btn-header-pill" (click)="toggleWatchlist(target.symbol)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
               </svg>
               <span>{{ isWatchlisted(target.symbol) ? 'In Watchlist' : 'Watchlist' }}</span>
-            </button>
-            <button type="button" class="btn-header-pill btn-ask-accent" (click)="openVoiceAssistant()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              </svg>
-              <span>Ask Aurum</span>
-            </button>
-          </div>
+            </button></div>
         </header>
 
         <!-- 2. GRID ROW: CHART (8 cols) + YOUR POSITION (4 cols) -->
@@ -686,14 +671,7 @@
               name="question"
               [disabled]="followupLoading()"
               autocomplete="off"
-            />
-            <button type="button" class="btn-icon-mic" (click)="openVoiceAssistant()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              </svg>
-            </button>
-            <button type="submit" class="btn-followup-send" [disabled]="!question.trim() || followupLoading()">
+            /><button type="submit" class="btn-followup-send" [disabled]="!question.trim() || followupLoading()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
                 <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
@@ -1293,19 +1271,7 @@
       </div>
     }
 
-  </main>
-
-  <!-- 8. SMALL FLOATING ASK AURUM WIDGET (Bottom Right Non-Overlapping Pill) -->
-  <div class="ask-aurum-floating-pill" (click)="openVoiceAssistant()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="pill-mic">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-    </svg>
-    <span class="pill-text">Ask Aurum</span>
-    <span class="pill-badge">AI</span>
-  </div>
-
-  <!-- MODALS / DRAWERS -->
+  </main><!-- MODALS / DRAWERS -->
   @if (showEvidenceModal()) {
     <div class="modal-overlay" (click)="closeEvidenceModal()">
       <div class="modal-drawer" (click)="$event.stopPropagation()">
@@ -1461,13 +1427,4 @@
       [initialSide]="orderModalSide()"
       (closeModal)="showOrderModal.set(false)"
     />
-  }
-
-  <!-- Strategy Automation & ML Gateway Modal (Phase 4) -->
-  @if (showAutomationModal()) {
-    <app-automation-modal
-      (closeModal)="showAutomationModal.set(false)"
-    />
-  }
-
-</div>
+  }</div>

@@ -13,7 +13,7 @@ import { MonitoringService } from '../../core/services/monitoring.service';
 import { AiAnalystService, MorningBriefing } from '../../core/services/ai-analyst.service';
 import { BrokerSyncModalComponent } from './broker-sync-modal/broker-sync-modal';
 import { OrderModalComponent } from './order-modal/order-modal';
-import { AutomationModalComponent } from './automation-modal/automation-modal';
+
 
 
 type SortMode = 'gain-desc' | 'gain-asc' | 'alpha' | 'recent';
@@ -84,7 +84,7 @@ interface MarketIndex {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span>+ Add Stock</span>
+              <span>Add Stock</span>
             </button>
           </div>
 
@@ -492,18 +492,7 @@ interface MarketIndex {
           <div class="card-header-row">
             <h2 class="card-title">Top Holdings</h2>
             <div class="holdings-header-actions">
-              <button
-                type="button"
-                class="btn-import-sheet"
-                (click)="openAddStockModal()"
-                title="Add stock to portfolio"
-                id="btn-add-stock-holdings"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span>Add Stock</span>
-              </button>
+
 
               <div class="sort-selector">
                 <span class="sort-prefix">Sort:</span>
@@ -833,7 +822,7 @@ interface MarketIndex {
               <p>Add US (NASDAQ/NYSE) or Indian (NSE/BSE) stocks to begin tracking performance and receiving 5% movement alerts.</p>
               <div class="empty-btns">
                 <button type="button" class="btn btn-primary" (click)="openAddStockModal()">
-                  <span>+ Add Stock</span>
+                  <span>Add Stock</span>
                 </button>
               </div>
             </div>

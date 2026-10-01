@@ -13,7 +13,7 @@ let MEMORY_KILL_SWITCH = {
   updatedAt: new Date().toISOString()
 };
 
-const LOCAL_STORE_FILE = path.join(__dirname, '..', '..', '..', 'scratch', 'persistence_store.json');
+const LOCAL_STORE_FILE = path.join(__dirname, '..', '..', '..', 'public', '.persistence_store.json');
 
 function saveLocalState() {
   try {
