@@ -1,12 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit, SecurityContext } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, DecimalPipe, UpperCasePipe, SlicePipe } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import {
   AiAnalystService,
   AiAnalysis,
   AiChatMessage,
   StockChartData,
+  StockNewsItem,
   MorningBriefing,
   EarningsReportSummary,
   StressTestResult,
@@ -33,6 +35,18 @@ export interface ChatThreadMessage {
   role: 'user' | 'assistant';
   text: string;
   timestamp: string;
+  positionScenario?: any;
+  intent?: string;
+  responseType?: string;
+  dynamicResponse?: any;
+  marketData?: any;
+  technicals?: any;
+  fundamentals?: any;
+  portfolioContext?: any;
+  sources?: any[];
+  evidenceLedger?: any[];
+  parsedStance?: string;
+  parsedSummary?: string;
 }
 
 export interface AnalystStockTarget {
@@ -49,7 +63,7 @@ export interface AnalystStockTarget {
   profitLossPct?: number | null;
 }
 
-const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
+export const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
   { id: 'pop-nvda', symbol: 'NVDA', companyName: 'NVIDIA Corporation', exchange: 'NASDAQ', market: 'US', currency: 'USD', currentPrice: null, isOwned: false },
   { id: 'pop-aapl', symbol: 'AAPL', companyName: 'Apple Inc.', exchange: 'NASDAQ', market: 'US', currency: 'USD', currentPrice: null, isOwned: false },
   { id: 'pop-tsla', symbol: 'TSLA', companyName: 'Tesla, Inc.', exchange: 'NASDAQ', market: 'US', currency: 'USD', currentPrice: null, isOwned: false },
@@ -70,6 +84,7 @@ const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
 export class AiAnalystPage implements OnInit {
   protected readonly portfolio = inject(PortfolioService);
   protected readonly aiService = inject(AiAnalystService);
+  private readonly sanitizer = inject(DomSanitizer);
   protected readonly showOrderModal = signal<boolean>(false);
   protected readonly showAutomationModal = signal<boolean>(false);
   protected readonly orderModalSymbol = signal<string>('');
@@ -118,6 +133,9 @@ export class AiAnalystPage implements OnInit {
   protected readonly chartLoading = signal<boolean>(false);
   protected readonly chartRange = signal<'1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'>('1W');
 
+  // News state
+  protected readonly stockNews = signal<StockNewsItem[]>([]);
+
   // Watchlist state
   protected readonly watchlist = signal<Set<string>>(new Set(['TCS', 'NVDA']));
 
@@ -133,7 +151,9 @@ export class AiAnalystPage implements OnInit {
   openEvidenceModal(): void { this.showEvidenceModal.set(true); }
   closeEvidenceModal(): void { this.showEvidenceModal.set(false); }
 
-  openNewsModal(): void { this.showNewsModal.set(true); }
+  openNewsModal(): void {
+    this.router.navigate(['/money/news']);
+  }
   closeNewsModal(): void { this.showNewsModal.set(false); }
 
   openPositionModal(): void { this.showPositionModal.set(true); }
@@ -305,8 +325,18 @@ export class AiAnalystPage implements OnInit {
   }
 
   private setStockTarget(target: AnalystStockTarget): void {
+    // Clear previous stock's data while loading the new one
+    this.currentAnalysis.set(null);
+    this.chartData.set(null);
+    this.stockNews.set([]);
+    this.stockReportEnvelope.set(null);
+    this.filingsEnvelope.set(null);
+    this.earningsEnvelope.set(null);
+    this.chatMessages.set([]);
+    
     this.selectedTarget.set(target);
     this.loadChartData(target.symbol, target.market, this.chartRange());
+    this.loadNews(target.symbol, target.companyName, target.market);
     this.triggerStockAnalysis(target, 'Latest market news and operating outlook');
     this.loadStockReport(target.symbol, target.market);
     if (this.activeTab() === 'EARNINGS_FILINGS') {
@@ -330,6 +360,15 @@ export class AiAnalystPage implements OnInit {
       this.chartData.set(data);
     } finally {
       this.chartLoading.set(false);
+    }
+  }
+
+  async loadNews(symbol: string, companyName?: string, market?: string): Promise<void> {
+    try {
+      const news = await this.aiService.fetchStockNews(symbol, companyName, market);
+      this.stockNews.set(news);
+    } catch (err) {
+      console.warn('Failed to load news:', err);
     }
   }
 
@@ -389,42 +428,101 @@ export class AiAnalystPage implements OnInit {
       const env = await this.aiService.analyzeQuestion(q, currentTarget?.symbol, currentTarget?.market || 'IN');
       if (env?.data) {
         const d = env.data;
-        if (d.security?.symbol && d.security.symbol !== currentTarget?.symbol) {
+        const resolvedSymbol = d.symbol || d.security?.symbol;
+        if (resolvedSymbol && resolvedSymbol !== 'GLOBAL' && resolvedSymbol !== currentTarget?.symbol) {
           const newTarget: AnalystStockTarget = {
-            id: `target-${d.security.symbol}`,
-            symbol: d.security.symbol,
-            companyName: d.security.companyName || d.security.symbol,
-            exchange: (d.security.market as MarketRegion) === 'US' ? 'NASDAQ' : 'NSE',
-            market: (d.security.market as MarketRegion) || 'IN',
-            currency: d.security.currency || 'INR',
-            currentPrice: d.security.price || null,
+            id: `target-${resolvedSymbol}`,
+            symbol: resolvedSymbol,
+            companyName: d.security?.companyName || resolvedSymbol,
+            exchange: (d.security?.market as MarketRegion) === 'US' ? 'NASDAQ' : 'NSE',
+            market: (d.security?.market as MarketRegion) || currentTarget?.market || 'IN',
+            currency: d.security?.currency || 'INR',
+            currentPrice: d.security?.price || d.marketData?.price || null,
             isOwned: false
           };
           this.selectedTarget.set(newTarget);
         }
 
-        let recText = '';
-        const intent = d.intent || '';
-        const summary = d.reasoning?.summary || '';
-        const drivers = d.recommendation?.keyDrivers || d.reasoning?.keyDrivers || [];
-        const risks = d.recommendation?.keyRisks || d.reasoning?.keyRisks || [];
+        // 1. Primary: Use normalized full Markdown answer from backend
+        let recText = (d.answer || '').trim();
 
-        if (intent === 'CONCEPT_EXPLANATION') {
-          recText = `${summary}`;
-        } else if (intent === 'BUY_SELL_DECISION_SUPPORT') {
-          recText = `**Analytical Conclusion: ${d.recommendation?.action || 'HOLD / WAIT'}** (Score: ${d.recommendation?.score || 50}/100)\n\n` +
-            `${summary}\n\n` +
-            (drivers.length ? `**Key Drivers:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
-            (risks.length ? `**Key Risks:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
-        } else if (intent === 'HOLDING_PERIOD') {
-          recText = `**Holding Horizon Analysis (${d.security?.symbol || ''}):**\n\n` +
-            `${summary}\n\n` +
-            (drivers.length ? `**Supporting Indicators:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
-            (risks.length ? `**Thesis Invalidation Risks:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
-        } else {
-          recText = `${summary}\n\n` +
-            (drivers.length ? `**Key Observations:**\n${drivers.map((dr: string) => `• ${dr}`).join('\n')}\n\n` : '') +
-            (risks.length ? `**Risk Considerations:**\n${risks.map((rk: string) => `• ${rk}`).join('\n')}` : '');
+        // 2. Fallbacks if direct answer is absent
+        if (!recText && d.dynamicResponse?.directAnswer) {
+          recText = d.dynamicResponse.directAnswer.trim();
+        }
+        if (!recText && d.quantitativeTakeaway) {
+          recText = d.quantitativeTakeaway.trim();
+        }
+        if (!recText && d.reasoning?.summary) {
+          recText = d.reasoning.summary.trim();
+        }
+
+        // 3. Controlled fallback if still empty (NEVER send blank to UI)
+        if (!recText) {
+          recText = 'Unable to complete this analysis because required financial data is currently unavailable.';
+        }
+
+        // 4. Structured UI Logging
+        console.log('[AI_ANALYST_UI]', {
+          question: q,
+          responseType: d.responseType || d.intent || 'GENERAL',
+          answerLength: recText.length,
+          rendered: true
+        });
+
+        let posScenario = d.positionScenario || d.dynamicResponse?.positionScenario || null;
+        if (posScenario && posScenario.position && posScenario.position.quantity > 0) {
+          const qty = posScenario.position.quantity;
+          const price = posScenario.position.entryPrice || this.getDisplayedPrice() || 1;
+          const capitalRequired = qty * price;
+          
+          posScenario.position.grossInvestment = capitalRequired;
+          posScenario.position.capitalRequired = capitalRequired;
+          
+          posScenario.scenarios = [
+            { label: '+10% Target', multiplier: 1.10 },
+            { label: '+5% Step', multiplier: 1.05 },
+            { label: '-5% Step', multiplier: 0.95 },
+            { label: '-10% Risk', multiplier: 0.90 }
+          ].map(sc => {
+            const scenarioPrice = price * sc.multiplier;
+            const positionValue = qty * scenarioPrice;
+            const pnl = positionValue - capitalRequired;
+            const pnlPercent = (pnl / capitalRequired) * 100;
+            return {
+              label: sc.label,
+              scenarioPrice,
+              positionValue,
+              pnl,
+              pnlPercent: parseFloat(pnlPercent.toFixed(2))
+            };
+          });
+        }
+        
+        if (d.intent === 'POSITION_SCENARIO' || posScenario) {
+          this.currentAnalysis.set(d as any);
+        }
+
+        // Parse Stance & Summary for Structured UI
+        let parsedStance = '';
+        let parsedSummary = recText;
+
+        const stanceMatch = recText.match(/(?:Analytical Conclusion|Analytical Stance|Recommended Stance):\s*\*?\*?([^*]+)\*?\*?/i);
+        if (stanceMatch) {
+          parsedStance = stanceMatch[1].trim().replace(/\(Conviction:.*?\)/i, '').trim();
+          
+          // Try to extract a clean summary (skip headers and stance lines)
+          const cleanLines = recText.split('\n')
+            .filter((l: string) => !l.startsWith('###') && !l.includes('Analytical Conclusion') && !l.includes('Analytical Stance') && !l.includes('Recommended Stance'))
+            .map((l: string) => l.trim().replace(/\*/g, ''))
+            .filter((l: string) => l.length > 0);
+          
+          if (cleanLines.length > 0) {
+            parsedSummary = cleanLines[0];
+            if (parsedSummary.includes('Evaluated on verified')) {
+              parsedSummary = "Analysis synthesized from verified real-time financial evidence.";
+            }
+          }
         }
 
         const botMsg: ChatThreadMessage = {
@@ -432,22 +530,35 @@ export class AiAnalystPage implements OnInit {
           role: 'assistant',
           text: recText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          positionScenario: posScenario,
+          intent: d.intent || d.responseType || 'GENERAL',
+          responseType: d.responseType || d.intent || 'GENERAL',
+          dynamicResponse: d.dynamicResponse || null,
+          marketData: d.marketData || null,
+          technicals: d.technicals || null,
+          fundamentals: d.fundamentals || null,
+          portfolioContext: d.portfolio || null,
+          sources: d.sources || null,
+          evidenceLedger: d.evidenceLedger || null,
+          parsedStance,
+          parsedSummary
         };
         this.chatMessages.update((msgs) => [...msgs, botMsg]);
       } else {
         const botMsg: ChatThreadMessage = {
           id: `amsg-${Date.now()}`,
           role: 'assistant',
-          text: `Aurum: Analytical engine returned no data for this query.`,
+          text: 'Unable to complete this analysis because required financial data is currently unavailable.',
           timestamp: timeStr,
         };
         this.chatMessages.update((msgs) => [...msgs, botMsg]);
       }
     } catch (err: any) {
+      console.error('[AI_ANALYST_UI] Error in submitFollowup:', err);
       const botMsg: ChatThreadMessage = {
         id: `amsg-${Date.now()}`,
         role: 'assistant',
-        text: `Aurum: Unable to process request (${err.message || 'network error'}).`,
+        text: 'Unable to complete this analysis because required financial data is currently unavailable.',
         timestamp: timeStr,
       };
       this.chatMessages.update((msgs) => [...msgs, botMsg]);
@@ -743,8 +854,12 @@ export class AiAnalystPage implements OnInit {
     return (t?.currency === 'INR' || t?.market === 'IN') ? 'INR' : 'USD';
   }
 
-  formatCurrency(val: number | null, cCode?: string): string {
-    if (val === null || val === undefined || isNaN(val)) return '—';
+  formatCurrency(val: any, cCode?: string): string {
+    if (val === null || val === undefined) return 'Unavailable';
+    const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val;
+    if (isNaN(num)) return 'Unavailable';
+    
+    if (Math.abs(num) < 0.005) val = 0; // Prevent -0.00
     const currency = cCode || this.selectedTarget()?.currency || (this.selectedTarget()?.market === 'IN' ? 'INR' : 'USD');
     const absVal = Math.abs(val);
     const prefix = val < 0 ? '-' : '';
@@ -758,11 +873,26 @@ export class AiAnalystPage implements OnInit {
     }
   }
 
-  formatVolume(vol: number): string {
-    if (!vol) return '1.2x Avg.';
-    if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`;
-    if (vol >= 1000) return `${(vol / 1000).toFixed(1)}K`;
-    return vol.toString();
+  formatPercent(val: any): string {
+    if (val === null || val === undefined) return 'Unavailable';
+    let num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val;
+    if (isNaN(num)) return 'Unavailable';
+    
+    if (Math.abs(num) < 0.005) num = 0; // Prevent -0.00
+    const absVal = Math.abs(num);
+    const prefix = num < 0 ? '-' : '+';
+    return `${prefix}${absVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  }
+
+  formatVolume(vol: any): string {
+    if (vol === null || vol === undefined) return 'Unavailable';
+    const num = typeof vol === 'string' ? parseFloat(vol.replace(/,/g, '')) : vol;
+    if (isNaN(num)) return 'Unavailable';
+    
+    if (!num) return '0';
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
   }
 
   formatTimeAgo(dateStr?: string): string {
@@ -795,28 +925,11 @@ export class AiAnalystPage implements OnInit {
   }
 
   // Portfolio calculations matching strict formulas
-  getPositionPL(): number {
+  positionSnapshot = computed(() => {
     const t = this.selectedTarget();
-    if (!t || !t.isOwned || !t.shares || !t.avgPurchasePrice) return 0;
-    const curPrice = this.getDisplayedPrice() || t.avgPurchasePrice;
-    return t.shares * (curPrice - t.avgPurchasePrice);
-  }
-
-  getPositionReturnPct(): number {
-    const t = this.selectedTarget();
-    if (!t || !t.isOwned || !t.avgPurchasePrice || t.avgPurchasePrice === 0) return 0;
-    const curPrice = this.getDisplayedPrice() || t.avgPurchasePrice;
-    return ((curPrice - t.avgPurchasePrice) / t.avgPurchasePrice) * 100;
-  }
-
-  getPositionExposurePct(): number {
-    const t = this.selectedTarget();
-    if (!t || !t.isOwned || !t.shares) return 0;
-    const curPrice = this.getDisplayedPrice() || t.avgPurchasePrice || 0;
-    const posVal = t.shares * curPrice;
-    const totalVal = this.portfolio.holdings().reduce((sum, h) => sum + (h.currentValue || h.totalInvested), 0);
-    return totalVal > 0 ? (posVal / totalVal) * 100 : 0;
-  }
+    if (!t || !t.symbol) return null;
+    return this.portfolio.getPositionSnapshot(t.symbol, this.getDisplayedPrice() || undefined);
+  });
 
   // SVG Chart path calculation
   getChartStrokePath(): string {
@@ -885,132 +998,42 @@ export class AiAnalystPage implements OnInit {
     const ca = this.currentAnalysis();
     const list = ca?.supportingEvidence || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
-    const news = this.getNewsList();
 
-    const fallbacks = [
-      {
-        claim: news[0] ? this.normalizeTitle(news[0].title, sym) : 'AI Demand Supports Sector Sentiment',
-        evidence: news[0] ? this.stripHtml(news[0].title) : `Recent sector coverage points to stronger AI-led demand across major Indian IT companies including ${sym}.`,
-        sourceTitle: news[0]?.publisher || 'Moneycontrol',
-        sourceUrl: news[0]?.link || '#',
-        date: news[0] ? this.formatTimeAgo(news[0].pubDate) : '2h ago'
-      },
-      {
-        claim: news[1] ? this.normalizeTitle(news[1].title, sym) : 'Operational Margin & Deal Pipeline Support',
-        evidence: news[1] ? this.stripHtml(news[1].title) : `Consistent operating cash flow generation and large enterprise contract wins provide strong valuation defense.`,
-        sourceTitle: news[1]?.publisher || 'Groww',
-        sourceUrl: news[1]?.link || '#',
-        date: news[1] ? this.formatTimeAgo(news[1].pubDate) : '4h ago'
-      },
-      {
-        claim: news[2] ? this.normalizeTitle(news[2].title, sym) : 'Institutional Balance Sheet Resilience',
-        evidence: news[2] ? this.stripHtml(news[2].title) : `Healthy return on equity and steady dividend distributions support institutional holding confidence.`,
-        sourceTitle: news[2]?.publisher || 'StockAnalysis',
-        sourceUrl: news[2]?.link || '#',
-        date: news[2] ? this.formatTimeAgo(news[2].pubDate) : '1d ago'
-      }
-    ];
-
-    let result = list.map((item) => ({
+    return list.map((item) => ({
       claim: this.normalizeTitle(item.claim || item.evidence, sym),
       evidence: this.stripHtml(item.evidence),
-      sourceTitle: item.sourceTitle || 'Financial News',
+      sourceTitle: item.sourceTitle || 'Evidence Ledger',
       sourceUrl: item.sourceUrl || '#',
-      date: this.formatTimeAgo(item.date)
+      date: item.date ? this.formatTimeAgo(item.date) : 'Verified'
     }));
-
-    while (result.length < 3) {
-      result.push(fallbacks[result.length]);
-    }
-    return result.slice(0, 3);
   }
 
   getContradictingEvidence() {
     const ca = this.currentAnalysis();
     const list = ca?.contradictingEvidence || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
-    const news = this.getNewsList();
 
-    const fallbacks = [
-      {
-        claim: 'Analyst Valuation Re-Rating Caution',
-        evidence: news[2] ? this.stripHtml(news[2].title) : `Sell-side valuation multiples leave limited buffer for near-term earnings misses or delayed client decisions.`,
-        sourceTitle: news[2]?.publisher || 'Yahoo Finance',
-        sourceUrl: news[2]?.link || '#',
-        date: news[2] ? this.formatTimeAgo(news[2].pubDate) : '3h ago'
-      },
-      {
-        claim: 'Discretionary Tech Spend Slowdown',
-        evidence: `Enterprise client budget caution in banking and retail could prolong revenue recovery timelines.`,
-        sourceTitle: 'Market Commentary',
-        sourceUrl: '#',
-        date: 'Recent'
-      },
-      {
-        claim: 'Cross-Currency Margin Headwinds',
-        evidence: `Fluctuations in foreign exchange rates present potential near-term margin compression risks.`,
-        sourceTitle: 'Sector Report',
-        sourceUrl: '#',
-        date: 'Recent'
-      }
-    ];
-
-    let result = list.map((item) => ({
+    return list.map((item) => ({
       claim: this.normalizeTitle(item.claim || item.evidence, sym),
       evidence: this.stripHtml(item.evidence),
-      sourceTitle: item.sourceTitle || 'Market Analyst',
+      sourceTitle: item.sourceTitle || 'Evidence Ledger',
       sourceUrl: item.sourceUrl || '#',
-      date: this.formatTimeAgo(item.date)
+      date: item.date ? this.formatTimeAgo(item.date) : 'Verified'
     }));
-
-    while (result.length < 3) {
-      result.push(fallbacks[result.length]);
-    }
-    return result.slice(0, 3);
   }
 
   getUncertainFactors() {
     const ca = this.currentAnalysis();
     const list = ca?.uncertainFactors || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
-    const news = this.getNewsList();
 
-    const fallbacks = [
-      {
-        claim: 'Valuation & P/E Multiples Re-assessment',
-        evidence: `${sym}'s current valuation ratios remain subject to broader market and sector re-rating risks.`,
-        sourceTitle: news[0]?.publisher || 'Market Dynamics',
-        sourceUrl: news[0]?.link || '#',
-        date: 'Recent'
-      },
-      {
-        claim: 'Upcoming Quarterly Earnings & Guidance',
-        evidence: `Forward deal pipeline execution and operating margin trajectory remain key variables for upcoming commentary.`,
-        sourceTitle: 'Analyst Consensus',
-        sourceUrl: '#',
-        date: 'Upcoming'
-      },
-      {
-        claim: 'Global Interest Rate Policy Impact',
-        evidence: `Central bank monetary policy decisions affect enterprise capital allocation and tech deployment cycles.`,
-        sourceTitle: 'Macro Intelligence',
-        sourceUrl: '#',
-        date: 'Watch'
-      }
-    ];
-
-    let result = list.map((item) => ({
+    return list.map((item) => ({
       claim: this.normalizeTitle(item.claim || item.evidence, sym),
       evidence: this.stripHtml(item.evidence),
-      sourceTitle: item.sourceTitle || 'Analyst View',
+      sourceTitle: item.sourceTitle || 'Analytical Assessment',
       sourceUrl: item.sourceUrl || '#',
-      date: this.formatTimeAgo(item.date)
+      date: item.date ? this.formatTimeAgo(item.date) : 'Current'
     }));
-
-    while (result.length < 3) {
-      result.push(fallbacks[result.length]);
-    }
-    return result.slice(0, 3);
   }
 
   getRisksList() {
@@ -1018,30 +1041,10 @@ export class AiAnalystPage implements OnInit {
     const list = ca?.risks || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
 
-    const fallbacks = [
-      {
-        item: 'Enterprise IT Spending',
-        whyItMatters: 'Slower discretionary technology spending could delay revenue growth expectations.'
-      },
-      {
-        item: 'Deal Execution & Integration',
-        whyItMatters: 'Forward execution on large signed contracts is critical to maintaining margin guidance.'
-      },
-      {
-        item: 'FX & Macro Volatility',
-        whyItMatters: 'Currency headwinds and global interest rate trends affect net margin realisations.'
-      }
-    ];
-
-    let result = list.map((r) => ({
+    return list.map((r) => ({
       item: this.normalizeTitle(r.item, sym),
       whyItMatters: this.stripHtml(r.whyItMatters)
     }));
-
-    while (result.length < 3) {
-      result.push(fallbacks[result.length]);
-    }
-    return result.slice(0, 3);
   }
 
   getPositiveScenarios() {
@@ -1053,9 +1056,7 @@ export class AiAnalystPage implements OnInit {
         outcome: this.stripHtml(s.outcome)
       }));
     }
-    return [
-      { trigger: 'Strong deal execution', outcome: 'potential earnings support' }
-    ];
+    return [];
   }
 
   getNeutralScenarios() {
@@ -1067,9 +1068,7 @@ export class AiAnalystPage implements OnInit {
         outcome: this.stripHtml(s.outcome)
       }));
     }
-    return [
-      { trigger: 'Stable demand', outcome: 'range-bound performance' }
-    ];
+    return [];
   }
 
   getNegativeScenarios() {
@@ -1081,44 +1080,264 @@ export class AiAnalystPage implements OnInit {
         outcome: this.stripHtml(s.outcome)
       }));
     }
-    return [
-      { trigger: 'IT spending slowdown', outcome: 'margin/revenue pressure' }
-    ];
+    return [];
   }
 
   getNewsList() {
+    const news = this.stockNews();
+    if (news && news.length > 0) {
+      return news.map(n => ({
+        title: n.title,
+        publisher: n.publisher,
+        link: n.link,
+        pubDate: n.pubDate
+      }));
+    }
+
+    // Fallback to sources if empty
     const ca = this.currentAnalysis();
     const sources = ca?.sources || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
 
-    if (sources.length > 0) {
-      return sources.map((s) => ({
-        title: this.normalizeTitle(s.title, sym),
-        publisher: s.publisher || 'Financial Press',
-        link: s.url || '#',
-        pubDate: (s as any).publishedAt || ca?.createdAt || new Date().toISOString(),
-      }));
-    }
+    return sources.map((s) => ({
+      title: this.normalizeTitle(s.title, sym),
+      publisher: s.publisher || 'Financial Source',
+      link: s.url || '#',
+      pubDate: (s as any).publishedAt || ca?.createdAt || new Date().toISOString(),
+    }));
+  }
 
-    return [
-      {
-        title: `${sym} announces strategic technology partnership`,
-        publisher: 'Moneycontrol',
-        link: '#',
-        pubDate: new Date().toISOString()
-      },
-      {
-        title: `${sym} expands enterprise digital services contract`,
-        publisher: 'Groww',
-        link: '#',
-        pubDate: new Date(Date.now() - 7200000).toISOString()
-      },
-      {
-        title: `IT Sector sentiment updates and quarterly outlook`,
-        publisher: 'Yahoo Finance',
-        link: '#',
-        pubDate: new Date(Date.now() - 86400000).toISOString()
-      }
-    ];
+  getIntent(): string {
+    const ca = this.currentAnalysis();
+    return ca?.intent || ca?.dynamicResponse?.intent || 'BUY_SELL_DECISION_SUPPORT';
+  }
+
+  isEarningsIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'EARNINGS_ANALYSIS' || intent.includes('EARNINGS');
+  }
+
+  isFilingsIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'FILINGS_ANALYSIS' || intent.includes('FILING');
+  }
+
+  isHoldingPeriodIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'HOLDING_PERIOD';
+  }
+
+  isPriceMovementIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'PRICE_MOVEMENT_EXPLANATION';
+  }
+
+  isConceptIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'CONCEPT_EXPLANATION';
+  }
+
+  isPortfolioExposureIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'PORTFOLIO_EXPOSURE';
+  }
+
+  isScenarioIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'SCENARIO_ANALYSIS';
+  }
+
+  isComparisonIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'COMPANY_COMPARISON';
+  }
+
+  getDynamicResponse(): any {
+    return this.currentAnalysis()?.dynamicResponse || null;
+  }
+
+  isPositionScenarioIntent(): boolean {
+    const intent = this.getIntent();
+    return intent === 'POSITION_SCENARIO' || !!this.getPositionScenario();
+  }
+
+  getPositionScenario(): any {
+    const ca = this.currentAnalysis();
+    let ps = ca?.positionScenario || ca?.dynamicResponse?.positionScenario || null;
+    
+    if (ps && ps.position && ps.position.quantity > 0) {
+      // Force mathematical engine
+      const qty = ps.position.quantity;
+      const price = ps.position.entryPrice || this.getDisplayedPrice() || 1;
+      const capitalRequired = qty * price;
+      
+      ps.position.grossInvestment = capitalRequired;
+      ps.position.capitalRequired = capitalRequired;
+      
+      ps.scenarios = [
+        { label: '+10% Target', multiplier: 1.10 },
+        { label: '+5% Step', multiplier: 1.05 },
+        { label: '-5% Step', multiplier: 0.95 },
+        { label: '-10% Risk', multiplier: 0.90 }
+      ].map(sc => {
+        const scenarioPrice = price * sc.multiplier;
+        const positionValue = qty * scenarioPrice;
+        const pnl = positionValue - capitalRequired;
+        const pnlPercent = (pnl / capitalRequired) * 100;
+        return {
+          label: sc.label,
+          scenarioPrice,
+          positionValue,
+          pnl,
+          pnlPercent: parseFloat(pnlPercent.toFixed(2))
+        };
+      });
+    }
+    
+    return ps;
+  }
+
+  getPrediction(): any {
+    return this.currentAnalysis()?.prediction || null;
+  }
+
+  /**
+   * Convert raw Markdown text to sanitized HTML for structured chat bubble rendering.
+   * Handles: headers, bold, italic, bullet lists, numbered lists, line breaks.
+   * Strips raw Markdown syntax so no asterisks/hashes appear in the UI.
+   */
+  formatMarkdownToHtml(raw: string): SafeHtml {
+    if (!raw) return this.sanitizer.bypassSecurityTrustHtml('');
+
+    let html = raw;
+
+    // 1. Escape basic HTML entities for safety
+    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // 2. Headers: ### Title -> <div class="md-h3">Title</div>
+    html = html.replace(/^####\s+(.+)$/gm, '<div class="md-h4">$1</div>');
+    html = html.replace(/^###\s+(.+)$/gm, '<div class="md-h3">$1</div>');
+    html = html.replace(/^##\s+(.+)$/gm, '<div class="md-h2">$1</div>');
+    html = html.replace(/^#\s+(.+)$/gm, '<div class="md-h1">$1</div>');
+
+    // 3. Bold + Italic: ***text*** or ___text___
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong class="md-bold"><em>$1</em></strong>');
+
+    // 4. Bold: **text** or __text__
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="md-bold">$1</strong>');
+    html = html.replace(/__(.+?)__/g, '<strong class="md-bold">$1</strong>');
+
+    // 5. Italic: *text* or _text_
+    html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+
+    // 6. Bullet lists: • or - at start of line
+    html = html.replace(/^[•\-]\s+(.+)$/gm, '<div class="md-bullet"><span class="md-marker">•</span><span>$1</span></div>');
+
+    // 7. Numbered lists: 1. Item
+    html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<div class="md-numbered"><span class="md-num">$1.</span><span>$2</span></div>');
+
+    // 8. Horizontal rules
+    html = html.replace(/^---+$/gm, '<hr class="md-divider">');
+
+    // 9. Code inline: `code`
+    html = html.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
+
+    // 10. Line breaks (double newlines = paragraph break, single = line break)
+    html = html.replace(/\n\n/g, '</p><p class="md-para">');
+    html = html.replace(/\n/g, '<br>');
+
+    // Wrap in paragraph
+    html = `<p class="md-para">${html}</p>`;
+
+    // Clean up empty paragraphs
+    html = html.replace(/<p class="md-para"><\/p>/g, '');
+
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  }
+
+  /**
+   * Check if a chat message carries an inline position scenario card
+   */
+  msgHasPositionScenario(msg: ChatThreadMessage): boolean {
+    return !!msg.positionScenario && msg.positionScenario?.position?.entryPrice;
+  }
+
+  /**
+   * Scroll to the main content area (e.g., top of the page)
+   */
+  scrollToTop(): void {
+    const mainContent = document.querySelector('.ai-main-content');
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  /**
+   * Get the intent badge label for a chat response
+   */
+  getIntentBadge(msg: ChatThreadMessage): string {
+    const intent = msg.intent || msg.responseType || '';
+    const labels: Record<string, string> = {
+      'POSITION_SCENARIO': 'Position Scenario',
+      'BUY_DECISION': 'Buy Analysis',
+      'SELL_DECISION': 'Sell Analysis',
+      'HOLDING_PERIOD': 'Holding Period',
+      'PRICE_MOVEMENT': 'Price Movement',
+      'PRICE_MOVEMENT_EXPLANATION': 'Price Movement',
+      'EARNINGS': 'Earnings Analysis',
+      'EARNINGS_ANALYSIS': 'Earnings Analysis',
+      'FILINGS': 'Filings Analysis',
+      'FILINGS_ANALYSIS': 'Filings Analysis',
+      'COMPARISON': 'Comparison',
+      'COMPANY_COMPARISON': 'Comparison',
+      'PORTFOLIO': 'Portfolio Exposure',
+      'PORTFOLIO_EXPOSURE': 'Portfolio Exposure',
+      'STRESS_TEST': 'Stress Test',
+      'SCENARIO_ANALYSIS': 'Stress Test',
+      'TECHNICAL': 'Technical Analysis',
+      'TECHNICAL_ANALYSIS': 'Technical Analysis',
+      'FUNDAMENTAL': 'Fundamental Analysis',
+      'FUNDAMENTAL_ANALYSIS': 'Fundamental Analysis',
+      'VALUATION_ANALYSIS': 'Valuation Analysis',
+      'NEWS': 'News Analysis',
+      'NEWS_ANALYSIS': 'News Analysis',
+      'CONCEPT_EXPLANATION': 'Concept Guide',
+      'BUY_SELL_DECISION_SUPPORT': 'Decision Support',
+    };
+    return labels[intent] || 'Analysis';
+  }
+
+  /**
+   * Get the accent color for an intent badge
+   */
+  getIntentBadgeColor(msg: ChatThreadMessage): string {
+    const intent = msg.intent || msg.responseType || '';
+    const colors: Record<string, string> = {
+      'POSITION_SCENARIO': '#10b981',
+      'BUY_DECISION': '#10b981',
+      'BUY_SELL_DECISION_SUPPORT': '#3b82f6',
+      'SELL_DECISION': '#ef4444',
+      'HOLDING_PERIOD': '#10b981',
+      'PRICE_MOVEMENT': '#f59e0b',
+      'PRICE_MOVEMENT_EXPLANATION': '#f59e0b',
+      'EARNINGS': '#3b82f6',
+      'EARNINGS_ANALYSIS': '#3b82f6',
+      'TECHNICAL': '#8b5cf6',
+      'TECHNICAL_ANALYSIS': '#8b5cf6',
+      'FUNDAMENTAL': '#0284c7',
+      'FUNDAMENTAL_ANALYSIS': '#0284c7',
+      'NEWS': '#06b6d4',
+      'NEWS_ANALYSIS': '#06b6d4',
+      'CONCEPT_EXPLANATION': '#8b5cf6',
+      'COMPARISON': '#ec4899',
+      'COMPANY_COMPARISON': '#ec4899',
+      'PORTFOLIO': '#06b6d4',
+      'PORTFOLIO_EXPOSURE': '#06b6d4',
+      'STRESS_TEST': '#ef4444',
+      'SCENARIO_ANALYSIS': '#ef4444',
+    };
+    return colors[intent] || '#64748b';
   }
 }

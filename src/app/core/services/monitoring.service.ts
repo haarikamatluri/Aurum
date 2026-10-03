@@ -60,20 +60,25 @@ export class MonitoringService implements OnDestroy {
   /**
    * Process a price update for a single symbol.
    */
-  processPriceUpdate(symbol: string, newPrice: number): void {
+  processPriceUpdate(symbol: string, newPrice: number, previousClose?: number): void {
     const holding = this.portfolio.getHoldingBySymbol(symbol);
     if (!holding || typeof newPrice !== 'number' || isNaN(newPrice) || newPrice <= 0) return;
 
     // Update displayed price in portfolio
-    this.portfolio.updatePrice(symbol, newPrice);
+    this.portfolio.updatePrice(symbol, newPrice, previousClose);
 
     // Get or init alert state
     let state = this.alertStates.get(holding.id);
     if (!state) {
-      state = this.initAlertState(holding.id, symbol, holding.avgPurchasePrice, holding.market, holding.currency);
+      state = this.initAlertState(holding.id, symbol, previousClose || holding.avgPurchasePrice, holding.market, holding.currency);
+    } else if (previousClose && state.referencePrice !== previousClose) {
+      // Update reference price to today's previous close to track daily movement
+      state.referencePrice = previousClose;
+      state.lastUpThreshold = 0;
+      state.lastDownThreshold = 0;
     }
 
-    // Calculate current movement percentage from reference price (bought price)
+    // Calculate current movement percentage from reference price (previous close)
     const movementPct = ((newPrice - state.referencePrice) / state.referencePrice) * 100;
 
     // Determine current threshold level (floor to nearest 5%)
@@ -225,8 +230,8 @@ export class MonitoringService implements OnDestroy {
 
     const prices = await this.fetchCurrentPrices(holdings);
 
-    for (const [symbol, price] of Object.entries(prices)) {
-      this.processPriceUpdate(symbol, price);
+    for (const [symbol, data] of Object.entries(prices)) {
+      this.processPriceUpdate(symbol, data.price, data.previousClose);
     }
   }
 
@@ -235,7 +240,7 @@ export class MonitoringService implements OnDestroy {
    */
   private async fetchCurrentPrices(
     holdings: { symbol: string; market: MarketRegion }[]
-  ): Promise<Record<string, number>> {
+  ): Promise<Record<string, { price: number; previousClose?: number }>> {
     try {
       const queryParam = holdings
         .map((h) => `${encodeURIComponent(h.symbol)}:${h.market}`)
@@ -248,12 +253,12 @@ export class MonitoringService implements OnDestroy {
       }
 
       const json = await res.json();
-      const quotes = json.quotes || {};
-      const priceMap: Record<string, number> = {};
+      const quotes = json.quotes || json || {};
+      const priceMap: Record<string, { price: number; previousClose?: number }> = {};
 
       for (const [sym, quoteData] of Object.entries<any>(quotes)) {
         if (quoteData && typeof quoteData.price === 'number') {
-          priceMap[sym] = quoteData.price;
+          priceMap[sym] = { price: quoteData.price, previousClose: quoteData.previousClose };
         }
       }
 

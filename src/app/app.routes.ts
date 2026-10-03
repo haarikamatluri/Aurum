@@ -69,6 +69,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
         title: 'Settings — Money',
       },
+      {
+        path: 'news',
+        loadComponent: () => import('./features/news/news').then((m) => m.News),
+        title: 'News — Money',
+      },
     ],
   },
   { path: '**', redirectTo: '' },

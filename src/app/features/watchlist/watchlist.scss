@@ -1,0 +1,166 @@
+.watchlist-page-container {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--aurum-text);
+  font-family: 'Inter', sans-serif;
+
+  .header-section {
+    margin-bottom: 32px;
+    
+    h1 {
+      font-size: 24px;
+      margin: 0 0 8px 0;
+      font-weight: 600;
+    }
+    
+    p {
+      color: #64748b;
+      margin: 0 0 24px 0;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 16px;
+
+      .add-form {
+        display: flex;
+        gap: 8px;
+        
+        input {
+          padding: 10px 16px;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          outline: none;
+          min-width: 250px;
+          &:focus {
+            border-color: #10b981;
+          }
+        }
+
+        button {
+          padding: 10px 16px;
+          background: #10b981;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 500;
+          
+          &:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+          }
+        }
+      }
+    }
+  }
+
+  .empty-state {
+    padding: 64px 32px;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    text-align: center;
+
+    h3 {
+      font-size: 18px;
+      margin: 0 0 8px 0;
+    }
+
+    p {
+      color: #64748b;
+      margin: 0 0 24px 0;
+    }
+
+    button {
+      padding: 10px 24px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  }
+
+  .watchlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  .watchlist-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+
+      .card-title {
+        display: flex;
+        flex-direction: column;
+
+        .symbol {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .name {
+          font-size: 13px;
+          color: #64748b;
+        }
+      }
+
+      .btn-remove {
+        background: transparent;
+        border: none;
+        color: #ef4444;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        &:hover {
+          background: #fee2e2;
+        }
+      }
+    }
+
+    .card-body {
+      margin-bottom: 20px;
+      .price-placeholder {
+        color: #94a3b8;
+        font-size: 13px;
+      }
+    }
+
+    .card-footer {
+      .btn-primary {
+        width: 100%;
+        padding: 10px;
+        background: #f1f5f9;
+        color: #0f172a;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+
+        &:hover {
+          background: #e2e8f0;
+        }
+      }
+    }
+  }
+}

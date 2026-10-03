@@ -1,70 +1,150 @@
 /**
  * AURUM AI Analyst — Earnings Provider
- * Retrieves verified corporate earnings history, EPS/Revenue beats and misses,
- * and upcoming global & Indian corporate earnings calendar.
+ * Retrieves real verified corporate earnings history and upcoming earnings calendar.
+ * Removes all hardcoded TCS/Reliance earnings, next earnings dates, and management guidance.
+ * Marks status as ESTIMATE_UNAVAILABLE whenever consensus estimates are not provided by authoritative sources.
  */
 
 const { createAnalystEnvelope } = require('../envelope');
+const { resolveSecurity } = require('./security-master');
+
 const earningsCache = new Map();
 const calendarCache = new Map();
-
 const TTL_MS = 1800000; // 30 minutes
 
-const ADR_MAPPING = {
-  'INFY': 'INFY',
-  'HDFCBANK': 'HDB',
-  'ICICIBANK': 'IBN',
-  'WIPRO': 'WIT',
-  'TATAMOTORS': 'TTM'
-};
-
-async function fetchAlphaVantageEarnings(symbol) {
-  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-  if (!apiKey) return null;
+async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = `https://www.alphavantage.co/query?function=EARNINGS&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (Array.isArray(json.quarterlyEarnings) && json.quarterlyEarnings.length > 0) {
-      return json.quarterlyEarnings;
-    }
-  } catch {
-    // ignore
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
   }
-  return null;
-}
-
-async function fetchFinnhubEarnings(symbol) {
-  const apiKey = process.env.FINNHUB_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (Array.isArray(json) && json.length > 0) {
-      return json;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
 }
 
 /**
- * Fetch earnings data for a single symbol.
+ * Fetch real earnings from Finnhub API (US & Global tickers)
+ */
+async function fetchFinnhubEarnings(symbol) {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey || apiKey.includes('your_')) return null;
+
+  try {
+    const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`;
+    const res = await fetchWithTimeout(url, {}, 4000);
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    if (!Array.isArray(json) || json.length === 0) return null;
+
+    return json.map(q => {
+      const actual = typeof q.actual === 'number' ? Number(q.actual.toFixed(2)) : null;
+      const estimate = typeof q.estimate === 'number' ? Number(q.estimate.toFixed(2)) : null;
+      const surprise = typeof q.surprise === 'number' ? Number(q.surprise.toFixed(2)) : null;
+      const surprisePercent = typeof q.surprisePercent === 'number' ? Number(q.surprisePercent.toFixed(2)) : null;
+
+      let status = 'ESTIMATE_UNAVAILABLE';
+      if (estimate !== null && actual !== null) {
+        if (actual > estimate) status = 'BEAT';
+        else if (actual < estimate) status = 'MISS';
+        else status = 'IN_LINE';
+      }
+
+      return {
+        period: q.period || `Q${q.quarter} ${q.year}`,
+        fiscalDateEnding: q.period || null,
+        reportedDate: q.period || null,
+        quarterLabel: q.quarter && q.year ? `Q${q.quarter} ${q.year}` : (q.period || 'Quarter'),
+        epsActual: actual,
+        epsEstimate: estimate,
+        epsSurprise: surprise,
+        epsSurprisePercent: surprisePercent,
+        revenueActual: null,
+        revenueEstimate: null,
+        revenueSurprise: null,
+        status,
+        source: 'Finnhub Institutional Earnings Feed',
+        retrievedAt: new Date().toISOString()
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch real reported earnings from Indian corporate disclosures (Screener.in)
+ */
+async function fetchIndianReportedEarnings(slug) {
+  try {
+    const url = `https://www.screener.in/company/${encodeURIComponent(slug)}/consolidated/`;
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    }, 5000);
+
+    if (!res.ok) return null;
+    const html = await res.text();
+    const qSection = html.match(/id="quarters"[\s\S]*?<\/section>/);
+    if (!qSection) return null;
+
+    const ths = [...qSection[0].matchAll(/<th[^>]*>\s*([A-Za-z0-9\s]+?)\s*<\/th>/g)].map(m => m[1].trim());
+    if (ths.length < 2) return null;
+
+    const quarters = ths.slice(1); // skip label column
+
+    const salesMatch = qSection[0].match(/Sales\s*<[\s\S]*?<\/tr>/);
+    const salesRow = salesMatch ? [...salesMatch[0].matchAll(/<td[^>]*>\s*([0-9,.]+)\s*<\/td>/g)].map(m => parseFloat(m[1].replace(/,/g, ''))) : [];
+
+    const netProfitMatch = qSection[0].match(/Net Profit\s*<[\s\S]*?<\/tr>/);
+    const profitRow = netProfitMatch ? [...netProfitMatch[0].matchAll(/<td[^>]*>\s*([0-9,.]+)\s*<\/td>/g)].map(m => parseFloat(m[1].replace(/,/g, ''))) : [];
+
+    const epsMatch = qSection[0].match(/EPS in Rs\s*<[\s\S]*?<\/tr>/);
+    const epsRow = epsMatch ? [...epsMatch[0].matchAll(/<td[^>]*>\s*([0-9,.]+)\s*<\/td>/g)].map(m => parseFloat(m[1].replace(/,/g, ''))) : [];
+
+    const history = [];
+    const count = Math.min(quarters.length, epsRow.length);
+    for (let i = count - 1; i >= Math.max(0, count - 8); i--) {
+      history.push({
+        period: quarters[i],
+        fiscalDateEnding: quarters[i],
+        reportedDate: quarters[i],
+        quarterLabel: quarters[i],
+        epsActual: typeof epsRow[i] === 'number' ? epsRow[i] : null,
+        epsEstimate: null,
+        epsSurprise: null,
+        epsSurprisePercent: null,
+        revenueActual: typeof salesRow[i] === 'number' ? salesRow[i] * 10000000 : null, // Cr to INR
+        revenueEstimate: null,
+        revenueSurprise: null,
+        status: 'ESTIMATE_UNAVAILABLE', // Strictly ESTIMATE_UNAVAILABLE if no estimate provided!
+        source: 'Official Corporate Disclosures & Financial Statements',
+        retrievedAt: new Date().toISOString()
+      });
+    }
+
+    return history.length > 0 ? history : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Retrieve verified stock earnings envelope.
  */
 async function getStockEarnings(symbol, market = 'IN') {
-  const sym = String(symbol || 'TCS').trim().toUpperCase();
-  const cacheKey = `${sym}:${market}`;
+  const security = resolveSecurity(symbol, market);
+  const sym = security.symbol;
+  const cacheKey = `${sym}:${security.market}`;
   const now = Date.now();
-  const cached = earningsCache.get(cacheKey);
 
+  const cached = earningsCache.get(cacheKey);
   if (cached && now - cached.timestamp < TTL_MS) {
     return createAnalystEnvelope({
       symbol: sym,
-      market,
+      market: security.market,
       data: cached.data,
       status: 'CACHED',
       source: cached.source,
@@ -74,170 +154,37 @@ async function getStockEarnings(symbol, market = 'IN') {
     });
   }
 
-  const lookupSym = ADR_MAPPING[sym] || sym;
-  let quarters = [];
-  let provider = 'Finnhub Institutional Earnings Engine';
-  let source = 'SEC 10-Q / 10-K Disclosures';
+  let quarters = null;
+  let source = 'Corporate Disclosures';
+  let provider = 'Earnings Gateway';
 
-  const finnData = await fetchFinnhubEarnings(lookupSym);
-  if (finnData && finnData.length > 0) {
-    quarters = finnData.map(q => {
-      const actual = q.actual !== null && q.actual !== undefined ? Number(q.actual.toFixed(2)) : null;
-      const estimate = q.estimate !== null && q.estimate !== undefined ? Number(q.estimate.toFixed(2)) : null;
-      const surprise = q.surprise !== null && q.surprise !== undefined ? Number(q.surprise.toFixed(2)) : null;
-      const surprisePercent = q.surprisePercent !== null && q.surprisePercent !== undefined ? Number(q.surprisePercent.toFixed(2)) : null;
-
-      let status = 'IN_LINE';
-      if (estimate === null || actual === null) {
-        status = 'ESTIMATE_UNAVAILABLE';
-      } else if (surprise > 0) {
-        status = 'BEAT';
-      } else if (surprise < 0) {
-        status = 'MISS';
-      }
-
-      return {
-        period: q.period || `Q${q.quarter} ${q.year}`,
-        fiscalDateEnding: q.period,
-        reportedDate: q.period,
-        quarterLabel: `Q${q.quarter} ${q.year}`,
-        epsActual: actual,
-        epsEstimate: estimate,
-        epsSurprise: surprise,
-        epsSurprisePercent: surprisePercent,
-        revenueActual: null,
-        revenueEstimate: null,
-        revenueSurprise: null,
-        status
-      };
-    });
+  if (security.market === 'US' || ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'].includes(sym)) {
+    quarters = await fetchFinnhubEarnings(sym);
+    if (quarters) {
+      provider = 'Finnhub Institutional Earnings Engine';
+      source = 'SEC 10-Q / 10-K Official Disclosures';
+    }
   } else {
-    // Try Alpha Vantage
-    const avEarnings = await fetchAlphaVantageEarnings(lookupSym);
-    if (avEarnings && avEarnings.length > 0) {
-      provider = 'Alpha Vantage Corporate Earnings';
-      quarters = avEarnings.slice(0, 8).map(q => {
-        const actual = q.reportedEPS && q.reportedEPS !== 'None' ? Number(Number(q.reportedEPS).toFixed(2)) : null;
-        const estimate = q.estimatedEPS && q.estimatedEPS !== 'None' ? Number(Number(q.estimatedEPS).toFixed(2)) : null;
-        const surprise = q.surprise && q.surprise !== 'None' ? Number(Number(q.surprise).toFixed(2)) : null;
-        const surprisePercent = q.surprisePercentage && q.surprisePercentage !== 'None' ? Number(Number(q.surprisePercentage).toFixed(2)) : null;
-
-        let status = 'IN_LINE';
-        if (estimate === null || actual === null) {
-          status = 'ESTIMATE_UNAVAILABLE';
-        } else if (surprise > 0) {
-          status = 'BEAT';
-        } else if (surprise < 0) {
-          status = 'MISS';
-        }
-
-        return {
-          period: q.fiscalDateEnding,
-          fiscalDateEnding: q.fiscalDateEnding,
-          reportedDate: q.reportedDate,
-          quarterLabel: q.fiscalDateEnding,
-          epsActual: actual,
-          epsEstimate: estimate,
-          epsSurprise: surprise,
-          epsSurprisePercent: surprisePercent,
-          revenueActual: null,
-          revenueEstimate: null,
-          revenueSurprise: null,
-          status
-        };
-      });
+    // Indian stock
+    const slug = security.screenerSlug || sym;
+    quarters = await fetchIndianReportedEarnings(slug);
+    if (quarters) {
+      provider = 'NSE / BSE Quarterly Filing Reports';
+      source = 'Official Company Financial Statements';
+    } else if (security.cik) {
+      // INFY ADR or global listing
+      quarters = await fetchFinnhubEarnings(sym);
+      if (quarters) {
+        provider = 'Finnhub Institutional Earnings Engine';
+        source = 'SEC 6-K / 20-F Reports';
+      }
     }
   }
 
-  // If Indian stock (e.g. TCS, RELIANCE) where Finnhub/AlphaVantage didn't return data
-  if (quarters.length === 0) {
-    if (sym === 'TCS') {
-      provider = 'NSE / BSE Quarterly Filing Reports';
-      source = 'Tata Consultancy Services Investor Disclosures';
-      quarters = [
-        {
-          period: '2025-12-31',
-          fiscalDateEnding: '2025-12-31',
-          reportedDate: '2026-01-09',
-          quarterLabel: 'Q3 FY25',
-          epsActual: 33.40,
-          epsEstimate: 32.80,
-          epsSurprise: 0.60,
-          epsSurprisePercent: 1.83,
-          revenueActual: 642590000000,
-          revenueEstimate: 638000000000,
-          revenueSurprise: 4590000000,
-          status: 'BEAT'
-        },
-        {
-          period: '2025-09-30',
-          fiscalDateEnding: '2025-09-30',
-          reportedDate: '2025-10-10',
-          quarterLabel: 'Q2 FY25',
-          epsActual: 32.80,
-          epsEstimate: 32.50,
-          epsSurprise: 0.30,
-          epsSurprisePercent: 0.92,
-          revenueActual: 642590000000,
-          revenueEstimate: 639000000000,
-          revenueSurprise: 3590000000,
-          status: 'BEAT'
-        },
-        {
-          period: '2025-06-30',
-          fiscalDateEnding: '2025-06-30',
-          reportedDate: '2025-07-11',
-          quarterLabel: 'Q1 FY25',
-          epsActual: 33.00,
-          epsEstimate: 33.20,
-          epsSurprise: -0.20,
-          epsSurprisePercent: -0.60,
-          revenueActual: 626130000000,
-          revenueEstimate: 629000000000,
-          revenueSurprise: -2870000000,
-          status: 'MISS'
-        }
-      ];
-    } else if (sym === 'RELIANCE') {
-      provider = 'NSE / BSE Quarterly Filing Reports';
-      source = 'Reliance Industries Investor Disclosures';
-      quarters = [
-        {
-          period: '2025-12-31',
-          fiscalDateEnding: '2025-12-31',
-          reportedDate: '2026-01-16',
-          quarterLabel: 'Q3 FY25',
-          epsActual: 27.40,
-          epsEstimate: 26.90,
-          epsSurprise: 0.50,
-          epsSurprisePercent: 1.86,
-          revenueActual: 2450000000000,
-          revenueEstimate: 2410000000000,
-          revenueSurprise: 40000000000,
-          status: 'BEAT'
-        },
-        {
-          period: '2025-09-30',
-          fiscalDateEnding: '2025-09-30',
-          reportedDate: '2025-10-14',
-          quarterLabel: 'Q2 FY25',
-          epsActual: 24.80,
-          epsEstimate: 25.10,
-          epsSurprise: -0.30,
-          epsSurprisePercent: -1.20,
-          revenueActual: 2354870000000,
-          revenueEstimate: 2380000000000,
-          revenueSurprise: -25130000000,
-          status: 'MISS'
-        }
-      ];
-    }
-  }
-
-  if (quarters.length === 0) {
+  if (!quarters || quarters.length === 0) {
     return createAnalystEnvelope({
       symbol: sym,
-      market,
+      market: security.market,
       data: null,
       status: 'UNAVAILABLE',
       source: 'Exchange Disclosures',
@@ -256,8 +203,8 @@ async function getStockEarnings(symbol, market = 'IN') {
     epsSurprise: latest.epsSurprise,
     epsSurprisePercent: latest.epsSurprisePercent,
     status: latest.status,
-    nextEarningsDate: sym === 'TCS' ? '2026-10-08 (Estimated)' : sym === 'AAPL' ? '2026-10-29' : 'TBD',
-    guidanceSummary: 'Management signaled consistent operating cash flow generation and durable enterprise contract execution.',
+    nextEarningsDate: 'ESTIMATE_UNAVAILABLE',
+    guidanceSummary: null,
     history: quarters
   };
 
@@ -265,7 +212,7 @@ async function getStockEarnings(symbol, market = 'IN') {
 
   return createAnalystEnvelope({
     symbol: sym,
-    market,
+    market: security.market,
     data: payload,
     status: 'LIVE',
     source,
@@ -276,9 +223,7 @@ async function getStockEarnings(symbol, market = 'IN') {
 }
 
 /**
- * Fetch Upcoming Earnings Calendar.
- * Supports filters: timeframe ('today', 'this_week', 'next_week', 'this_month')
- * and market ('ALL', 'US', 'IN').
+ * Fetch real upcoming Earnings Calendar from Finnhub API.
  */
 async function getEarningsCalendar(timeframe = 'this_month', market = 'ALL') {
   const apiKey = process.env.FINNHUB_API_KEY;
@@ -302,10 +247,10 @@ async function getEarningsCalendar(timeframe = 'this_month', market = 'ALL') {
   }
 
   let events = [];
-  if (apiKey) {
+  if (apiKey && !apiKey.includes('your_')) {
     try {
       const url = `https://finnhub.io/api/v1/calendar/earnings?from=${fromDate}&to=${toDate}&token=${apiKey}`;
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, {}, 4000);
       if (res.ok) {
         const json = await res.json();
         const rawList = Array.isArray(json.earningsCalendar) ? json.earningsCalendar : [];
@@ -313,40 +258,23 @@ async function getEarningsCalendar(timeframe = 'this_month', market = 'ALL') {
           symbol: item.symbol,
           companyName: item.symbol,
           date: item.date,
-          quarter: item.quarter ? `Q${item.quarter} ${item.year}` : 'Upcoming',
-          epsEstimate: item.epsEstimate !== null && item.epsEstimate !== undefined ? Number(item.epsEstimate.toFixed(2)) : null,
+          quarter: item.quarter && item.year ? `Q${item.quarter} ${item.year}` : 'Upcoming',
+          epsEstimate: typeof item.epsEstimate === 'number' ? Number(item.epsEstimate.toFixed(2)) : null,
           revenueEstimate: item.revenueEstimate || null,
           market: item.symbol.includes('.') ? 'IN' : 'US',
-          estimateAvailable: item.epsEstimate !== null && item.epsEstimate !== undefined,
+          estimateAvailable: typeof item.epsEstimate === 'number',
           source: 'Finnhub Institutional Calendar'
         }));
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  // Include notable Indian companies on schedule
-  const indianCalendar = [
-    { symbol: 'TCS', companyName: 'Tata Consultancy Services', date: '2026-10-08', quarter: 'Q2 FY26', epsEstimate: 34.20, revenueEstimate: 651000000000, market: 'IN', estimateAvailable: true, source: 'NSE Corporate Calendar' },
-    { symbol: 'INFY', companyName: 'Infosys Limited', date: '2026-10-15', quarter: 'Q2 FY26', epsEstimate: 16.80, revenueEstimate: 405000000000, market: 'IN', estimateAvailable: true, source: 'NSE Corporate Calendar' },
-    { symbol: 'RELIANCE', companyName: 'Reliance Industries', date: '2026-10-18', quarter: 'Q2 FY26', epsEstimate: 26.50, revenueEstimate: 2480000000000, market: 'IN', estimateAvailable: true, source: 'NSE Corporate Calendar' }
-  ];
-
-  for (const ic of indianCalendar) {
-    if (!events.some(e => e.symbol === ic.symbol)) {
-      events.push(ic);
-    }
-  }
-
-  // Filter by market if requested
   if (market === 'US') {
     events = events.filter(e => e.market === 'US');
   } else if (market === 'IN') {
     events = events.filter(e => e.market === 'IN');
   }
 
-  // Sort chronologically
   events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const envelope = createAnalystEnvelope({
@@ -356,7 +284,7 @@ async function getEarningsCalendar(timeframe = 'this_month', market = 'ALL') {
       totalEvents: events.length,
       events
     },
-    status: 'LIVE',
+    status: events.length > 0 ? 'LIVE' : 'UNAVAILABLE',
     source: 'Official Corporate Earnings Calendar',
     provider: 'Global Earnings Intelligence',
     sourceCount: events.length
