@@ -514,3 +514,162 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+// Phase 2 SCSS Additions
+.phase2-safety-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+
+  .lock-icon {
+    font-size: 18px;
+  }
+
+  .banner-text {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    color: #1E40AF;
+
+    strong {
+      font-weight: 700;
+      color: #1E3A8A;
+    }
+  }
+}
+
+.modal-subnav {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-subtle, #E2E8F0);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+
+  .subnav-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary, #475569);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: var(--surface-hover, #F8FAFC);
+      color: var(--text-primary, #0F172A);
+    }
+
+    &.active {
+      background: #F1F5F9;
+      border-color: #CBD5E1;
+      color: #0F172A;
+      font-weight: 700;
+    }
+  }
+}
+
+.tab-intro {
+  margin-bottom: 12px;
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 2px 0;
+    color: #0F172A;
+  }
+  p {
+    font-size: 12px;
+    color: #64748B;
+    margin: 0;
+  }
+}
+
+.balances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+
+  .balance-card {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 14px;
+
+    .b-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      strong { font-size: 14px; color: #0F172A; }
+      .cur-pill { font-size: 10.5px; font-weight: 700; background: #E2E8F0; color: #334155; padding: 2px 6px; border-radius: 4px; }
+    }
+
+    .b-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .b-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        .lbl { color: #64748B; }
+        .val { font-weight: 600; color: #0F172A; }
+        .val.highlight { color: #059669; font-weight: 700; }
+      }
+    }
+  }
+}
+
+.pos-green { color: #059669 !important; }
+.pos-red { color: #DC2626 !important; }
+
+.side-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  &.buy-tag { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
+  &.sell-tag { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+}
+
+.product-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: #F1F5F9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.status-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  &.st-complete { background: #ECFDF5; color: #059669; }
+  &.st-cancelled { background: #F1F5F9; color: #64748B; }
+}
+
+.reconcile-status-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  &.box-ok { background: #ECFDF5; border: 1px solid #A7F3D0; }
+  .box-icon { font-size: 20px; }
+  .box-meta {
+    h4 { margin: 0; font-size: 14px; color: #065F46; }
+    p { margin: 2px 0 0 0; font-size: 12px; color: #047857; }
+  }
+}

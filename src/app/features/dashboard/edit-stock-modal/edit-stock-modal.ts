@@ -60,8 +60,8 @@ import { MonitoringService } from '../../../core/services/monitoring.service';
                 [ngModel]="shares()"
                 (ngModelChange)="shares.set($event)"
                 name="shares"
-                min="0.0001"
-                step="any"
+              min="1"
+              step="1"
                 required
               >
               <button type="button" class="btn-step" (click)="stepShares(1)">+</button>

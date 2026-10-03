@@ -6,6 +6,9 @@ import { AuthService } from '../services/auth.service';
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  if (auth.isAuthenticated()) return router.parseUrl('/money');
+
+  if (auth.isAuthenticated()) {
+    return router.parseUrl('/money');
+  }
   return true;
 };

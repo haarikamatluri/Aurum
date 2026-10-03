@@ -73,9 +73,9 @@ import { Holding } from '../../../core/models/portfolio.model';
               [ngModel]="shares()"
               (ngModelChange)="shares.set($event)"
               name="shares"
-              min="0.0001"
+              min="1"
               [max]="holding().shares"
-              step="any"
+              step="1"
               required
               autofocus
             >

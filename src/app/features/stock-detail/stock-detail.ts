@@ -280,7 +280,16 @@ export class StockDetailPage {
   }
 
   formatVal(val: number, currency: CurrencyCode = 'USD'): string {
-    const sym = currency === 'INR' ? '₹' : '$';
-    return `${sym}${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (val === null || val === undefined || isNaN(val)) return '—';
+    const absVal = Math.abs(val);
+    const prefix = val < 0 ? '-' : '';
+
+    if (currency === 'INR') {
+      const inrStr = absVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${prefix}₹${inrStr}`;
+    } else {
+      const usdStr = absVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${prefix}$${usdStr}`;
+    }
   }
 }

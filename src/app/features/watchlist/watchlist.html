@@ -1,0 +1,50 @@
+<div class="watchlist-page-container">
+  <div class="header-section">
+    <h1>WATCHLIST</h1>
+    <p>Track the stocks you want to monitor.</p>
+    
+    <div class="actions-row">
+      <form class="add-form" (submit)="addStock(searchQuery); $event.preventDefault()">
+        <input 
+          type="text" 
+          placeholder="Search stocks..." 
+          [(ngModel)]="searchQuery"
+          name="searchQuery"
+          autocomplete="off">
+        <button type="submit" [disabled]="!searchQuery.trim()">+ Add Stock</button>
+      </form>
+    </div>
+  </div>
+
+  @if (watchlistItems.length === 0) {
+    <div class="empty-state">
+      <div class="empty-content">
+        <h3>Your watchlist is empty.</h3>
+        <p>Add stocks to monitor their market data.</p>
+        <button (click)="searchQuery = 'TCS'; addStock('TCS')">+ Add Stock</button>
+      </div>
+    </div>
+  } @else {
+    <div class="watchlist-grid">
+      @for (item of watchlistItems; track item.symbol) {
+        <div class="watchlist-card" (click)="openAnalysis(item.symbol)">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="symbol">{{ item.symbol }}</span>
+              <span class="name">{{ item.companyName }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-remove" (click)="removeStock(item.symbol, $event)">Remove</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <span class="price-placeholder">Market data loads in analysis view</span>
+          </div>
+          <div class="card-footer">
+            <button class="btn-primary" (click)="openAnalysis(item.symbol); $event.stopPropagation()">Open Analysis</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

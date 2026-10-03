@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink],
+  imports: [],
   template: `
     <div class="landing-page">
       <!-- Navbar -->
@@ -37,7 +38,6 @@ import { Router, RouterLink } from '@angular/router';
 
           <!-- Auth Actions -->
           <div class="nav-actions">
-            <a routerLink="/login" class="btn-login">Log in</a>
             <button class="btn-get-started" (click)="enter()" id="nav-get-started-btn">Get Started</button>
           </div>
         </div>
@@ -133,9 +133,6 @@ import { Router, RouterLink } from '@angular/router';
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
-            <p class="sign-in-prompt">
-              Already have an account? <a routerLink="/login" class="sign-in-link">Sign in</a>
-            </p>
           </div>
         </div>
 
@@ -251,9 +248,14 @@ import { Router, RouterLink } from '@angular/router';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LandingPage {
-  constructor(private router: Router) {}
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   enter(): void {
-    this.router.navigate(['/signup']);
+    if (this.auth.isAuthenticated()) {
+      this.router.navigate(['/money']);
+    } else {
+      this.router.navigate(['/signup']);
+    }
   }
 }

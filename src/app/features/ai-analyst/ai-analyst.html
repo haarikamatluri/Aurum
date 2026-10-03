@@ -1,13 +1,15 @@
 <div class="ai-analyst-container">
 
-  <!-- LEFT SIDEBAR -->
-  <aside class="ai-sidebar">
+  <!-- LEFT SIDEBAR WRAPPER -->
+  <aside class="ai-sidebar-wrapper">
+    <!-- STICKY INNER CARD -->
+    <div class="ai-sidebar">
     <div class="sidebar-header">
       <div class="title-row">
         <h2>AI Analyst</h2>
-        <a routerLink="/money/settings" class="btn-api-key">+ Add API Key</a>
+        <a routerLink="/money/settings" class="btn-api-key">+ Add Key</a>
       </div>
-      <p class="subtitle">Get clear, evidence-based insights on any stock with real market data.</p>
+      <p class="subtitle">Real-time financial intelligence & stock research.</p>
     </div>
 
     <!-- Search Box -->
@@ -17,7 +19,7 @@
       </svg>
       <input
         type="text"
-        placeholder="Search any stock (e.g. NVDA, RELIANCE)..."
+        placeholder="Search stocks, companies, ticker (e.g. TCS, AAPL, NVDA)..."
         [(ngModel)]="searchQuery"
         (input)="onSearchInput()"
         id="ai-stock-search-input"
@@ -31,19 +33,24 @@
     <!-- Sidebar Scroll Content -->
     <div class="sidebar-scroll">
       @if (searchQuery.trim().length > 0) {
-        <!-- Search Results -->
         <div class="section-group">
           <div class="group-label">SEARCH RESULTS ({{ searchResults().length }})</div>
           <div class="stock-list">
-            @for (item of searchResults(); track item.symbol) {
+            @for (item of searchResults(); track item.symbol + ':' + item.market) {
               <button
                 type="button"
-                class="stock-item"
+                class="stock-item search-result-item"
                 [class.active]="selectedTarget()?.symbol === item.symbol"
                 (click)="selectSearchResult(item)"
               >
                 <div class="stock-info">
-                  <span class="symbol">{{ item.symbol }}</span>
+                  <div class="symbol-meta-row">
+                    <span class="symbol">{{ item.symbol }}</span>
+                    <span class="exchange-tag">{{ item.exchange }}</span>
+                    <span class="market-badge" [class.market-in]="item.market === 'IN'" [class.market-us]="item.market === 'US'">
+                      {{ item.market === 'IN' ? '🇮🇳 IN' : '🇺🇸 US' }}
+                    </span>
+                  </div>
                   <span class="name">{{ item.companyName }}</span>
                 </div>
                 <span class="badge-tag">Analyze</span>
@@ -52,10 +59,9 @@
           </div>
         </div>
       } @else {
-        <!-- Portfolio Holdings -->
         @if (portfolioHoldings().length > 0) {
           <div class="section-group">
-            <div class="group-label">MY PORTFOLIO HOLDINGS ({{ portfolioHoldings().length }})</div>
+            <div class="group-label">MY HOLDINGS ({{ portfolioHoldings().length }})</div>
             <div class="stock-list">
               @for (h of portfolioHoldings(); track h.id) {
                 <button
@@ -82,11 +88,10 @@
           </div>
         }
 
-        <!-- Research Another Stock -->
         <div class="section-group">
-          <div class="group-label">RESEARCH ANOTHER STOCK</div>
+          <div class="group-label">MY WATCHLIST</div>
           <div class="stock-list">
-            @for (item of popularStocks; track item.symbol) {
+            @for (item of watchlistTargets(); track item.symbol) {
               <button
                 type="button"
                 class="stock-item"
@@ -100,518 +105,240 @@
                   <span class="symbol">{{ item.symbol }}</span>
                   <span class="name">{{ item.companyName }}</span>
                 </div>
-                <span class="badge-prebuy">Pre-Buy</span>
               </button>
             }
           </div>
         </div>
       }
     </div>
-
-    <!-- Upgrade Banner -->
-    <div class="upgrade-card">
-      <div class="upgrade-title">✨ Upgrade to Astra</div>
-      <div class="upgrade-text">Get deeper analysis, portfolio insights and real-time alerts.</div>
-      <a routerLink="/money/settings" class="upgrade-link">Learn More &rarr;</a>
     </div>
   </aside>
 
   <!-- MAIN CONTENT AREA -->
   <main class="ai-main-content">
     
-    <!-- Top Feature Navigation Tabs -->
-    <nav class="top-nav-tabs">
-      <button
-        type="button"
-        class="nav-tab"
-        [class.active]="activeTab() === 'NEWS_VERDICT'"
-        (click)="switchTab('NEWS_VERDICT')"
-      >
-        <span class="tab-icon">📰</span> Market News Verdict
-      </button>
-      <button
-        type="button"
-        class="nav-tab"
-        [class.active]="activeTab() === 'MORNING_BELL'"
-        (click)="switchTab('MORNING_BELL')"
-      >
-        <span class="tab-icon">🔔</span> Morning Bell Briefing
-      </button>
-      <button
-        type="button"
-        class="nav-tab"
-        [class.active]="activeTab() === 'EARNINGS_FILINGS'"
-        (click)="switchTab('EARNINGS_FILINGS')"
-      >
-        <span class="tab-icon">📑</span> Earnings & Filings
-      </button>
-      <button
-        type="button"
-        class="nav-tab"
-        [class.active]="activeTab() === 'STRESS_TEST'"
-        (click)="switchTab('STRESS_TEST')"
-      >
-        <span class="tab-icon">⚡</span> What-If Stress Test
-      </button>
-    </nav>
-
     @if (activeTab() === 'NEWS_VERDICT') {
       @if (selectedTarget(); as target) {
         
-        <!-- MAIN STOCK HEADER -->
-        <header class="stock-main-header">
-          <div class="header-left">
-            <div class="symbol-badge" [style.background-color]="getSymbolColor(target.symbol)">
-              {{ target.symbol.slice(0, 3) }}
+        <!-- 1. COMPACT STOCK HEADER -->
+        <header class="stock-header-redesign">
+          <div class="header-main-info">
+            <div class="symbol-title-group">
+              <h1 class="stock-ticker">{{ target.symbol }}</h1>
+              <span class="company-subname">{{ target.companyName }}</span>
+              <span class="meta-subtext">{{ target.exchange }} · {{ target.symbol }} · Updated {{ getFormattedMarketTime() }}</span>
             </div>
-            <div class="header-details">
-              <div class="title-row">
-                <h1>{{ target.companyName }}</h1>
-                <span class="exchange-tag">{{ target.exchange }}:{{ target.symbol }}</span>
-                <span class="meta-tag">{{ target.market === 'IN' ? 'IT Services' : 'Tech Sector' }}</span>
-                <span class="meta-tag">Large Cap</span>
-                @if (target.isOwned) {
-                  <span class="owned-badge">💼 Owned Holding</span>
+            
+            <div class="price-hierarchy-block">
+              <div class="dominant-price">
+                {{ formatCurrency(getDisplayedPrice(), target.currency) }}
+              </div>
+              <div class="movement-pill" [class.positive]="getDisplayedChangePct() >= 0" [class.negative]="getDisplayedChangePct() < 0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                  @if (getDisplayedChangePct() >= 0) {
+                    <polyline points="18 15 12 9 6 15"/>
+                  } @else {
+                    <polyline points="6 9 12 15 18 9"/>
+                  }
+                </svg>
+                <span>{{ getDisplayedChangePct() >= 0 ? '+' : '' }}{{ getDisplayedChangePct() | number:'1.2-2' }}% Today</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="header-quick-actions">
+            <button type="button" class="btn-header-pill btn-buy-accent" (click)="openOrderModal(target.symbol, 'BUY')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Buy {{ target.symbol }}</span>
+            </button>
+            <button type="button" class="btn-header-pill btn-sell-accent" (click)="openOrderModal(target.symbol, 'SELL')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Sell</span>
+            </button><button type="button" class="btn-header-pill" (click)="toggleWatchlist(target.symbol)">
+              <svg viewBox="0 0 24 24" [attr.fill]="isWatchlisted(target.symbol) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              <span>{{ isWatchlisted(target.symbol) ? 'In Watchlist' : 'Watchlist' }}</span>
+            </button></div>
+        </header>
+
+        <!-- 1.5 DATA FRESHNESS COMPACT STRIP -->
+        <div class="data-status-bar-redesign">
+          <div class="status-items">
+            <span class="status-tag"><span class="lbl">Market:</span> Live ({{ getFormattedMarketTime() }})</span>
+            <span class="status-tag"><span class="lbl">News:</span> Updated 2h ago</span>
+            <span class="status-tag"><span class="lbl">Earnings:</span> Latest</span>
+            <span class="status-tag"><span class="lbl">Filings:</span> Current</span>
+            <span class="status-tag"><span class="lbl">Analysis:</span> {{ getFormattedGeneratedAt() }}</span>
+          </div>
+          <button type="button" class="btn-methodology-link" (click)="toggleMethodology()">Data Methodology</button>
+        </div>
+        @if (showMethodology()) {
+          <div class="methodology-disclosure-box">
+            <h4>Analysis Methodology</h4>
+            <p>Aurum synthesizes verified real-time market data, price action history, corporate news disclosures, quarterly earnings filings, and your actual portfolio position using Google Gemini with Search Grounding.</p>
+          </div>
+        }
+
+        <!-- 2. GRID ROW: CHART (8 cols) + YOUR POSITION (4 cols) -->
+        <div class="grid-top-row">
+          
+          <!-- CHART CARD (8 Cols) -->
+          <div class="card-top-chart">
+            <div class="chart-card-header">
+              <div class="chart-title">
+                <span class="card-label">PRICE MOVEMENT</span>
+                <span class="market-badge" [class.live]="chartData()?.marketStatus === 'Open'">
+                  ● {{ chartData()?.marketStatus === 'Open' ? 'Live Market' : 'Market Closed' }}
+                </span>
+              </div>
+              <div class="timeframe-selector">
+                @for (r of ['1D', '1W', '1M', '3M', '1Y', '5Y']; track r) {
+                  <button
+                    type="button"
+                    class="tf-btn"
+                    [class.active]="chartRange() === r"
+                    (click)="setChartRange(r)"
+                  >
+                    {{ r }}
+                  </button>
                 }
               </div>
             </div>
-          </div>
 
-          <div class="header-actions">
-            <button type="button" class="btn-action" (click)="toggleWatchlist(target.symbol)">
-              ⭐ {{ isWatchlisted(target.symbol) ? 'In Watchlist' : 'Add to Watchlist' }}
-            </button>
-            <button type="button" class="btn-action" (click)="shareStock(target.symbol)">
-              🔗 Share
-            </button>
-            <select class="select-timeframe" [ngModel]="chartRange()" (ngModelChange)="setChartRange($event)">
-              <option value="1D">Last 1 Day</option>
-              <option value="1W">Last 5 Days</option>
-              <option value="1M">Last 1 Month</option>
-              <option value="3M">Last 3 Months</option>
-              <option value="1Y">Last 1 Year</option>
-              <option value="5Y">Last 5 Years</option>
-            </select>
-          </div>
-        </header>
-
-        <!-- STOCK PRICE & CHART CARD -->
-        <div class="price-chart-card">
-          <div class="price-chart-left">
-            <div class="ticker-header-row">
-              <span class="mini-logo" [style.background-color]="getSymbolColor(target.symbol)">{{ target.symbol.slice(0, 2) }}</span>
-              <span class="ticker-text">{{ target.companyName }} ({{ target.exchange }}:{{ target.symbol }})</span>
-            </div>
-
-            <!-- Price Display -->
-            <div class="price-row">
-              <span class="main-price">
-                {{ formatCurrency(getDisplayedPrice(), target.currency) }}
-              </span>
-              <span class="change-pill" [class.positive]="getDisplayedChange() >= 0" [class.negative]="getDisplayedChange() < 0">
-                {{ getDisplayedChange() >= 0 ? '+' : '' }}{{ getDisplayedChange() | number:'1.2-2' }}
-                ({{ getDisplayedChangePct() >= 0 ? '+' : '' }}{{ getDisplayedChangePct() | number:'1.2-2' }}%) Today
-              </span>
-            </div>
-
-            <!-- Position Summary Subline -->
-            @if (target.isOwned && target.shares) {
-              <div class="position-subline">
-                <strong>{{ target.shares }} Shares</strong> · 
-                Avg {{ formatCurrency(target.avgPurchasePrice || 0, target.currency) }} · 
-                Value {{ formatCurrency(target.shares * (getDisplayedPrice() || 0), target.currency) }}
-              </div>
-            }
-
-            <!-- Time Range Selectors -->
-            <div class="time-range-buttons">
-              @for (r of ['1D', '1W', '1M', '3M', '1Y', '5Y']; track r) {
-                <button
-                  type="button"
-                  class="btn-range"
-                  [class.active]="chartRange() === r"
-                  (click)="setChartRange(r)"
-                >
-                  {{ r }}
-                </button>
-              }
-            </div>
-
-            <!-- SVG Real Chart Component -->
-            <div class="sparkline-chart-area">
+            <div class="chart-drawing-area">
               @if (chartLoading()) {
-                <div class="chart-loading">
+                <div class="chart-loading-state">
                   <div class="spinner"></div>
-                  <span>Loading real market data...</span>
+                  <span>Fetching lightweight-charts feed...</span>
                 </div>
               } @else if (chartData() && chartData()!.points && chartData()!.points.length > 0) {
-                <svg class="real-sparkline-svg" viewBox="0 0 600 140" preserveAspectRatio="none">
+                <svg class="lightweight-sparkline-svg" viewBox="0 0 600 140" preserveAspectRatio="none">
                   <defs>
-                    <linearGradient id="chartGradientGreen" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
+                    <linearGradient id="chartGradPos" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#10b981" stop-opacity="0.2" />
                       <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
                     </linearGradient>
-                    <linearGradient id="chartGradientRed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.25" />
+                    <linearGradient id="chartGradNeg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.2" />
                       <stop offset="100%" stop-color="#ef4444" stop-opacity="0.0" />
                     </linearGradient>
                   </defs>
                   <path
                     [attr.d]="getChartAreaPath()"
-                    [attr.fill]="getDisplayedChange() >= 0 ? 'url(#chartGradientGreen)' : 'url(#chartGradientRed)'"
+                    [attr.fill]="getDisplayedChangePct() >= 0 ? 'url(#chartGradPos)' : 'url(#chartGradNeg)'"
                   />
                   <path
                     [attr.d]="getChartStrokePath()"
                     fill="none"
-                    [attr.stroke]="getDisplayedChange() >= 0 ? '#10b981' : '#ef4444'"
+                    [attr.stroke]="getDisplayedChangePct() >= 0 ? '#10b981' : '#ef4444'"
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   />
                 </svg>
               } @else {
-                <div class="chart-empty-state">
-                  <span>Historical data unavailable</span>
-                </div>
+                <div class="chart-empty">Price history feed currently updating</div>
               }
             </div>
-          </div>
 
-          <!-- Market Status Right Box -->
-          <div class="market-status-box">
-            <div class="status-row">
-              <span class="status-label">Market Status</span>
-              <span class="status-value" [class.open]="chartData()?.marketStatus === 'Open'">
-                ● {{ chartData()?.marketStatus || 'Closed' }}
-              </span>
-            </div>
-            <div class="as-of-time">
-              As of {{ getFormattedMarketTime() }}
-            </div>
-
-            <div class="stat-item">
-              <span class="stat-lbl">Today's Range</span>
-              <span class="stat-val">
-                {{ formatCurrency(chartData()?.dayLow || getDisplayedPrice(), target.currency) }} — 
-                {{ formatCurrency(chartData()?.dayHigh || getDisplayedPrice(), target.currency) }}
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-lbl">Previous Close</span>
-              <span class="stat-val">
-                {{ formatCurrency(chartData()?.previousClose || getDisplayedPrice(), target.currency) }}
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-lbl">Volume</span>
-              <span class="stat-val">
-                {{ formatVolume(chartData()?.volume || 0) }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI ANALYSIS CARD -->
-        <div class="ai-analysis-card">
-          <div class="card-header">
-            <div class="header-title">
-              <span class="sparkle-icon">✨</span>
-              <h3>AI Analysis</h3>
-              <span class="subtitle-tag">Based on latest market data, news and filings</span>
-            </div>
-            <div class="generated-time">
-              Generated: {{ getFormattedGeneratedAt() }}
-            </div>
-          </div>
-
-          <div class="analysis-body-grid">
-            <!-- Left Banner: Assessment -->
-            <div class="assessment-banner" [class]="'assess-' + getAssessmentType().toLowerCase()">
-              <div class="banner-badge" [class]="'badge-' + getAssessmentType().toLowerCase()">
-                {{ getAssessmentLabel() }}
+            <div class="chart-card-footer">
+              <div class="meta-item">
+                <span class="lbl">Day Range</span>
+                <span class="val">{{ formatCurrency(chartData()?.dayLow || getDisplayedPrice(), target.currency) }} – {{ formatCurrency(chartData()?.dayHigh || getDisplayedPrice(), target.currency) }}</span>
               </div>
-              <p class="summary-text">
-                "{{ currentAnalysis()?.assessment?.summary || 'Recent market information shows positive operating indicators alongside analyst updates.' }}"
-              </p>
-            </div>
-
-            <!-- Right Box: Evidence Strength -->
-            <div class="evidence-strength-box">
-              <div class="strength-title-row">
-                <span class="lbl">Evidence Strength</span>
-                <span class="strength-label">{{ currentAnalysis()?.assessment?.evidenceStrength || 'Moderate' }}</span>
+              <div class="meta-item">
+                <span class="lbl">Prev Close</span>
+                <span class="val">{{ formatCurrency(chartData()?.previousClose || getDisplayedPrice(), target.currency) }}</span>
               </div>
-              <div class="strength-bars">
-                <span class="bar filled orange"></span>
-                <span class="bar filled orange"></span>
-                <span class="bar gray"></span>
-                <span class="bar gray"></span>
-              </div>
-              <div class="strength-meta">
-                {{ getSourcesCount() }} sources analyzed · {{ getSupportingCount() }} supporting · {{ getContradictingCount() }} conflicting
+              <div class="meta-item">
+                <span class="lbl">Volume</span>
+                <span class="val">{{ formatVolume(chartData()?.volume || 0) }}</span>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- QUICK TAKE SECTION -->
-        <section class="quick-take-section">
-          <h3 class="section-title">Quick Take</h3>
-          <div class="quick-take-grid">
-            
-            <div class="take-card">
-              <div class="take-icon icon-green">✓</div>
-              <div class="take-content">
-                <h4>What Happened?</h4>
-                <p>{{ currentAnalysis()?.quickTake?.whatHappened || (target.symbol + ' is trading at ' + formatCurrency(getDisplayedPrice(), target.currency) + '.') }}</p>
-              </div>
-            </div>
-
-            <div class="take-card">
-              <div class="take-icon icon-purple">💡</div>
-              <div class="take-content">
-                <h4>Why?</h4>
-                <p>{{ currentAnalysis()?.quickTake?.why || 'Movement is driven by latest market news flow and analyst reviews.' }}</p>
-              </div>
-            </div>
-
-            <div class="take-card">
-              <div class="take-icon icon-blue">💼</div>
-              <div class="take-content">
-                <h4>Portfolio Impact</h4>
-                <p>{{ currentAnalysis()?.quickTake?.portfolioImpact || (target.isOwned ? 'Your position is tracking daily market movements.' : 'No active holding in portfolio.') }}</p>
-              </div>
-            </div>
-
-            <div class="take-card">
-              <div class="take-icon icon-gold">🎯</div>
-              <div class="take-content">
-                <h4>Bottom Line</h4>
-                <p>{{ currentAnalysis()?.quickTake?.bottomLine || 'Monitor upcoming earnings releases and corporate filings.' }}</p>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        <!-- WHY THIS VIEW? (EVIDENCE SECTION) -->
-        <section class="evidence-section">
-          <div class="section-header">
-            <h3>Why This View? (Evidence)</h3>
-            <button type="button" class="btn-link" (click)="switchTab('NEWS_VERDICT')">View All &rarr;</button>
-          </div>
-
-          <div class="evidence-columns-grid">
-            
-            <!-- Supporting Evidence -->
-            <div class="evidence-col col-supporting">
-              <div class="col-header">
-                <span class="header-icon">▲</span>
-                <h4>Supporting Evidence</h4>
-              </div>
-              <div class="evidence-list">
-                @for (item of getSupportingEvidence(); track item.claim) {
-                  <div class="evidence-item">
-                    <h5>{{ item.claim }}</h5>
-                    <p>"{{ item.evidence }}"</p>
-                    <div class="item-meta">
-                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
-                    </div>
-                  </div>
-                }
-                @if (getSupportingEvidence().length === 0) {
-                  <div class="empty-evidence">No specific supporting factors retrieved.</div>
-                }
-              </div>
-            </div>
-
-            <!-- Contradicting Evidence -->
-            <div class="evidence-col col-contradicting">
-              <div class="col-header">
-                <span class="header-icon">▼</span>
-                <h4>Contradicting Evidence</h4>
-              </div>
-              <div class="evidence-list">
-                @for (item of getContradictingEvidence(); track item.claim) {
-                  <div class="evidence-item">
-                    <h5>{{ item.claim }}</h5>
-                    <p>"{{ item.evidence }}"</p>
-                    <div class="item-meta">
-                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
-                    </div>
-                  </div>
-                }
-                @if (getContradictingEvidence().length === 0) {
-                  <div class="empty-evidence">No contradicting factors flagged.</div>
-                }
-              </div>
-            </div>
-
-            <!-- Uncertain / Watch -->
-            <div class="evidence-col col-uncertain">
-              <div class="col-header">
-                <span class="header-icon">👁️</span>
-                <h4>Uncertain / Watch</h4>
-              </div>
-              <div class="evidence-list">
-                @for (item of getUncertainFactors(); track item.claim) {
-                  <div class="evidence-item">
-                    <h5>{{ item.claim }}</h5>
-                    <p>"{{ item.evidence }}"</p>
-                    <div class="item-meta">
-                      <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
-                    </div>
-                  </div>
-                }
-                @if (getUncertainFactors().length === 0) {
-                  <div class="empty-evidence">No uncertain items to watch.</div>
-                }
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        <!-- BOTTOM GRID LAYOUT (Risks, Scenarios, News, Your Position) -->
-        <div class="bottom-quad-grid">
-          
-          <!-- Column 1: Key Risks & What to Watch -->
-          <div class="quad-card card-risks">
-            <div class="card-title">Key Risks & What to Watch ℹ️</div>
-            <div class="risks-list">
-              @for (r of getRisksList(); track r.item) {
-                <div class="risk-item">
-                  <div class="risk-content">
-                    <h5>{{ r.item }}</h5>
-                    <p>{{ r.whyItMatters }}</p>
-                  </div>
-                  <span class="chevron">&rsaquo;</span>
-                </div>
-              }
-            </div>
-          </div>
-
-          <!-- Column 2: Possible Scenarios -->
-          <div class="quad-card card-scenarios">
-            <div class="card-title">Possible Scenarios ℹ️</div>
-            <div class="scenarios-list">
-              
-              <div class="scenario-box pos">
-                <div class="scenario-head">
-                  <span class="icon">📈</span> Positive Scenario
-                </div>
-                <ul>
-                  @for (s of getPositiveScenarios(); track s.trigger) {
-                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
-                  }
-                </ul>
-              </div>
-
-              <div class="scenario-box neu">
-                <div class="scenario-head">
-                  <span class="icon">➡️</span> Neutral Scenario
-                </div>
-                <ul>
-                  @for (s of getNeutralScenarios(); track s.trigger) {
-                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
-                  }
-                </ul>
-              </div>
-
-              <div class="scenario-box neg">
-                <div class="scenario-head">
-                  <span class="icon">📉</span> Negative Scenario
-                </div>
-                <ul>
-                  @for (s of getNegativeScenarios(); track s.trigger) {
-                    <li>{{ s.trigger }} &rarr; {{ s.outcome }}</li>
-                  }
-                </ul>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- Column 3: Latest News & Sources -->
-          <div class="quad-card card-news">
-            <div class="card-title-row">
-              <div class="card-title">Latest News & Sources</div>
-              <button type="button" class="btn-link" (click)="switchTab('NEWS_VERDICT')">View All &rarr;</button>
-            </div>
-            <div class="news-list">
-              @for (n of getNewsList(); track n.title) {
-                <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="news-card-item">
-                  <div class="news-cat-row">
-                    <span class="news-cat">News</span> · <span class="news-time">{{ formatTimeAgo(n.pubDate) }}</span>
-                  </div>
-                  <div class="news-headline">{{ n.title }}</div>
-                  <div class="news-publisher">
-                    {{ n.publisher }} ↗
-                  </div>
-                </a>
-              }
-              @if (getNewsList().length === 0) {
-                <div class="empty-news">No recent news stories found for {{ target.symbol }}.</div>
-              }
-            </div>
-          </div>
-
-          <!-- Column 4: Your Position in Stock -->
-          <div class="quad-card card-position">
-            <div class="card-title-row">
-              <div class="card-title">Your Position in {{ target.symbol }}</div>
-              <a routerLink="/money" class="btn-link">View Details &rarr;</a>
+          <!-- YOUR POSITION CARD (4 Cols - Moved Higher) -->
+          <div class="card-top-position">
+            <div class="pos-card-header">
+              <span class="card-label">YOUR POSITION</span>
+              <button type="button" class="btn-link-sm" (click)="openPositionModal()">View Details &rarr;</button>
             </div>
 
             @if (target.isOwned && target.shares) {
-              <div class="position-table">
-                <div class="pos-row">
-                  <span class="lbl">Shares</span>
-                  <span class="val">{{ target.shares }}</span>
+              <div class="position-stats-grid-v2">
+                
+                <div class="stat-box">
+                  <span class="stat-num">{{ positionSnapshot()?.quantity }}</span>
+                  <span class="stat-lbl">Shares</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Average Cost</span>
-                  <span class="val">{{ formatCurrency(target.avgPurchasePrice || 0, target.currency) }}</span>
+
+                <div class="stat-box">
+                  <span class="stat-num">{{ formatCurrency(positionSnapshot()?.averageCost ?? 0, target.currency) }}</span>
+                  <span class="stat-lbl">Avg Cost</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Current Price</span>
-                  <span class="val">{{ formatCurrency(getDisplayedPrice(), target.currency) }}</span>
+
+                <div class="stat-box span-2 current-val-box" style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 12px; margin-bottom: 4px;">
+                  @if (positionSnapshot()?.marketValue !== null) {
+                    <span class="stat-num" style="color: #047857;">{{ formatCurrency(positionSnapshot()!.marketValue!, target.currency) }}</span>
+                  } @else {
+                    <span class="stat-num" style="color: #047857; font-size: 14px;">Current value unavailable</span>
+                  }
+                  <span class="stat-lbl" style="color: #065f46;">Current Value</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Current Value</span>
-                  <span class="val">{{ formatCurrency(target.shares * (getDisplayedPrice() || 0), target.currency) }}</span>
+
+                <div class="stat-box">
+                  @if (positionSnapshot()?.unrealizedPnL !== null) {
+                    <span class="stat-num-large" [class.val-green]="(positionSnapshot()!.unrealizedPnL!) > 0" [class.val-red]="(positionSnapshot()!.unrealizedPnL!) < 0">
+                      {{ (positionSnapshot()!.unrealizedPnL!) >= 0 ? '+' : '' }}{{ formatCurrency(positionSnapshot()!.unrealizedPnL!, target.currency) }}
+                    </span>
+                  } @else {
+                    <span class="stat-num-large" style="font-size: 14px; color: #64748b;">P/L unavailable</span>
+                  }
+                  <span class="stat-lbl">Total P/L</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Total P/L</span>
-                  <span class="val" [class.val-green]="getPositionPL() >= 0" [class.val-red]="getPositionPL() < 0">
-                    {{ getPositionPL() >= 0 ? '+' : '' }}{{ formatCurrency(getPositionPL(), target.currency) }}
-                  </span>
+
+                <div class="stat-box">
+                  @if (positionSnapshot()?.unrealizedPnLPercent !== undefined && positionSnapshot()?.unrealizedPnLPercent !== null) {
+                    <span class="stat-num-large" [class.val-green]="(positionSnapshot()!.unrealizedPnLPercent!) > 0" [class.val-red]="(positionSnapshot()!.unrealizedPnLPercent!) < 0">
+                      {{ formatPercent(positionSnapshot()!.unrealizedPnLPercent!) }}
+                    </span>
+                  } @else {
+                    <span class="stat-num-large" style="font-size: 14px; color: #64748b;">N/A</span>
+                  }
+                  <span class="stat-lbl">Total Return</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Total Return</span>
-                  <span class="val" [class.val-green]="getPositionReturnPct() >= 0" [class.val-red]="getPositionReturnPct() < 0">
-                    {{ getPositionReturnPct() >= 0 ? '+' : '' }}{{ getPositionReturnPct() | number:'1.2-2' }}%
-                  </span>
+
+                <div class="stat-box sec" style="border-top: 1px solid var(--aurum-border); padding-top: 12px; margin-top: 4px;">
+                  @if (positionSnapshot()?.latestMovementPercent !== null) {
+                    <span class="stat-num-small" [class.val-green]="(positionSnapshot()!.latestMovementPercent!) > 0" [class.val-red]="(positionSnapshot()!.latestMovementPercent!) < 0">
+                      {{ formatPercent(positionSnapshot()!.latestMovementPercent!) }}
+                    </span>
+                  } @else {
+                    <span class="stat-num-small" style="color: #64748b;">Daily movement unavailable</span>
+                  }
+                  <span class="stat-lbl">Latest Movement</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Latest Movement</span>
-                  <span class="val" [class.val-green]="getDisplayedChangePct() >= 0" [class.val-red]="getDisplayedChangePct() < 0">
-                    {{ getDisplayedChangePct() >= 0 ? '+' : '' }}{{ getDisplayedChangePct() | number:'1.2-2' }}%
-                  </span>
+
+                <div class="stat-box sec" style="border-top: 1px solid var(--aurum-border); padding-top: 12px; margin-top: 4px;">
+                  @if (positionSnapshot()?.exposure !== undefined) {
+                    <span class="stat-num-small">{{ formatPercent(positionSnapshot()!.exposure) }}</span>
+                  } @else {
+                    <span class="stat-num-small" style="color: #64748b;">N/A</span>
+                  }
+                  <span class="stat-lbl">Exposure</span>
                 </div>
-                <div class="pos-row">
-                  <span class="lbl">Portfolio Exposure</span>
-                  <div class="exposure-bar-wrap">
-                    <div class="bar-fill" [style.width.%]="getPositionExposurePct()"></div>
-                    <span class="exp-pct">{{ getPositionExposurePct() | number:'1.1-1' }}%</span>
-                  </div>
-                </div>
+
               </div>
             } @else {
-              <div class="no-position-box">
-                <p>You currently do not own {{ target.symbol }}.</p>
-                <a routerLink="/money" [queryParams]="{ addSymbol: target.symbol }" class="btn-add-pos">
-                  + Add {{ target.symbol }} to Portfolio
+              <div class="no-pos-container">
+                <p class="no-pos-text">You do not currently hold {{ target.symbol }} in your portfolio.</p>
+                <a routerLink="/money" [queryParams]="{ addSymbol: target.symbol }" class="btn-add-holding">
+                  + Add {{ target.symbol }} Holding
                 </a>
               </div>
             }
@@ -619,62 +346,779 @@
 
         </div>
 
-        <!-- FOOTER DATA FRESHNESS BAR -->
-        <footer class="freshness-footer-bar">
-          <div class="freshness-left">
-            <span class="dot-live"></span>
-            <strong>Data Freshness</strong>
-            <span class="divider">|</span>
-            <span class="item">Market Data: <strong class="val-live">Live ({{ getFormattedMarketTime() }})</strong></span>
-            <span class="item">News: <strong>Within 6 hours</strong></span>
-            <span class="item">Earnings: <strong>Latest: Q2 2026</strong></span>
-            <span class="item">Filings: <strong>Latest: Aug 2026</strong></span>
-            <span class="item">Analysis: <strong>{{ getFormattedGeneratedAt() }}</strong></span>
-          </div>
-
-          <div class="freshness-right">
-            <button type="button" class="btn-methodology" (click)="toggleMethodology()">
-              How this analysis was produced {{ showMethodology() ? '▲' : '▼' }}
-            </button>
-          </div>
-        </footer>
-
-        <!-- EXPANDABLE METHODOLOGY PANEL -->
-        @if (showMethodology()) {
-          <div class="methodology-panel">
-            <h4>How this analysis was produced</h4>
-            <p>
-              Aurum combines current real-time market quotes, historical price series, recent verified company news, quarterly earnings summaries, regulatory filings, and your actual portfolio position.
+        <!-- 2.5 DYNAMIC QUESTION-SPECIFIC INTELLIGENCE DOSSIER -->
+        @if (isEarningsIntent() && getDynamicResponse()?.earningsResult) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #3b82f6; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+                  OFFICIAL EARNINGS REPORT
+                </span>
+                <h3 style="margin-left: 8px;">EARNINGS RESULTS & METRICS</h3>
+              </div>
+              <span class="badge-web-researched">Verified Disclosures</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
             </p>
-            <ul>
-              <li><strong>Market Data:</strong> Provider quotes and Yahoo Finance historical data feeds.</li>
-              <li><strong>News Sources:</strong> Verified headlines from major financial reporting services (Reuters, Bloomberg, Business Standard, Economic Times).</li>
-              <li><strong>AI Analysis:</strong> Structured evidence evaluation synthesized via Google Gemini models without opinionated financial recommendations.</li>
-            </ul>
-          </div>
+            <div class="qt-insights-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">REPORTING PERIOD</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.earningsResult?.period || 'Latest Quarter' }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">REPORTED EPS</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.earningsResult?.reportedEPS }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">ESTIMATED EPS</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.earningsResult?.estimatedEPS }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">SURPRISE</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.earningsResult?.surprise }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">REVENUE & GROWTH</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.earningsResult?.revenue || 'Reported' }} ({{ getDynamicResponse()?.earningsResult?.yearOverYearGrowth || 'YoY' }})</p>
+                </div>
+              </div>
+            </div>
+            @if (getDynamicResponse()?.interpretation) {
+              <div style="margin-top: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border-radius: 8px;">
+                <span class="insight-heading" style="color: #94a3b8; font-size: 11px;">FINANCIAL HEALTH INTERPRETATION</span>
+                <p style="margin: 4px 0 0 0; color: #cbd5e1; font-size: 13px;">{{ getDynamicResponse()?.interpretation }}</p>
+              </div>
+            }
+          </section>
         }
 
-        <!-- FOLLOW-UP AI INPUT BAR -->
-        <div class="followup-chat-box">
-          <form class="chat-form" (ngSubmit)="submit()">
+        @if (isHoldingPeriodIntent() && getDynamicResponse()?.conditionalHorizon) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #10b981; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+                  CONDITIONAL HOLDING HORIZON
+                </span>
+                <h3 style="margin-left: 8px;">HOLDING TIMEFRAME ASSESSMENT</h3>
+              </div>
+              <span class="badge-web-researched">Technical & Fundamentals</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
+            </p>
+            <div class="qt-insights-grid">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">SHORT-TERM HORIZON (TACTICAL)</span>
+                  <p>{{ getDynamicResponse()?.conditionalHorizon?.shortTerm }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">MEDIUM-TERM HORIZON (EARNINGS)</span>
+                  <p>{{ getDynamicResponse()?.conditionalHorizon?.mediumTerm }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">LONG-TERM HORIZON (STRUCTURAL)</span>
+                  <p>{{ getDynamicResponse()?.conditionalHorizon?.longTerm }}</p>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 16px; padding: 12px; background: rgba(255, 255, 255, 0.03); border-radius: 8px;">
+              <div>
+                <span style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Key Support Level:</span>
+                <strong style="margin-left: 6px; color: #10b981;">{{ getDynamicResponse()?.keySupport || 'Recent Low' }}</strong>
+              </div>
+              <div>
+                <span style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Key Resistance:</span>
+                <strong style="margin-left: 6px; color: #60a5fa;">{{ getDynamicResponse()?.keyResistance || 'Recent High' }}</strong>
+              </div>
+            </div>
+            @if (getDynamicResponse()?.invalidationConditions?.length) {
+              <div style="margin-top: 10px; font-size: 12px; color: #f87171;">
+                <strong>Invalidation Trigger:</strong> {{ getDynamicResponse()?.invalidationConditions[0] }}
+              </div>
+            }
+          </section>
+        }
+
+        @if (isPriceMovementIntent() && getDynamicResponse()?.priceMovement) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #f59e0b; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">
+                  PRICE ACTION INVESTIGATION
+                </span>
+                <h3 style="margin-left: 8px;">WHY IS {{ target.symbol }} MOVING</h3>
+              </div>
+              <span class="badge-web-researched">Catalysts & Volume</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
+            </p>
+            <div class="qt-insights-grid">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">CONFIRMED CATALYSTS</span>
+                  @if (getDynamicResponse()?.confirmedCatalysts?.length) {
+                    <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 13px;">
+                      @for (cat of getDynamicResponse()?.confirmedCatalysts; track cat) {
+                        <li style="margin-bottom: 4px;">{{ cat }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <p>No single company headline; movement tracking broad sector liquidity.</p>
+                  }
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">UNCONFIRMED POSSIBILITIES</span>
+                  @if (getDynamicResponse()?.unconfirmedPossibilities?.length) {
+                    <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 13px;">
+                      @for (p of getDynamicResponse()?.unconfirmedPossibilities; track p) {
+                        <li style="margin-bottom: 4px;">{{ p }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <p>Standard index rebalancing dynamics.</p>
+                  }
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (isPositionScenarioIntent() && getPositionScenario(); as psc) {
+          <section class="position-scenario-workspace">
+            <div class="ps-header">
+              <span class="ps-badge">MATHEMATICAL SCENARIO · NOT A PREDICTION</span>
+              <h3>{{ psc.security?.symbol || target.symbol }} — Simulated Position Impact</h3>
+            </div>
+
+            <!-- Metrics Bar -->
+            <div class="ps-metrics-bar">
+              @if (psc.portfolioContext?.shares > 0) {
+                <div class="ps-metric-item">
+                  <span class="ps-m-lbl">Existing Holding</span>
+                  <span class="ps-m-val">{{ psc.portfolioContext.shares }}</span>
+                </div>
+              }
+              <div class="ps-metric-item">
+                <span class="ps-m-lbl">{{ psc.portfolioContext?.shares > 0 ? 'Additional Shares' : 'Simulated Shares' }}</span>
+                <span class="ps-m-val">{{ psc.position?.quantity }}</span>
+              </div>
+              @if (psc.portfolioContext?.shares > 0) {
+                <div class="ps-metric-item">
+                  <span class="ps-m-lbl">Post-Purchase Shares</span>
+                  <span class="ps-m-val">{{ psc.portfolioContext.shares + psc.position.quantity }}</span>
+                </div>
+              }
+              <div class="ps-metric-item">
+                <span class="ps-m-lbl">Current Price</span>
+                <span class="ps-m-val">₹{{ psc.position?.entryPrice | number:'1.2-2' }}</span>
+              </div>
+              <div class="ps-metric-item highlight-capital">
+                <span class="ps-m-lbl">Capital Required</span>
+                <span class="ps-m-val">₹{{ psc.position?.grossInvestment | number:'1.2-2' }}</span>
+              </div>
+              <div class="ps-metric-item">
+                <span class="ps-m-lbl">Break-Even Price</span>
+                <span class="ps-m-val">₹{{ psc.position?.entryPrice | number:'1.2-2' }}</span>
+                <span class="ps-subtext" style="font-size: 0.65rem; color: var(--aurum-text-muted); margin-top: 4px;">Before transaction costs.</span>
+              </div>
+            </div>
+
+            <!-- Scenario Table -->
+            <div class="ps-table-container">
+              <table class="ps-table">
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>Scenario Price</th>
+                    <th>Position Value</th>
+                    <th>Potential P&L</th>
+                    <th>P&L %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (sc of psc.scenarios; track sc.label) {
+                    <tr>
+                      <td class="ps-td-label">{{ sc.label }}</td>
+                      <td>₹{{ sc.scenarioPrice | number:'1.2-2' }}</td>
+                      <td>₹{{ sc.positionValue | number:'1.2-2' }}</td>
+                      <td [class.ps-pos]="sc.pnl > 0" [class.ps-neg]="sc.pnl < 0">
+                        {{ sc.pnl > 0 ? '+' : '' }}₹{{ sc.pnl | number:'1.2-2' }}
+                      </td>
+                      <td [class.ps-pos]="sc.pnlPercent > 0" [class.ps-neg]="sc.pnlPercent < 0">
+                        {{ sc.pnlPercent > 0 ? '+' : '' }}{{ sc.pnlPercent }}%
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Sensitivity & Context -->
+            <div class="ps-bottom-insights">
+              <div class="ps-insight-card">
+                <h4>Risk Sensitivity</h4>
+                <p>For every ₹1 movement in {{ psc.security?.symbol }}, this {{ psc.position?.quantity }}-share position changes by approximately <strong>₹{{ psc.position?.perPointImpact | number:'1.2-2' }}</strong>, before transaction costs.</p>
+              </div>
+              <div class="ps-insight-card">
+                <h4>Portfolio Context</h4>
+                <p>{{ psc.portfolioContext?.holdingStatus }}</p>
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (isConceptIntent() && getDynamicResponse()?.calculationAndMechanics) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #8b5cf6; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);">
+                  EDUCATIONAL RESEARCH
+                </span>
+                <h3 style="margin-left: 8px;">CONCEPT EXPLANATION</h3>
+              </div>
+              <span class="badge-web-researched">Financial Mechanics</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
+            </p>
+            <div class="qt-insights-grid">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">HOW IT WORKS & CALCULATION</span>
+                  <p>{{ getDynamicResponse()?.calculationAndMechanics }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">APPLICATION TO {{ target.symbol }}</span>
+                  <p>{{ getDynamicResponse()?.currentStockContext || 'Applied to active price structure.' }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">INTERPRETATION</span>
+                  <p>{{ getDynamicResponse()?.interpretation }}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (isScenarioIntent() && getDynamicResponse()?.projectedPrice) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #ec4899; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3);">
+                  HYPOTHETICAL SCENARIO — NOT A PREDICTION
+                </span>
+                <h3 style="margin-left: 8px;">STRESS SHOCK IMPACT</h3>
+              </div>
+              <span class="badge-web-researched">Mathematical Simulation</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
+            </p>
+            <div class="qt-insights-grid">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">BASELINE PRICE</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.baselinePrice }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">PROJECTED STRESSED PRICE</span>
+                  <p style="font-weight: 600; font-size: 16px; color: #f472b6;">{{ getDynamicResponse()?.projectedPrice }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">PORTFOLIO IMPACT</span>
+                  <p>{{ getDynamicResponse()?.portfolioImpact }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">DOWNSIDE SUPPORT</span>
+                  <p>{{ getDynamicResponse()?.downsideSupport }}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (isPortfolioExposureIntent() && getDynamicResponse()?.holdings) {
+          <section class="quick-take-redesign dynamic-intent-card" style="border-left: 4px solid #06b6d4; margin-bottom: 24px;">
+            <div class="qt-header-row">
+              <div class="qt-title">
+                <span class="badge-web-researched" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3);">
+                  PORTFOLIO POSITION AUDIT
+                </span>
+                <h3 style="margin-left: 8px;">HOLDINGS EXPOSURE</h3>
+              </div>
+              <span class="badge-web-researched">Active Database Records</span>
+            </div>
+            <p class="qt-summary-lead">
+              {{ getDynamicResponse()?.directAnswer }}
+            </p>
+            <div class="qt-insights-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">SHARES HELD</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ getDynamicResponse()?.holdings?.shares || 0 }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">AVERAGE COST</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ formatCurrency(getDynamicResponse()?.holdings?.averageCost, target.currency) }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">CURRENT VALUE</span>
+                  <p style="font-weight: 600; font-size: 16px;">{{ formatCurrency(getDynamicResponse()?.holdings?.currentValue, target.currency) }}</p>
+                </div>
+              </div>
+              <div class="insight-block">
+                <div class="insight-text">
+                  <span class="insight-heading">TOTAL UNREALIZED P&L</span>
+                  <p style="font-weight: 600; font-size: 16px;" [class.pos-ret]="getDynamicResponse()?.holdings?.unrealizedPnL >= 0" [class.neg-ret]="getDynamicResponse()?.holdings?.unrealizedPnL < 0">
+                    {{ getDynamicResponse()?.holdings?.unrealizedPnL >= 0 ? '+' : '' }}{{ formatCurrency(getDynamicResponse()?.holdings?.unrealizedPnL, target.currency) }} ({{ getDynamicResponse()?.holdings?.unrealizedPnLPct }}%)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- 3. QUICK TAKE SECTION -->
+        <section class="quick-take-redesign">
+          <div class="qt-header-row">
+            <div class="qt-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="qt-sparkle">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              <h3>ANALYTICAL SYNTHESIS</h3>
+            </div>
+            <span class="badge-web-researched">Grounded Evidence</span>
+          </div>
+
+          <p class="qt-summary-lead">
+            {{ currentAnalysis()?.dynamicResponse?.directAnswer || currentAnalysis()?.assessment?.summary || (target.symbol + ' is trading at ' + formatCurrency(getDisplayedPrice(), target.currency) + ' (' + (getDisplayedChangePct() >= 0 ? '+' : '') + (getDisplayedChangePct() | number:'1.2-2') + '% today). Analysis synthesized from verified real-time financial evidence.') }}
+          </p>
+
+          <div class="qt-insights-grid">
+            
+            <div class="insight-block">
+              <div class="insight-icon icon-check">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <div class="insight-text">
+                <span class="insight-heading">WHAT HAPPENED</span>
+                <p>{{ currentAnalysis()?.quickTake?.whatHappened || (target.symbol + ' is trading at ' + formatCurrency(getDisplayedPrice(), target.currency) + ' following verified market quotes.') }}</p>
+              </div>
+            </div>
+
+            <div class="insight-block">
+              <div class="insight-icon icon-lightbulb">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                  <path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1.55.59 2.94 1.5 4 .76.76 1.23 1.52 1.41 2.5"/>
+                </svg>
+              </div>
+              <div class="insight-text">
+                <span class="insight-heading">WHY</span>
+                <p>{{ currentAnalysis()?.quickTake?.why || currentAnalysis()?.dynamicResponse?.directAnswer || 'Price action reflects verified multi-source evidence and active market liquidity.' }}</p>
+              </div>
+            </div>
+
+            <div class="insight-block">
+              <div class="insight-icon icon-briefcase">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                </svg>
+              </div>
+              <div class="insight-text">
+                <span class="insight-heading">PORTFOLIO IMPACT</span>
+                <p>{{ currentAnalysis()?.quickTake?.portfolioImpact || (target.isOwned ? 'Your position of ' + target.shares + ' shares is tracking daily market movements.' : 'No active portfolio exposure currently recorded.') }}</p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- 4. WHY THIS MOVED (8 cols) + RISKS & WHAT TO WATCH (4 cols) -->
+        <div class="grid-middle-row">
+          
+          <!-- WHY THIS MOVED (8 Cols) -->
+          <div class="card-why-moved">
+            <div class="section-card-header">
+              <div class="header-left-title">
+                <h3>VERIFIED EVIDENCE FACTORS</h3>
+                <span class="sub-count">{{ getSupportingCount() + getContradictingCount() }} factors verified</span>
+              </div>
+              <button type="button" class="btn-link-sm" (click)="openEvidenceModal()">View All &rarr;</button>
+            </div>
+
+            <div class="why-moved-categories-grid">
+              
+              <!-- Supporting -->
+              <div class="moved-col col-sup">
+                <div class="col-badge-label bg-sup">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                    <polyline points="18 15 12 9 6 15"/>
+                  </svg>
+                  <span>SUPPORTING</span>
+                </div>
+                <div class="moved-items-list">
+                  @for (item of getSupportingEvidence(); track item.claim) {
+                    <div class="moved-item-card">
+                      <h4 class="item-title">{{ item.claim }}</h4>
+                      <p class="item-snippet">"{{ item.evidence }}"</p>
+                      <div class="item-source-tag">
+                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                      </div>
+                    </div>
+                  } @empty {
+                    <div style="font-size: 12px; color: #94a3b8; padding: 12px; font-style: italic;">
+                      Verified evidence unavailable for positive catalysts.
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Contrary -->
+              <div class="moved-col col-con">
+                <div class="col-badge-label bg-con">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                  <span>CONTRARY</span>
+                </div>
+                <div class="moved-items-list">
+                  @for (item of getContradictingEvidence(); track item.claim) {
+                    <div class="moved-item-card">
+                      <h4 class="item-title">{{ item.claim }}</h4>
+                      <p class="item-snippet">"{{ item.evidence }}"</p>
+                      <div class="item-source-tag">
+                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                      </div>
+                    </div>
+                  } @empty {
+                    <div style="font-size: 12px; color: #94a3b8; padding: 12px; font-style: italic;">
+                      No contrary risk evidence recorded in ledger.
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Watch -->
+              <div class="moved-col col-watch">
+                <div class="col-badge-label bg-watch">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>WATCH</span>
+                </div>
+                <div class="moved-items-list">
+                  @for (item of getUncertainFactors(); track item.claim) {
+                    <div class="moved-item-card">
+                      <h4 class="item-title">{{ item.claim }}</h4>
+                      <p class="item-snippet">"{{ item.evidence }}"</p>
+                      <div class="item-source-tag">
+                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- RISKS & WHAT TO WATCH (4 Cols) -->
+          <div class="card-risks-watch">
+            <div class="section-card-header">
+              <h3>RISKS & WHAT TO WATCH</h3>
+              <button type="button" class="btn-link-sm" (click)="openRisksModal()">View All &rarr;</button>
+            </div>
+
+            <div class="compact-risks-list">
+              @for (r of getRisksList(); track r.item) {
+                <div class="risk-compact-row">
+                  <div class="risk-bullet-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                  </div>
+                  <div class="risk-compact-info">
+                    <h4 class="risk-name">{{ r.item }}</h4>
+                    <p class="risk-desc">{{ r.whyItMatters }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 5. GRID BOTTOM ROW: LATEST NEWS (7 cols) + POSSIBLE SCENARIOS (5 cols) -->
+        <div class="grid-bottom-row">
+          
+          <!-- LATEST NEWS (7 Cols) -->
+          <div class="card-latest-news">
+            <div class="section-card-header">
+              <h3>LATEST NEWS</h3>
+              <button type="button" class="btn-link-sm" (click)="openNewsModal()">View All &rarr;</button>
+            </div>
+
+            <div class="news-rows-container">
+              @for (n of getNewsList().slice(0, 3); track n.title) {
+                <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="news-row-item">
+                  <div class="news-main-detail">
+                    <h4 class="news-headline-text">{{ n.title }}</h4>
+                    <div class="news-meta-subline">
+                      <span>{{ n.publisher }}</span> · <span>{{ formatTimeAgo(n.pubDate) }}</span>
+                    </div>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="ext-arrow">
+                    <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+                  </svg>
+                </a>
+              }
+            </div>
+          </div>
+
+          <!-- POSSIBLE SCENARIOS (5 Cols) -->
+          <div class="card-possible-scenarios">
+            <div class="section-card-header">
+              <div class="header-title-flex">
+                <h3>POSSIBLE SCENARIOS</h3>
+                <span class="sub-label">Scenarios to monitor</span>
+              </div>
+            </div>
+
+            <div class="scenarios-compact-stack">
+              
+              <div class="scenario-row sc-pos">
+                <span class="sc-badge pos">POSITIVE</span>
+                <div class="sc-content">
+                  @for (s of getPositiveScenarios(); track s.trigger) {
+                    <div class="sc-pair">
+                      <span class="sc-trig">{{ s.trigger }}</span>
+                      <span class="sc-arrow">&rarr;</span>
+                      <span class="sc-out">{{ s.outcome }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="scenario-row sc-neu">
+                <span class="sc-badge neu">NEUTRAL</span>
+                <div class="sc-content">
+                  @for (s of getNeutralScenarios(); track s.trigger) {
+                    <div class="sc-pair">
+                      <span class="sc-trig">{{ s.trigger }}</span>
+                      <span class="sc-arrow">&rarr;</span>
+                      <span class="sc-out">{{ s.outcome }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="scenario-row sc-neg">
+                <span class="sc-badge neg">NEGATIVE</span>
+                <div class="sc-content">
+                  @for (s of getNegativeScenarios(); track s.trigger) {
+                    <div class="sc-pair">
+                      <span class="sc-trig">{{ s.trigger }}</span>
+                      <span class="sc-arrow">&rarr;</span>
+                      <span class="sc-out">{{ s.outcome }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+
+
+        <!-- 7. FOLLOW-UP CONVERSATION + COMPOSER -->
+        <div class="followup-bar-wrapper">
+          @if (chatMessages().length > 0) {
+            <div class="chat-messages-stream">
+              @for (msg of chatMessages(); track msg.id) {
+                <div class="msg-bubble" [class.msg-user]="msg.role === 'user'" [class.msg-assistant]="msg.role === 'assistant'">
+                  <div class="bubble-header">
+                    @if (msg.role === 'user') {
+                      <span class="role-name">You</span>
+                    } @else {
+                      <span class="role-name">&#x2726; Aurum AI</span>
+                      @if (msg.intent) {
+                        <span class="intent-badge" [style.background]="getIntentBadgeColor(msg) + '18'" [style.color]="getIntentBadgeColor(msg)" [style.border-color]="getIntentBadgeColor(msg) + '40'">
+                          {{ getIntentBadge(msg) }}
+                        </span>
+                      }
+                    }
+                    <span class="time-stamp">{{ msg.timestamp }}</span>
+                  </div>
+
+                  @if (msg.role === 'user') {
+                    <div class="bubble-text user-text">{{ msg.text }}</div>
+                  } @else {
+                    <!-- Structured assistant response -->
+                    @if (msg.intent === 'POSITION_SCENARIO' || msgHasPositionScenario(msg)) {
+                      <div class="bubble-text assistant-text">
+                        <strong>Position Scenario Analysis</strong><br>
+                        Simulated impact of {{ msg.positionScenario?.position?.quantity }} shares of {{ msg.positionScenario?.security?.symbol || 'the asset' }}.
+                        <div style="margin-top: 12px;">
+                          <button type="button" style="background: none; border: 1px solid rgba(255,255,255,0.15); color: #10b981; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;" (click)="scrollToTop()">
+                            View Detailed Analysis &uarr;
+                          </button>
+                        </div>
+                      </div>
+                    } @else if (msg.marketData || msg.technicals || msg.fundamentals || msg.dynamicResponse) {
+                      <div class="bubble-text assistant-text structured-response">
+                        <div class="sar-conclusion-box">
+                          <h4 class="sar-stance">{{ msg.parsedStance || msg.dynamicResponse?.stance || (msg.intent | uppercase) || 'ANALYSIS' }}</h4>
+                          <p class="sar-direct-answer">{{ msg.parsedSummary || msg.dynamicResponse?.directAnswer || msg.text }}</p>
+                        </div>
+                        
+                        <div class="sar-metrics-grid">
+                          @if (msg.technicals) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">KEY FACTORS</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Trend</span>
+                                <span class="sar-val">{{ msg.technicals.trend || 'Unavailable' }}</span>
+                              </div>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">RSI(14)</span>
+                                <span class="sar-val">{{ msg.technicals.rsi14 ? (msg.technicals.rsi14 | number:'1.1-1') : 'Unavailable' }}</span>
+                              </div>
+                            </div>
+                          }
+                          
+                          @if (msg.marketData) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">MARKET DATA</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Price</span>
+                                <span class="sar-val">{{ formatCurrency(msg.marketData.price, msg.marketData.currency) }}</span>
+                              </div>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Status</span>
+                                <span class="sar-val">{{ msg.marketData.status || 'Delayed' }}</span>
+                              </div>
+                            </div>
+                          }
+
+                          @if (msg.technicals) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">TECHNICALS</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Support</span>
+                                <span class="sar-val">{{ formatCurrency(msg.technicals.support, msg.marketData?.currency) }}</span>
+                              </div>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Resistance</span>
+                                <span class="sar-val">{{ formatCurrency(msg.technicals.resistance, msg.marketData?.currency) }}</span>
+                              </div>
+                            </div>
+                          }
+
+                          @if (msg.fundamentals) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">FUNDAMENTALS</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">P/E Ratio</span>
+                                <span class="sar-val">{{ msg.fundamentals.peRatio ? msg.fundamentals.peRatio + 'x' : 'Unavailable' }}</span>
+                              </div>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">ROE</span>
+                                <span class="sar-val">{{ msg.fundamentals.returnOnEquity ? msg.fundamentals.returnOnEquity + '%' : 'Unavailable' }}</span>
+                              </div>
+                            </div>
+                          }
+
+                          @if (msg.evidenceLedger?.length) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">EVIDENCE</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">Verified Factors</span>
+                                <span class="sar-val">{{ msg.evidenceLedger!.length }} factors</span>
+                              </div>
+                            </div>
+                          }
+
+                          @if (msg.sources?.length) {
+                            <div class="sar-card">
+                              <span class="sar-card-title">SOURCES</span>
+                              <div class="sar-card-row">
+                                <span class="sar-lbl">{{ msg.sources[0]?.name || 'Market Data' }}</span>
+                                <span class="sar-val">{{ msg.sources[0]?.freshness || 'Delayed' }}</span>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="bubble-text assistant-text" [innerHTML]="formatMarkdownToHtml(msg.text)"></div>
+                    }
+                  }
+                </div>
+              }
+              @if (followupLoading()) {
+                <div class="analyst-thinking-bubble">
+                  <span class="thinking-label">Analyzing verified market evidence</span>
+                  <div class="thinking-dots">
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <form class="chat-composer-v2" (ngSubmit)="submit()">
             <input
               type="text"
-              class="input-question"
-              [placeholder]="'Ask a follow-up question about ' + target.symbol + '...'"
+              class="composer-input"
+              [placeholder]="'Ask Aurum about ' + target.symbol + '...'"
               [(ngModel)]="question"
               name="question"
-              [disabled]="isLoading()"
+              [disabled]="followupLoading()"
               autocomplete="off"
-            />
-            <button type="submit" class="btn-send" [disabled]="!question.trim() || isLoading()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+              aria-label="Ask Aurum AI"
+            /><button type="submit" class="btn-send-v2" [disabled]="!question.trim() || followupLoading()" aria-label="Send question">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
                 <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
             </button>
           </form>
-          <div class="legal-disclaimer">
-            Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.
-          </div>
         </div>
 
       } @else {
@@ -684,55 +1128,745 @@
       }
     }
 
-    <!-- TAB 2: Morning Bell Briefing -->
+    <!-- TAB VIEWS -->
+
+    <!-- 1. MORNING BELL BRIEFING -->
     @if (activeTab() === 'MORNING_BELL') {
-      <div class="tab-view-container">
-        <h2>Morning Bell Executive Briefing</h2>
-        <div class="briefing-card">
-          <p>Overnight cues, global futures, and active catalyst impacts mapped to your portfolio.</p>
-          @if (morningBriefing(); as b) {
-            <div class="cues-grid">
-              <div class="cue-item">
-                <span class="lbl">S&P 500 Futures</span>
-                <span class="val">{{ b.globalCues.sp500Futures }}</span>
+      <div class="tab-view-container morning-briefing-view">
+        <div class="tab-header-banner">
+          <div class="header-left">
+            <h2>Institutional Morning Briefing</h2>
+            <p class="header-sub">Pre-market global macro context, Indian index cues, and overnight catalyst impacts mapped to your portfolio.</p>
+          </div>
+          <div class="header-actions">
+            @if (morningBriefEnvelope(); as env) {
+              <div class="provenance-pill" [class.live]="env.status === 'LIVE'" [class.cached]="env.status === 'CACHED'" [class.stale]="env.status === 'STALE'">
+                <span class="status-dot"></span>
+                <span>{{ env.status }} · As of {{ env.asOf }}</span>
               </div>
-              <div class="cue-item">
-                <span class="lbl">GIFT Nifty</span>
-                <span class="val">{{ b.globalCues.giftNifty }}</span>
+            }
+            <button type="button" class="btn-refresh" [disabled]="briefingLoading()" (click)="loadMorningBriefing(true)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" [class.spin]="briefingLoading()">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              <span>{{ briefingLoading() ? 'Synthesizing...' : 'Refresh Brief' }}</span>
+            </button>
+          </div>
+        </div>
+
+        @if (briefingLoading()) {
+          <div class="analyst-skeleton-loader">
+            <div class="skeleton-line shimmer" style="width: 50%; height: 24px; margin-bottom: 16px;"></div>
+            <div class="skeleton-grid">
+              <div class="skeleton-card shimmer" style="height: 120px;"></div>
+              <div class="skeleton-card shimmer" style="height: 120px;"></div>
+            </div>
+            <div class="skeleton-card shimmer" style="height: 200px; margin-top: 16px;"></div>
+          </div>
+        } @else if (morningBriefEnvelope()?.data; as b) {
+          
+          <!-- SECTION 1 & 2: GLOBAL & INDIAN MARKET CUES -->
+          <div class="briefing-grid-2col">
+            <!-- Overnight Global Markets -->
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">01</span>
+                <h3>Overnight Global Markets</h3>
+                <span class="sec-source">Yahoo Finance / Refinitiv</span>
               </div>
-              <div class="cue-item">
-                <span class="lbl">Crude Oil</span>
-                <span class="val">{{ b.globalCues.crudeOil }}</span>
+              <p class="summary-text">{{ b.briefing.overnightMarketSummary || b.briefing.overnightMarket }}</p>
+              <div class="cues-ticker-grid">
+                @for (item of b.marketSnapshot.global; track item.index) {
+                  <div class="market-pill">
+                    <span class="pill-name">{{ item.index }}</span>
+                    <span class="pill-price">{{ item.currency === 'USD' ? '$' : (item.currency === 'INR' ? '₹' : '') }}{{ item.price | number:'1.2-2' }}</span>
+                    <span class="pill-change" [class.pos]="item.changePct >= 0" [class.neg]="item.changePct < 0">
+                      {{ item.changePct >= 0 ? '+' : '' }}{{ item.changePct | number:'1.2-2' }}%
+                    </span>
+                  </div>
+                }
               </div>
-              <div class="cue-item">
-                <span class="lbl">US 10Y Yield</span>
-                <span class="val">{{ b.globalCues.us10yYield }}</span>
+            </div>
+
+            <!-- Indian Market Setup -->
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">02</span>
+                <h3>Indian Market Setup</h3>
+                <span class="sec-source">NSE / BSE Real-Time</span>
               </div>
+              <p class="summary-text">{{ b.briefing.indianMarketSetup }}</p>
+              <div class="cues-ticker-grid">
+                @for (item of b.marketSnapshot.india; track item.index) {
+                  <div class="market-pill">
+                    <span class="pill-name">{{ item.index }}</span>
+                    <span class="pill-price">₹{{ item.price | number:'1.2-2' }}</span>
+                    <span class="pill-change" [class.pos]="item.changePct >= 0" [class.neg]="item.changePct < 0">
+                      {{ item.changePct >= 0 ? '+' : '' }}{{ item.changePct | number:'1.2-2' }}%
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 3: USER PORTFOLIO IMPACT -->
+          <div class="briefing-card highlight-card">
+            <div class="card-title-row">
+              <span class="sec-number">03</span>
+              <h3>Portfolio Impact & Holdings Movement</h3>
+              <span class="sec-source">Aurum Deterministic Portfolio Engine</span>
+            </div>
+            <p class="summary-text">{{ b.briefing.portfolioImpact }}</p>
+            <div class="portfolio-metrics-row">
+              <div class="metric-box">
+                <span class="lbl">Total Monitored Value</span>
+                <span class="val">₹{{ b.portfolioSnapshot.totalValue | number:'1.2-2' }}</span>
+              </div>
+              <div class="metric-box">
+                <span class="lbl">Estimated Daily P&L</span>
+                <span class="val" [class.pos]="(b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) >= 0" [class.neg]="(b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) < 0">
+                  {{ (b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) >= 0 ? '+' : '' }}₹{{ (b.portfolioSnapshot.dailyPl ?? b.portfolioSnapshot.dailyPL) | number:'1.2-2' }} ({{ (b.portfolioSnapshot.dailyPlPct ?? b.portfolioSnapshot.dailyPLPct) | number:'1.2-2' }}%)
+                </span>
+              </div>
+              <div class="metric-box">
+                <span class="lbl">Active Positions</span>
+                <span class="val">{{ b.portfolioSnapshot.holdingsCount }} Holdings</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTIONS 4, 5, 6: WATCHLIST, EARNINGS, RISKS -->
+          <div class="briefing-grid-3col">
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">04</span>
+                <h3>Watchlist Movers</h3>
+              </div>
+              <p class="summary-text-sm">{{ b.briefing.watchlistMovers }}</p>
+              @if (b.watchlistSnapshot?.movers && b.watchlistSnapshot.movers.length > 0) {
+                <div class="watchlist-movers-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+                  @for (m of b.watchlistSnapshot.movers.slice(0, 3); track m.symbol) {
+                    <div class="mover-mini-row" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 4px 8px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                      <span style="font-weight: 600;">{{ m.symbol }}</span>
+                      <span>{{ m.currency === 'USD' ? '$' : '₹' }}{{ m.price | number:'1.2-2' }}</span>
+                      <span [class.pos]="m.changePercent >= 0" [class.neg]="m.changePercent < 0" style="font-weight: 600;">
+                        {{ m.changePercent >= 0 ? '+' : '' }}{{ m.changePercent | number:'1.2-2' }}%
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">05</span>
+                <h3>Corporate Earnings & Events</h3>
+              </div>
+              <p class="summary-text-sm">{{ b.briefing.earningsAndEvents }}</p>
+            </div>
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">06</span>
+                <h3>Macro Risks to Watch</h3>
+              </div>
+              <p class="summary-text-sm">{{ b.briefing.risksToWatch }}</p>
+            </div>
+          </div>
+
+          <!-- SECTION 7 & 8: ACTIONABLE FOCUS & NEWS -->
+          <div class="briefing-card focus-card">
+            <div class="card-title-row">
+              <span class="sec-number">07</span>
+              <h3>Today's Executive Action Focus</h3>
+            </div>
+            @if (isFocusArray(b.briefing.todaysFocus)) {
+              <ul class="focus-list" style="margin: 8px 0 0 18px; padding: 0;">
+                @for (item of b.briefing.todaysFocus; track item) {
+                  <li style="font-size: 0.88rem; line-height: 1.5; margin-bottom: 4px;">{{ item }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="summary-text">{{ b.briefing.todaysFocus }}</p>
+            }
+          </div>
+
+          @if (b.news && b.news.length > 0) {
+            <div class="briefing-card">
+              <div class="card-title-row">
+                <span class="sec-number">08</span>
+                <h3>Overnight Verified News Catalysts</h3>
+                <span class="sec-source">Financial Newswire</span>
+              </div>
+              <div class="briefing-news-list">
+                @for (item of b.news.slice(0, 4); track item.title) {
+                  <a [href]="item.url" target="_blank" rel="noopener noreferrer" class="news-brief-row">
+                    <span class="news-symbol">{{ item.symbol }}</span>
+                    <span class="news-title">{{ item.title }}</span>
+                    <span class="news-src">{{ item.source }}</span>
+                  </a>
+                }
+              </div>
+            </div>
+          }
+
+        } @else {
+          <div class="empty-state-card">
+            <p>No morning briefing data loaded. Click "Refresh Brief" to initiate real-time institutional synthesis.</p>
+            <button type="button" class="btn-refresh-accent" (click)="loadMorningBriefing()">Generate Briefing Now</button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- 2. EARNINGS & FILINGS -->
+    @if (activeTab() === 'EARNINGS_FILINGS') {
+      <div class="tab-view-container earnings-filings-view">
+        <div class="tab-header-banner">
+          <div class="header-left">
+            <h2>Corporate Earnings & Regulatory Filings</h2>
+            <p class="header-sub">Historical quarterly revenue & EPS performance vs consensus, official SEC/exchange filings, and scheduled earnings calendar.</p>
+          </div>
+          <div class="header-actions">
+            @if (earningsEnvelope(); as env) {
+              <div class="provenance-pill" [class.live]="env.status === 'LIVE'" [class.cached]="env.status === 'CACHED'" [class.stale]="env.status === 'STALE'">
+                <span class="status-dot"></span>
+                <span>{{ env.symbol }} · {{ env.status }} · As of {{ env.asOf }}</span>
+              </div>
+            }
+            <button type="button" class="btn-refresh" [disabled]="earningsFilingsLoading()" (click)="loadEarningsAndFilings()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" [class.spin]="earningsFilingsLoading()">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              <span>{{ earningsFilingsLoading() ? 'Fetching Records...' : 'Refresh Records' }}</span>
+            </button>
+          </div>
+        </div>
+
+        @if (earningsFilingsLoading()) {
+          <div class="analyst-skeleton-loader">
+            <div class="skeleton-card shimmer" style="height: 180px; margin-bottom: 16px;"></div>
+            <div class="skeleton-card shimmer" style="height: 220px;"></div>
+          </div>
+        } @else {
+          
+          <!-- CARD 1: HISTORICAL QUARTERLY EARNINGS TABLE -->
+          <div class="analyst-section-card">
+            <div class="card-section-header">
+              <div class="header-info">
+                <h3>Quarterly Earnings vs Consensus Estimates ({{ selectedTarget()?.symbol || 'TCS' }})</h3>
+                <span class="sub-source">Source: Corporate Disclosures / FactSet / Finnhub</span>
+              </div>
+            </div>
+
+            @if (earningsEnvelope()?.data?.quarterlyEarnings; as qList) {
+              @if (qList.length > 0) {
+                <div class="table-responsive">
+                  <table class="financial-data-table">
+                    <thead>
+                      <tr>
+                        <th>Reporting Period</th>
+                        <th>Reported Date</th>
+                        <th>EPS Actual</th>
+                        <th>EPS Estimate</th>
+                        <th>EPS Surprise</th>
+                        <th>Revenue Actual</th>
+                        <th>Revenue Estimate</th>
+                        <th>Revenue Surprise</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of qList; track row.period) {
+                        <tr>
+                          <td class="font-bold">{{ row.period }}</td>
+                          <td>{{ row.reportedDate }}</td>
+                          <td>{{ row.epsActual !== null ? targetCurrencySymbol + row.epsActual.toFixed(2) : '—' }}</td>
+                          <td>{{ row.epsEstimate !== null ? targetCurrencySymbol + row.epsEstimate.toFixed(2) : '—' }}</td>
+                          <td>
+                            @if (row.epsSurprise !== null && row.epsEstimate !== null) {
+                              <span class="badge-surprise" [class.beat]="row.epsSurprise > 0" [class.miss]="row.epsSurprise < 0">
+                                {{ row.epsSurprise > 0 ? 'BEAT' : row.epsSurprise < 0 ? 'MISS' : 'IN-LINE' }}
+                                ({{ row.epsSurprisePct ? (row.epsSurprisePct > 0 ? '+' : '') + row.epsSurprisePct.toFixed(1) + '%' : '0.0%' }})
+                              </span>
+                            } @else {
+                              <span class="text-muted">Uncovered</span>
+                            }
+                          </td>
+                          <td>{{ row.revenueActual ? (targetCurrencyCode === 'INR' ? '₹' + (row.revenueActual / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueActual / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
+                          <td>{{ row.revenueEstimate ? (targetCurrencyCode === 'INR' ? '₹' + (row.revenueEstimate / 1e7 | number:'1.0-0') + ' Cr' : '$' + (row.revenueEstimate / 1e9 | number:'1.2-2') + 'B') : '—' }}</td>
+                          <td>
+                            @if (row.revenueSurprisePct !== null && row.revenueEstimate) {
+                              <span [class.pos]="row.revenueSurprisePct > 0" [class.neg]="row.revenueSurprisePct < 0">
+                                {{ row.revenueSurprisePct > 0 ? '+' : '' }}{{ row.revenueSurprisePct | number:'1.1-1' }}%
+                              </span>
+                            } @else {
+                              <span class="text-muted">—</span>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <div class="empty-state-notice">
+                  <p>No quarterly earnings history currently on record for {{ selectedTarget()?.symbol }}.</p>
+                </div>
+              }
+            } @else {
+              <div class="empty-state-notice">
+                <p>Earnings data unavailable for this symbol. Verified quarterly results will be populated upon official deposit.</p>
+              </div>
+            }
+          </div>
+
+          <!-- CARD 2: REGULATORY FILINGS & DISCLOSURES -->
+          <div class="analyst-section-card">
+            <div class="card-section-header">
+              <div class="header-info">
+                <h3>Official Regulatory Filings & Corporate Announcements ({{ selectedTarget()?.symbol || 'TCS' }})</h3>
+                <span class="sub-source">{{ filingsEnvelope()?.source || 'SEC EDGAR / BSE / NSE Gateway' }}</span>
+              </div>
+            </div>
+
+            @if (filingsEnvelope()?.data?.filings; as fList) {
+              @if (fList.length > 0) {
+                <div class="filings-card-stack">
+                  @for (f of fList; track f.id) {
+                    <div class="filing-item-card">
+                      <div class="filing-meta-top">
+                        <span class="badge-filing-type">{{ f.filingType }}</span>
+                        <span class="filing-period">{{ f.period }}</span>
+                        <span class="filing-date">{{ f.filingDate }}</span>
+                        <span class="badge-importance" [class.high]="f.importance === 'HIGH'">{{ f.importance }} PRIORITY</span>
+                      </div>
+                      <h4 class="filing-title">{{ f.title }}</h4>
+                      <p class="filing-summary">{{ f.summary }}</p>
+                      <div class="filing-actions">
+                        @if (f.sourceUrl) {
+                          <a [href]="f.sourceUrl" target="_blank" rel="noopener noreferrer" class="btn-filing-link">
+                            <span>Open Official Document</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                              <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+                            </svg>
+                          </a>
+                        }
+                        <button type="button" class="btn-summarize-ai" (click)="summarizeFiling(f.symbol, f.id)">
+                          <span>✨ AI Executive Summary</span>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="empty-state-notice">
+                  <p>{{ filingsEnvelope()?.data?.message || 'Filing data unavailable for this symbol.' }}</p>
+                </div>
+              }
+            } @else {
+              <div class="empty-state-notice">
+                <p>Filing data unavailable for this symbol.</p>
+              </div>
+            }
+
+            <!-- AI FILING SUMMARY DRAWER / BOX -->
+            @if (filingSummaryLoading()) {
+              <div class="filing-summary-box loading">
+                <div class="skeleton-line shimmer" style="width: 40%; height: 18px;"></div>
+                <div class="skeleton-line shimmer" style="width: 90%; height: 14px; margin-top: 8px;"></div>
+              </div>
+            } @else if (filingSummary(); as sum) {
+              <div class="filing-summary-box">
+                <div class="summary-header">
+                  <h4>✨ AI Executive Summary from Official Regulatory Text</h4>
+                  <span class="badge-tag">Grounded Analysis</span>
+                </div>
+                <div class="summary-body">
+                  <div class="sum-block">
+                    <span class="lbl">Executive Summary:</span>
+                    <p>{{ sum.executiveSummary }}</p>
+                  </div>
+                  @if (sum.keyChanges && sum.keyChanges.length > 0) {
+                    <div class="sum-block">
+                      <span class="lbl">Key Changes & Milestones:</span>
+                      <ul>
+                        @for (c of sum.keyChanges; track c) {
+                          <li>{{ c }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (sum.financialImpact) {
+                    <div class="sum-block">
+                      <span class="lbl">Financial & Margin Impact:</span>
+                      <p>{{ sum.financialImpact }}</p>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- CARD 3: UPCOMING EARNINGS CALENDAR -->
+          @if (calendarEnvelope()?.data?.events; as calEvents) {
+            <div class="analyst-section-card">
+              <div class="card-section-header">
+                <div class="header-info">
+                  <h3>Upcoming Corporate Earnings Calendar ({{ calendarPeriod() | uppercase }})</h3>
+                  <span class="sub-source">Verified Exchange Releases</span>
+                </div>
+              </div>
+              <div class="calendar-cards-grid">
+                @for (ev of calEvents.slice(0, 6); track ev.symbol) {
+                  <div class="calendar-event-card">
+                    <div class="ev-top">
+                      <span class="ev-sym">{{ ev.symbol }}</span>
+                      <span class="ev-mkt">{{ ev.market }}</span>
+                    </div>
+                    <span class="ev-co">{{ ev.companyName }}</span>
+                    <div class="ev-date">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                      </svg>
+                      <span>{{ ev.reportDate }}</span>
+                    </div>
+                    <span class="ev-src">{{ ev.source }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+        }
+      </div>
+    }
+
+    <!-- 3. WHAT-IF STRESS TEST -->
+    @if (activeTab() === 'STRESS_TEST') {
+      <div class="tab-view-container stress-test-view">
+        <div class="tab-header-banner">
+          <div class="header-left">
+            <h2>Deterministic Portfolio Stress Testing</h2>
+            <p class="header-sub">Simulate macroeconomic and sector-wide shock matrices directly on real active portfolio holdings. Pure mathematical calculation without speculation.</p>
+          </div>
+          <div class="header-actions">
+            @if (stressTestEnvelope(); as env) {
+              <div class="provenance-pill live">
+                <span class="status-dot"></span>
+                <span>Deterministic Model · Calculated at {{ env.data.timestamp | slice:11:19 }} UTC</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Scenario Picker Buttons -->
+        <div class="scenarios-selector-row">
+          <button
+            type="button"
+            class="scenario-btn"
+            [class.active]="selectedScenarioId() === 'crude_oil_spike'"
+            (click)="runStressTest('crude_oil_spike')"
+          >
+            <span class="sc-icon">🛢️</span>
+            <div class="sc-info">
+              <span class="sc-name">Crude Oil Spike (+15%)</span>
+              <span class="sc-desc">Brent surges; tests margin compression in auto, paints, FMCG.</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="scenario-btn"
+            [class.active]="selectedScenarioId() === 'fed_rate_hike'"
+            (click)="runStressTest('fed_rate_hike')"
+          >
+            <span class="sc-icon">🏦</span>
+            <div class="sc-info">
+              <span class="sc-name">Hawkish Fed (+50 bps)</span>
+              <span class="sc-desc">Rates held higher; compresses high-beta tech valuation multiples.</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="scenario-btn"
+            [class.active]="selectedScenarioId() === 'tech_growth_selloff'"
+            (click)="runStressTest('tech_growth_selloff')"
+          >
+            <span class="sc-icon">⚡</span>
+            <div class="sc-info">
+              <span class="sc-name">Tech & AI Sell-Off (-10%)</span>
+              <span class="sc-desc">Momentum unwind and capex scrutiny across IT and hardware.</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="scenario-btn"
+            [class.active]="selectedScenarioId() === 'inr_depreciation'"
+            (click)="runStressTest('inr_depreciation')"
+          >
+            <span class="sc-icon">💱</span>
+            <div class="sc-info">
+              <span class="sc-name">Rupee Depreciation (-2.5%)</span>
+              <span class="sc-desc">USD surges; tests export windfalls vs imported input inflation.</span>
+            </div>
+          </button>
+        </div>
+
+        @if (stressTestLoading()) {
+          <div class="analyst-skeleton-loader">
+            <div class="skeleton-grid" style="margin-top: 16px;">
+              <div class="skeleton-card shimmer" style="height: 100px;"></div>
+              <div class="skeleton-card shimmer" style="height: 100px;"></div>
+              <div class="skeleton-card shimmer" style="height: 100px;"></div>
+            </div>
+            <div class="skeleton-card shimmer" style="height: 200px; margin-top: 16px;"></div>
+          </div>
+        } @else if (stressTestEnvelope()?.data; as st) {
+
+          <!-- KPI METRIC CARDS -->
+          <div class="stress-metrics-grid">
+            <div class="stress-metric-card">
+              <span class="lbl">Baseline Portfolio Value</span>
+              <span class="val">₹{{ st.baselineValue | number:'1.2-2' }}</span>
+              <span class="sub">Current active valuation</span>
+            </div>
+            <div class="stress-metric-card stressed">
+              <span class="lbl">Projected Stressed Value</span>
+              <span class="val">₹{{ st.stressedValue | number:'1.2-2' }}</span>
+              <span class="sub">Under selected shock</span>
+            </div>
+            <div class="stress-metric-card impact" [class.loss]="st.absoluteImpact < 0" [class.gain]="st.absoluteImpact >= 0">
+              <span class="lbl">Estimated Portfolio Drawdown</span>
+              <span class="val">{{ st.absoluteImpact >= 0 ? '+' : '' }}₹{{ st.absoluteImpact | number:'1.2-2' }} ({{ st.percentageImpact | number:'1.2-2' }}%)</span>
+              <span class="sub">Total Net Asset Value shift</span>
+            </div>
+          </div>
+
+          <!-- HOLDINGS CONTRIBUTOR IMPACT TABLE -->
+          <div class="analyst-section-card">
+            <div class="card-section-header">
+              <div class="header-info">
+                <h3>Position-by-Position Stress Distribution</h3>
+                <span class="sub-source">{{ st.methodology }}</span>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="financial-data-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Sector</th>
+                    <th>Shares</th>
+                    <th>Current Price</th>
+                    <th>Shock Applied</th>
+                    <th>Stressed Price</th>
+                    <th>Baseline Value</th>
+                    <th>Stressed Value</th>
+                    <th>Net Drawdown</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of st.contributors; track c.symbol) {
+                    <tr>
+                      <td class="font-bold">{{ c.symbol }}</td>
+                      <td>{{ c.sector }}</td>
+                      <td>{{ c.shares }}</td>
+                      <td>₹{{ c.currentPrice | number:'1.2-2' }}</td>
+                      <td>
+                        <span class="badge-shock" [class.neg]="c.shockPercentage < 0" [class.pos]="c.shockPercentage >= 0">
+                          {{ c.shockPercentage >= 0 ? '+' : '' }}{{ c.shockPercentage | number:'1.1-1' }}%
+                        </span>
+                      </td>
+                      <td>₹{{ c.stressedPrice | number:'1.2-2' }}</td>
+                      <td>₹{{ c.baselineValue | number:'1.2-2' }}</td>
+                      <td>₹{{ c.stressedValue | number:'1.2-2' }}</td>
+                      <td [class.pos]="c.impactValue >= 0" [class.neg]="c.impactValue < 0" class="font-bold">
+                        {{ c.impactValue >= 0 ? '+' : '' }}₹{{ c.impactValue | number:'1.2-2' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- METHODOLOGY DISCLAIMER BANNER -->
+          <div class="methodology-callout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <div class="callout-content">
+              <strong>Methodology Grounding:</strong>
+              <span>{{ st.methodology }} All computations strictly evaluate current portfolio quantities against calibrated sector sensitivity coefficients.</span>
+            </div>
+          </div>
+
+        } @else {
+          <div class="empty-state-card">
+            <p>Select a macroeconomic shock scenario above to execute deterministic stress testing on your active holdings.</p>
+          </div>
+        }
+      </div>
+    }
+
+  </main><!-- MODALS / DRAWERS -->
+  @if (showEvidenceModal()) {
+    <div class="modal-overlay" (click)="closeEvidenceModal()">
+      <div class="modal-drawer" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h3>Evidence & Research Factors</h3>
+            <p class="modal-subtitle">{{ selectedTarget()?.symbol }} · {{ selectedTarget()?.companyName }}</p>
+          </div>
+          <button type="button" class="btn-modal-close" (click)="closeEvidenceModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="drawer-section">
+            <h4 class="title-sup">Supporting Factors</h4>
+            @for (item of getSupportingEvidence(); track item.claim) {
+              <div class="drawer-card">
+                <h5>{{ item.claim }}</h5>
+                <p>"{{ item.evidence }}"</p>
+                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+              </div>
+            }
+          </div>
+          <div class="drawer-section">
+            <h4 class="title-con">Contrary Factors</h4>
+            @for (item of getContradictingEvidence(); track item.claim) {
+              <div class="drawer-card">
+                <h5>{{ item.claim }}</h5>
+                <p>"{{ item.evidence }}"</p>
+                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+              </div>
+            }
+          </div>
+          <div class="drawer-section">
+            <h4 class="title-watch">Watch Factors</h4>
+            @for (item of getUncertainFactors(); track item.claim) {
+              <div class="drawer-card">
+                <h5>{{ item.claim }}</h5>
+                <p>"{{ item.evidence }}"</p>
+                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showNewsModal()) {
+    <div class="modal-overlay" (click)="closeNewsModal()">
+      <div class="modal-drawer" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h3>Latest Market News & Disclosures</h3>
+            <p class="modal-subtitle">{{ selectedTarget()?.symbol }}</p>
+          </div>
+          <button type="button" class="btn-modal-close" (click)="closeNewsModal()">×</button>
+        </div>
+        <div class="modal-body">
+          @for (n of getNewsList(); track n.title) {
+            <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="drawer-news-item">
+              <div class="news-pub-row">
+                <span class="pub-name">{{ n.publisher }}</span>
+                <span class="pub-time">{{ formatTimeAgo(n.pubDate) }}</span>
+              </div>
+              <h4 class="news-item-title">{{ n.title }}</h4>
+              <span class="read-link">Open source &rarr;</span>
+            </a>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showRisksModal()) {
+    <div class="modal-overlay" (click)="closeRisksModal()">
+      <div class="modal-drawer" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h3>Risks & What to Watch</h3>
+            <p class="modal-subtitle">{{ selectedTarget()?.symbol }}</p>
+          </div>
+          <button type="button" class="btn-modal-close" (click)="closeRisksModal()">×</button>
+        </div>
+        <div class="modal-body">
+          @for (r of getRisksList(); track r.item) {
+            <div class="drawer-card">
+              <h5>{{ r.item }}</h5>
+              <p>{{ r.whyItMatters }}</p>
             </div>
           }
         </div>
       </div>
-    }
+    </div>
+  }
 
-    <!-- TAB 3: Earnings & Filings -->
-    @if (activeTab() === 'EARNINGS_FILINGS') {
-      <div class="tab-view-container">
-        <h2>Corporate Earnings & Regulatory Filings</h2>
-        <div class="briefing-card">
-          <p>Real reporting periods, revenue/EPS beats/misses, and official regulatory filings.</p>
+  @if (showPositionModal()) {
+    <div class="modal-overlay" (click)="closePositionModal()">
+      <div class="modal-drawer" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h3>Portfolio Position Details</h3>
+            <p class="modal-subtitle">{{ selectedTarget()?.symbol }}</p>
+          </div>
+          <button type="button" class="btn-modal-close" (click)="closePositionModal()">×</button>
+        </div>
+        <div class="modal-body">
+          @if (selectedTarget()?.isOwned && selectedTarget()?.shares) {
+            <div class="pos-details-stack">
+              <div class="pos-detail-row">
+                <span class="lbl">Shares</span>
+                <span class="val">{{ selectedTarget()?.shares }}</span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Average Cost</span>
+                <span class="val">{{ formatCurrency(positionSnapshot()?.averageCost ?? 0, selectedTarget()?.currency) }}</span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Current Market Price</span>
+                <span class="val">{{ formatCurrency(getDisplayedPrice(), selectedTarget()?.currency) }}</span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Current Position Value</span>
+                <span class="val">{{ formatCurrency(positionSnapshot()?.marketValue ?? 0, selectedTarget()?.currency) }}</span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Total Profit / Loss</span>
+                <span class="val" [class.val-green]="(positionSnapshot()?.unrealizedPnL ?? 0) > 0" [class.val-red]="(positionSnapshot()?.unrealizedPnL ?? 0) < 0">
+                  {{ (positionSnapshot()?.unrealizedPnL ?? 0) >= 0 ? '+' : '' }}{{ formatCurrency(positionSnapshot()?.unrealizedPnL ?? 0, selectedTarget()?.currency) }}
+                </span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Total Return %</span>
+                <span class="val" [class.val-green]="(positionSnapshot()?.unrealizedPnLPercent ?? 0) > 0" [class.val-red]="(positionSnapshot()?.unrealizedPnLPercent ?? 0) < 0">
+                  {{ formatPercent(positionSnapshot()?.unrealizedPnLPercent) }}
+                </span>
+              </div>
+              <div class="pos-detail-row">
+                <span class="lbl">Portfolio Weight</span>
+                <span class="val">{{ formatPercent(positionSnapshot()?.exposure) }}</span>
+              </div>
+            </div>
+          } @else {
+            <p>You currently do not hold {{ selectedTarget()?.symbol }}.</p>
+          }
         </div>
       </div>
-    }
+    </div>
+  }
 
-    <!-- TAB 4: What-If Stress Test -->
-    @if (activeTab() === 'STRESS_TEST') {
-      <div class="tab-view-container">
-        <h2>Portfolio "What-If" Stress Testing</h2>
-        <div class="briefing-card">
-          <p>Simulate structural macroeconomic disruptions to evaluate holding-level resilience and projected capital drawdowns.</p>
-        </div>
-      </div>
-    }
-
-  </main>
-</div>
+  <!-- Order Ticket & Risk Execution Modal (Phase 3 Production Trading Engine) -->
+  @if (showOrderModal()) {
+    <app-order-modal
+      [initialSymbol]="orderModalSymbol()"
+      [initialSide]="orderModalSide()"
+      (closeModal)="showOrderModal.set(false)"
+    />
+  }</div>

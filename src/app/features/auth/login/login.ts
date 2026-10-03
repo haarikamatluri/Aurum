@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ForgotPasswordModal } from '../forgot-password/forgot-password-modal';
 
@@ -52,7 +52,7 @@ declare const google: any;
               </div>
               <input id="password" type="password" class="input" formControlName="password" autocomplete="current-password" placeholder="••••••••" />
             </div>
-            <button type="submit" class="btn btn-primary submit-btn" [disabled]="form.invalid || submitting()">
+            <button type="submit" class="btn btn-primary submit-btn">
               {{ submitting() ? 'Signing in…' : 'Sign in' }}
             </button>
           </form>
@@ -122,6 +122,7 @@ export class LoginPage implements OnInit, OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   @ViewChild('googleBtn') private googleBtn?: ElementRef<HTMLDivElement>;
 
@@ -138,6 +139,14 @@ export class LoginPage implements OnInit, OnDestroy {
   private googleInitTimer: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
+    const qp = this.route.snapshot.queryParams;
+    if (qp['registered'] === 'true') {
+      this.resetSuccessNotice.set('✓ Account created successfully! Please sign in with your email and password.');
+      if (qp['email']) {
+        this.form.patchValue({ email: qp['email'] });
+      }
+    }
+
     if (!this.auth.googleEnabled()) return;
     // The GIS script (loaded via <script async defer> in index.html) may not
     // be ready yet — poll briefly until `google` is available, then render.
@@ -175,11 +184,20 @@ export class LoginPage implements OnInit, OnDestroy {
     });
   }
 
+  private navigateAfterAuth(): void {
+    const returnUrl = this.route.snapshot.queryParams['returnUrl'];
+    if (returnUrl && typeof returnUrl === 'string' && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
+      this.router.navigateByUrl(returnUrl);
+    } else {
+      this.router.navigateByUrl('/money');
+    }
+  }
+
   private async handleGoogleCredential(credential: string): Promise<void> {
     this.errorMessage.set(null);
     try {
       await this.auth.loginWithGoogle(credential);
-      this.router.navigateByUrl('/money');
+      this.navigateAfterAuth();
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Google sign-in failed');
     }
@@ -190,7 +208,12 @@ export class LoginPage implements OnInit, OnDestroy {
   totpCode = '';
 
   async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.submitting()) return;
+    
     this.submitting.set(true);
     this.errorMessage.set(null);
     const { email, password } = this.form.getRawValue();
@@ -202,7 +225,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.totpCode = '';
         return;
       }
-      this.router.navigateByUrl('/money');
+      this.navigateAfterAuth();
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
@@ -216,7 +239,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.errorMessage.set(null);
     try {
       await this.auth.login2fa(this.tempToken, this.totpCode.trim());
-      this.router.navigateByUrl('/money');
+      this.navigateAfterAuth();
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Invalid 6-digit verification code');
     } finally {

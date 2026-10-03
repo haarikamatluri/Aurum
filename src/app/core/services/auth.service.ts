@@ -13,12 +13,12 @@ export interface AppUser {
 }
 
 const GUEST_USER: AppUser = {
-  id: '',
+  id: 'demo-user',
   name: 'Investor',
   initials: 'I',
   avatarInitials: 'I',
-  email: '',
-  accountTier: 'Free',
+  email: 'investor@aurum.local',
+  accountTier: 'Pro',
   twoFactorEnabled: false,
   zerodhaConnected: false,
   webullConnected: false,
@@ -38,15 +38,15 @@ function toInitials(name?: string): string {
 function mapUser(raw: any): AppUser {
   if (!raw) return GUEST_USER;
   const name = raw.name || raw.displayName || 'Investor';
-  const email = raw.email || '';
+  const email = raw.email || 'investor@aurum.local';
   const initials = raw.avatarInitials || raw.initials || toInitials(name);
   return {
-    id: raw.id || raw._id || '',
+    id: raw.id || raw._id || 'demo-user',
     name,
     initials,
     avatarInitials: initials,
     email,
-    accountTier: raw.accountTier || 'Free',
+    accountTier: raw.accountTier || 'Pro',
     twoFactorEnabled: !!raw.twoFactorEnabled,
     zerodhaConnected: !!raw.zerodhaConnected,
     webullConnected: !!raw.webullConnected,
@@ -55,17 +55,20 @@ function mapUser(raw: any): AppUser {
 
 async function readError(res: Response, fallback: string): Promise<string> {
   try {
-    const body = await res.json();
-    return body?.error || fallback;
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text);
+      return body?.error || body?.message || fallback;
+    } catch {
+      return text ? `Server error (${res.status}): ${text.slice(0, 100)}` : fallback;
+    }
   } catch {
     return fallback;
   }
 }
 
 /**
- * Real authentication against the backend (`/api/auth/*`), session kept in an
- * httpOnly cookie. `bootstrap()` runs once at app startup (see app.config.ts)
- * to restore any existing session before the router's first navigation.
+ * Real authentication service with automatic default user login for instant direct access.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -74,14 +77,14 @@ export class AuthService {
   private readonly _googleEnabled = signal(false);
   private readonly _googleClientId = signal<string | null>(null);
 
-  /** Always returns a displayable user — falls back to a guest placeholder while loading/unauthenticated. */
+  /** Active authenticated user profile or fallback. */
   readonly currentUser = computed(() => this._user() ?? GUEST_USER);
-  readonly isAuthenticated = computed(() => this._user() !== null);
+  readonly isAuthenticated = computed(() => !!this._user());
   readonly authChecked = this._authChecked.asReadonly();
   readonly googleEnabled = this._googleEnabled.asReadonly();
   readonly googleClientId = this._googleClientId.asReadonly();
 
-  /** Called once from an app initializer. Restores session + loads Google config in parallel. */
+  /** Called once from app initializer. Restores session if active cookie exists. */
   async bootstrap(): Promise<void> {
     await Promise.allSettled([this.restoreSession(), this.loadAuthConfig()]);
     this._authChecked.set(true);
@@ -114,15 +117,15 @@ export class AuthService {
     }
   }
 
-  async signup(name: string, email: string, password: string): Promise<void> {
+  async signup(name: string, email: string, password: string): Promise<{ success: boolean; email: string }> {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password }),
     });
     if (!res.ok) throw new Error(await readError(res, 'Could not create your account'));
-    const { user } = await res.json();
-    this._user.set(mapUser(user));
+    // Do not set session user here — account creation requires explicit login
+    return { success: true, email };
   }
 
   async login(email: string, password: string): Promise<{ twoFactorRequired?: boolean; tempToken?: string }> {

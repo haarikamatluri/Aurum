@@ -22,22 +22,84 @@ export interface BrokerConnectionStatus {
   connectedAt?: string;
 }
 
+export interface BrokerPosition {
+  id: string;
+  brokerId: string;
+  symbol: string;
+  exchange: string;
+  quantity: number;
+  buyAveragePrice: number;
+  currentPrice: number;
+  unrealizedPL: number;
+  unrealizedPLPct: number;
+  productType: string;
+  currency: 'INR' | 'USD';
+}
+
+export interface BrokerBalance {
+  brokerId: string;
+  brokerName: string;
+  currency: 'INR' | 'USD';
+  availableCash: number;
+  investedAmount: number;
+  usedMargin: number;
+  totalCollateral: number;
+}
+
+export interface BrokerOrderHistoryItem {
+  orderId: string;
+  brokerId: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  orderType: 'MARKET' | 'LIMIT' | 'STOP';
+  status: 'OPEN' | 'PENDING' | 'COMPLETE' | 'CANCELLED' | 'REJECTED';
+  timestamp: string;
+  currency: 'INR' | 'USD';
+}
+
+export interface ReconciliationReport {
+  status: 'RECONCILED' | 'MISMATCH_DETECTED';
+  reconciledAt: string;
+  matchedCount: number;
+  mismatchCount: number;
+  details: Array<{
+    symbol: string;
+    aurumQuantity: number;
+    aurumAvgPrice: number;
+    brokerQuantity: number;
+    brokerAvgPrice: number;
+    status: 'MATCHED' | 'QUANTITY_MISMATCH' | 'PRICE_DRIFT';
+    discrepancy: string | null;
+  }>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BrokerSyncService {
   private readonly portfolioService = inject(PortfolioService);
 
   readonly zerodhaStatus = signal<BrokerConnectionStatus>({ connected: false, isSandbox: true });
   readonly webullStatus = signal<BrokerConnectionStatus>({ connected: false, isSandbox: true });
+  readonly upstoxStatus = signal<BrokerConnectionStatus>({ connected: false, isSandbox: true });
+  readonly ibkrStatus = signal<BrokerConnectionStatus>({ connected: false, isSandbox: true });
+
+  readonly balances = signal<BrokerBalance[]>([]);
+  readonly positions = signal<BrokerPosition[]>([]);
+  readonly orderHistory = signal<BrokerOrderHistoryItem[]>([]);
+  readonly reconciliationReport = signal<ReconciliationReport | null>(null);
+  readonly lastSyncedAt = signal<string | null>(null);
 
   readonly isSyncing = signal<boolean>(false);
   readonly previewHoldings = signal<BrokerHolding[]>([]);
-  readonly activeBroker = signal<'zerodha' | 'webull' | null>(null);
+  readonly activeBroker = signal<'zerodha' | 'webull' | 'upstox' | 'ibkr' | null>(null);
 
   async checkStatuses(): Promise<void> {
     try {
-      const [zRes, wRes] = await Promise.all([
+      const [zRes, wRes, statusRes] = await Promise.all([
         fetch('/api/broker/zerodha/holdings'),
         fetch('/api/broker/webull/holdings'),
+        fetch('/api/broker/status')
       ]);
       if (zRes.ok) {
         const zData = await zRes.json();
@@ -53,8 +115,56 @@ export class BrokerSyncService {
           isSandbox: wData.isSandbox ?? true,
         });
       }
+      if (statusRes.ok) {
+        const stData = await statusRes.json();
+        if (stData.lastSynchronizedAt) this.lastSyncedAt.set(stData.lastSynchronizedAt);
+      }
     } catch {
       // ignore
+    }
+  }
+
+  async loadPhase2BrokerData(): Promise<void> {
+    try {
+      const [bRes, pRes, oRes, rRes] = await Promise.all([
+        fetch('/api/broker/balances'),
+        fetch('/api/broker/positions'),
+        fetch('/api/broker/order-history'),
+        fetch('/api/broker/reconciliation')
+      ]);
+
+      if (bRes.ok) {
+        const data = await bRes.json();
+        if (data.balances) this.balances.set(data.balances);
+      }
+      if (pRes.ok) {
+        const data = await pRes.json();
+        if (data.positions) this.positions.set(data.positions);
+      }
+      if (oRes.ok) {
+        const data = await oRes.json();
+        if (data.orders) this.orderHistory.set(data.orders);
+      }
+      if (rRes.ok) {
+        const data = await rRes.json();
+        this.reconciliationReport.set(data);
+      }
+    } catch (err) {
+      console.warn('[BrokerSync] Error loading Phase 2 broker data:', err);
+    }
+  }
+
+  async syncAllBrokers(): Promise<void> {
+    this.isSyncing.set(true);
+    try {
+      const res = await fetch('/api/broker/sync', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        this.lastSyncedAt.set(data.syncedAt || new Date().toISOString());
+        await this.loadPhase2BrokerData();
+      }
+    } finally {
+      this.isSyncing.set(false);
     }
   }
 
@@ -75,6 +185,7 @@ export class BrokerSyncService {
       this.zerodhaStatus.set({ connected: true, isSandbox: params.isSandbox });
       this.activeBroker.set('zerodha');
       this.previewHoldings.set(list);
+      await this.loadPhase2BrokerData();
       this.isSyncing.set(false);
       return list;
     } catch (err) {
@@ -105,6 +216,7 @@ export class BrokerSyncService {
       this.webullStatus.set({ connected: true, isSandbox: params.isSandbox });
       this.activeBroker.set('webull');
       this.previewHoldings.set(list);
+      await this.loadPhase2BrokerData();
       this.isSyncing.set(false);
       return list;
     } catch (err) {

@@ -60,27 +60,32 @@ export class MonitoringService implements OnDestroy {
   /**
    * Process a price update for a single symbol.
    */
-  processPriceUpdate(symbol: string, newPrice: number): void {
+  processPriceUpdate(symbol: string, newPrice: number, previousClose?: number): void {
     const holding = this.portfolio.getHoldingBySymbol(symbol);
     if (!holding || typeof newPrice !== 'number' || isNaN(newPrice) || newPrice <= 0) return;
 
     // Update displayed price in portfolio
-    this.portfolio.updatePrice(symbol, newPrice);
+    this.portfolio.updatePrice(symbol, newPrice, previousClose);
 
     // Get or init alert state
     let state = this.alertStates.get(holding.id);
     if (!state) {
-      state = this.initAlertState(holding.id, symbol, holding.avgPurchasePrice, holding.market, holding.currency);
+      state = this.initAlertState(holding.id, symbol, previousClose || holding.avgPurchasePrice, holding.market, holding.currency);
+    } else if (previousClose && state.referencePrice !== previousClose) {
+      // Update reference price to today's previous close to track daily movement
+      state.referencePrice = previousClose;
+      state.lastUpThreshold = 0;
+      state.lastDownThreshold = 0;
     }
 
-    // Calculate current movement percentage from reference price (bought price)
+    // Calculate current movement percentage from reference price (previous close)
     const movementPct = ((newPrice - state.referencePrice) / state.referencePrice) * 100;
 
     // Determine current threshold level (floor to nearest 5%)
     const currentLevel = this.computeThresholdLevel(movementPct);
 
     // Detect crossing
-    this.detectAndFireAlerts(state, holding.id, symbol, holding.companyName, newPrice, currentLevel);
+    this.detectAndFireAlerts(state, holding.id, symbol, holding.companyName, newPrice, currentLevel, movementPct);
 
     // Update state
     state.lastCheckedPrice = newPrice;
@@ -152,7 +157,8 @@ export class MonitoringService implements OnDestroy {
     symbol: string,
     companyName: string,
     newPrice: number,
-    currentLevel: number
+    currentLevel: number,
+    movementPct: number
   ): void {
     if (currentLevel === 0) return; // No 5% threshold reached yet
 
@@ -163,7 +169,7 @@ export class MonitoringService implements OnDestroy {
         for (let l = state.lastUpThreshold + THRESHOLD_STEP; l <= currentLevel; l += THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'UP');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'UP', movementPct);
         state.lastUpThreshold = currentLevel;
         if (currentLevel > 0) state.lastDownThreshold = 0;
       }
@@ -174,7 +180,7 @@ export class MonitoringService implements OnDestroy {
         for (let l = state.lastDownThreshold - THRESHOLD_STEP; l >= currentLevel; l -= THRESHOLD_STEP) {
           crossedLevels.push(l);
         }
-        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'DOWN');
+        this.fireAlert(holdingId, symbol, companyName, newPrice, state.referencePrice, state.currency, crossedLevels, 'DOWN', movementPct);
         state.lastDownThreshold = currentLevel;
         if (currentLevel < 0) state.lastUpThreshold = 0;
       }
@@ -189,27 +195,22 @@ export class MonitoringService implements OnDestroy {
     referencePrice: number,
     currency: CurrencyCode,
     levels: number[],
-    direction: 'UP' | 'DOWN'
+    direction: 'UP' | 'DOWN',
+    movementPct: number
   ): void {
-    const thresholdPct = Math.abs(levels[levels.length - 1]);
-    const directionWord = direction === 'UP' ? 'increased' : 'dropped';
-    const levelStr = levels.map((l) => (l > 0 ? `+${l}%` : `${l}%`)).join(', ');
-    const currSymbol = currency === 'INR' ? '₹' : '$';
-
-    let message: string;
-    if (levels.length === 1) {
-      message = `${symbol} ${directionWord} ${thresholdPct}% from your reference price of ${currSymbol}${referencePrice.toFixed(2)}.`;
-    } else {
-      message = `${symbol} moved through multiple thresholds (${levelStr}) from ${currSymbol}${referencePrice.toFixed(2)}.`;
-    }
+    const thresholdPct = direction === 'UP' ? Math.abs(levels[levels.length - 1]) : -Math.abs(levels[levels.length - 1]);
+    const directionWord = direction === 'UP' ? 'up' : 'down';
+    const message = `Price moved ${directionWord} by ${Math.abs(movementPct).toFixed(2)}% today`;
 
     const notification: MoneyNotification = {
-      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `notif-${Date.now()}-${crypto.randomUUID().slice(0, 5)}`,
       holdingId,
       symbol,
       companyName,
       direction,
-      thresholdPct: direction === 'UP' ? thresholdPct : -thresholdPct,
+      threshold: thresholdPct,
+      thresholdsCrossed: levels,
+      movementPercent: movementPct,
       price,
       referencePrice,
       message,
@@ -229,8 +230,8 @@ export class MonitoringService implements OnDestroy {
 
     const prices = await this.fetchCurrentPrices(holdings);
 
-    for (const [symbol, price] of Object.entries(prices)) {
-      this.processPriceUpdate(symbol, price);
+    for (const [symbol, data] of Object.entries(prices)) {
+      this.processPriceUpdate(symbol, data.price, data.previousClose);
     }
   }
 
@@ -239,7 +240,7 @@ export class MonitoringService implements OnDestroy {
    */
   private async fetchCurrentPrices(
     holdings: { symbol: string; market: MarketRegion }[]
-  ): Promise<Record<string, number>> {
+  ): Promise<Record<string, { price: number; previousClose?: number }>> {
     try {
       const queryParam = holdings
         .map((h) => `${encodeURIComponent(h.symbol)}:${h.market}`)
@@ -252,12 +253,12 @@ export class MonitoringService implements OnDestroy {
       }
 
       const json = await res.json();
-      const quotes = json.quotes || {};
-      const priceMap: Record<string, number> = {};
+      const quotes = json.quotes || json || {};
+      const priceMap: Record<string, { price: number; previousClose?: number }> = {};
 
       for (const [sym, quoteData] of Object.entries<any>(quotes)) {
         if (quoteData && typeof quoteData.price === 'number') {
-          priceMap[sym] = quoteData.price;
+          priceMap[sym] = { price: quoteData.price, previousClose: quoteData.previousClose };
         }
       }
 

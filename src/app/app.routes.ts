@@ -3,25 +3,32 @@ import { authGuard } from './core/guards/auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
 
 export const routes: Routes = [
-  // Landing page — no auth required
+  // Landing Page
   {
     path: '',
     loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
-    title: 'Money — Know When Your Stocks Move',
+    title: 'Aurum — Investment Intelligence',
   },
+  // Auth Pages
   {
     path: 'login',
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginPage),
-    title: 'Sign In — Money',
+    title: 'Sign In — Aurum',
   },
   {
     path: 'signup',
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/signup/signup').then((m) => m.SignupPage),
-    title: 'Sign Up — Money',
+    title: 'Create Account — Aurum',
   },
-  // App shell — protected routes
+  {
+    path: 'register',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/signup/signup').then((m) => m.SignupPage),
+    title: 'Create Account — Aurum',
+  },
+  // App shell — protected portfolio access
   {
     path: 'money',
     canActivate: [authGuard],
@@ -61,6 +68,11 @@ export const routes: Routes = [
         path: 'settings',
         loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
         title: 'Settings — Money',
+      },
+      {
+        path: 'news',
+        loadComponent: () => import('./features/news/news').then((m) => m.News),
+        title: 'News — Money',
       },
     ],
   },

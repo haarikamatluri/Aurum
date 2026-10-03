@@ -10,7 +10,9 @@ export interface MoneyNotification {
   symbol: string;
   companyName: string;
   direction: NotificationDirection;
-  thresholdPct: number;       // e.g. 5, 10, -5, -10
+  threshold: number;          // e.g. 5, 10, -5, -10 (The highest trigger)
+  thresholdsCrossed: number[];// e.g. [5, 10, 15]
+  movementPercent: number;    // Actual percentage movement
   price: number;              // Price when alert fired
   referencePrice: number;     // Reference price used for calculation
   message: string;

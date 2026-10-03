@@ -1,0 +1,30 @@
+<div class="news-page-container">
+  <div class="header-section">
+    <h1>LATEST NEWS</h1>
+    <p>Financial press and regulatory disclosures across your tracked markets.</p>
+  </div>
+
+  <div class="news-grid">
+    @if (isLoading()) {
+      <div style="text-align: center; padding: 40px; color: #64748b;">
+        Loading latest market news...
+      </div>
+    } @else if (articles().length === 0) {
+      <div style="text-align: center; padding: 40px; color: #64748b;">
+        No news available at this time.
+      </div>
+    } @else {
+      @for (n of articles(); track n.title) {
+        <div class="news-card">
+          <div class="news-meta">
+            <span class="provider">{{ n.publisher || 'Financial Source' }}</span>
+            <span class="freshness">{{ n.pubDate | date:'medium' }}</span>
+          </div>
+          <h3>{{ n.title }}</h3>
+          <p></p>
+          <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="btn-read">Read Article</a>
+        </div>
+      }
+    }
+  </div>
+</div>
