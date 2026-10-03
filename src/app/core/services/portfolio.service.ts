@@ -7,6 +7,7 @@ import {
   SellHoldingRequest,
   StockSearchResult,
   MarketRegion,
+  PortfolioPositionSnapshot,
 } from '../models/portfolio.model';
 
 const STORAGE_KEY_HOLDINGS = 'money.holdings';
@@ -224,28 +225,61 @@ export class PortfolioService {
       ? all
       : all.filter((x) => x.market === market);
 
-    const totalInvested = h.reduce((s, x) => s + x.totalInvested, 0);
+    const USD_INR_RATE = 96.33;
+    const isGlobal = !market || market === 'ALL';
+    
+    // If viewing ALL markets, base currency is USD. Convert Indian holdings to USD.
+    const getRate = (itemCurrency?: string, itemMarket?: string) => {
+       if (!isGlobal) return 1;
+       const isINR = itemCurrency === 'INR' || itemMarket === 'IN';
+       return isINR ? (1 / USD_INR_RATE) : 1;
+    };
+
+    const totalInvested = h.reduce((s, x) => s + (x.totalInvested * getRate(x.currency, x.market)), 0);
+    
     const hasCurrentPrices = h.length > 0 && h.every((x) => x.currentPrice !== null);
     const currentValue = hasCurrentPrices
-      ? h.reduce((s, x) => s + (x.currentValue ?? 0), 0)
+      ? h.reduce((s, x) => s + ((x.currentValue ?? 0) * getRate(x.currency, x.market)), 0)
       : null;
+
     const totalGain = currentValue !== null ? currentValue - totalInvested : null;
     const totalGainPct = (totalGain !== null && totalInvested > 0)
       ? (totalGain / totalInvested) * 100
       : null;
 
+    const hasTodayPrices = h.length > 0 && h.some((x) => x.todayPnL !== undefined && x.todayPnL !== null);
+    const todayGain = hasTodayPrices 
+      ? h.reduce((s, x) => s + ((x.todayPnL ?? 0) * getRate(x.currency, x.market)), 0) 
+      : null;
+    
+    // todayGainPct relative to yesterday's value (currentValue - todayGain)
+    let todayGainPct: number | null = null;
+    if (todayGain !== null && currentValue !== null) {
+       const prevTotal = currentValue - todayGain;
+       if (prevTotal > 0) todayGainPct = (todayGain / prevTotal) * 100;
+    }
+
     const currency = market === 'IN' ? 'INR' : 'USD';
 
     const transactions = this._transactions();
     const totalRealizedGain = transactions
-      .filter((t) => t.type === 'SELL' && (!market || market === 'ALL' || t.currency === currency))
-      .reduce((s, t) => s + (t.realizedGain ?? 0), 0);
+      .filter((t) => {
+          if (!market || market === 'ALL') return true;
+          const tMarket = (t.currency === 'INR' ? 'IN' : 'US');
+          return tMarket === market;
+      })
+      .reduce((s, t) => {
+          const tMarket = (t.currency === 'INR' ? 'IN' : 'US');
+          return s + ((t.realizedGain ?? 0) * getRate(t.currency, tMarket));
+      }, 0);
 
     return {
       totalInvested,
       currentValue,
       totalGain,
       totalGainPct,
+      todayGain,
+      todayGainPct,
       totalRealizedGain,
       holdingCount: h.length,
       currency,
@@ -304,9 +338,12 @@ export class PortfolioService {
         avgPurchasePrice: req.purchasePrice,
         totalInvested: req.shares * req.purchasePrice,
         currentPrice: null,
+        previousClose: null,
         currentValue: null,
         profitLoss: null,
         profitLossPct: null,
+        todayPnL: null,
+        todayPnLPct: null,
         addedAt: now,
         updatedAt: now,
       };
@@ -396,9 +433,12 @@ export class PortfolioService {
           avgPurchasePrice: req.purchasePrice,
           totalInvested: req.shares * req.purchasePrice,
           currentPrice: null,
+          previousClose: null,
           currentValue: null,
           profitLoss: null,
           profitLossPct: null,
+          todayPnL: null,
+          todayPnLPct: null,
           addedAt: now,
           updatedAt: now,
         };
@@ -571,14 +611,23 @@ export class PortfolioService {
   /**
    * Update current price for a holding.
    */
-  updatePrice(symbol: string, currentPrice: number): void {
+  updatePrice(symbol: string, currentPrice: number, previousClose?: number): void {
     this._holdings.update((hs) =>
       hs.map((h) => {
         if (h.symbol !== symbol) return h;
         const currentValue = h.shares * currentPrice;
         const profitLoss = currentValue - h.totalInvested;
         const profitLossPct = ((currentPrice - h.avgPurchasePrice) / h.avgPurchasePrice) * 100;
-        return { ...h, currentPrice, currentValue, profitLoss, profitLossPct, updatedAt: new Date().toISOString() };
+        
+        let todayPnL: number | null = h.todayPnL ?? null;
+        let todayPnLPct: number | null = h.todayPnLPct ?? null;
+        const prevC = previousClose ?? h.previousClose;
+        if (prevC) {
+           todayPnL = h.shares * (currentPrice - prevC);
+           todayPnLPct = ((currentPrice - prevC) / prevC) * 100;
+        }
+        
+        return { ...h, currentPrice, previousClose: prevC ?? null, currentValue, profitLoss, profitLossPct, todayPnL, todayPnLPct, updatedAt: new Date().toISOString() };
       })
     );
     this.saveHoldings();
@@ -590,6 +639,89 @@ export class PortfolioService {
 
   getHoldingBySymbol(symbol: string): Holding | undefined {
     return this._holdings().find((h) => h.symbol === symbol.toUpperCase());
+  }
+
+  /**
+   * Generates a canonical portfolio position snapshot.
+   * Handles zero-normalization to prevent negative zero rendering (-0.00).
+   */
+  getPositionSnapshot(symbol: string, currentMarketPrice?: number): PortfolioPositionSnapshot | null {
+    const holding = this.getHoldingBySymbol(symbol);
+    if (!holding) return null;
+
+    const curPrice = currentMarketPrice ?? holding.currentPrice ?? null;
+    
+    // Core calculations
+    const quantity = holding.shares;
+    
+    let averageCost = holding.avgPurchasePrice;
+    const txs = this._transactions().filter(t => t.holdingId === holding.id);
+    if (txs.length > 0) {
+      let currentAvgCost = 0;
+      let currentShares = 0;
+      
+      for (const t of txs) {
+        if (t.type === 'BUY') {
+          const totalCostBefore = currentShares * currentAvgCost;
+          const costOfNew = t.shares * t.price;
+          currentShares += t.shares;
+          if (currentShares > 0) {
+            currentAvgCost = (totalCostBefore + costOfNew) / currentShares;
+          }
+        } else if (t.type === 'SELL') {
+          currentShares -= t.shares;
+          if (currentShares <= 0) {
+            currentShares = 0;
+            currentAvgCost = 0;
+          }
+        }
+      }
+      
+      if (currentShares > 0 && currentAvgCost > 0) {
+        averageCost = currentAvgCost;
+      }
+    }
+
+    const marketValue = curPrice !== null ? quantity * curPrice : null;
+    const investedValue = quantity * averageCost;
+    
+    let unrealizedPnL = marketValue !== null ? marketValue - investedValue : null;
+    let unrealizedPnLPercent: number | undefined = undefined;
+    if (unrealizedPnL !== null && investedValue > 0) {
+      unrealizedPnLPercent = (unrealizedPnL / investedValue) * 100;
+    }
+
+    // Zero-value normalization to prevent -0.00 issues
+    if (unrealizedPnL !== null && Math.abs(unrealizedPnL) < 0.005) unrealizedPnL = 0;
+    if (unrealizedPnLPercent !== undefined && Math.abs(unrealizedPnLPercent) < 0.005) unrealizedPnLPercent = 0;
+
+    let exposure: number | undefined = undefined;
+    const summary = this.getSummaryForMarket();
+    const totalVal = summary.currentValue ?? summary.totalInvested;
+    if (totalVal > 0 && marketValue !== null) {
+      exposure = (marketValue / totalVal) * 100;
+    }
+
+    let latestMovementPercent: number | null = null;
+    if (holding.previousClose && curPrice !== null) {
+      latestMovementPercent = ((curPrice - holding.previousClose) / holding.previousClose) * 100;
+    } else if (holding.todayPnLPct !== undefined && holding.todayPnLPct !== null) {
+      latestMovementPercent = holding.todayPnLPct;
+    }
+
+    return {
+      symbol: holding.symbol,
+      quantity,
+      averageCost,
+      currentPrice: curPrice,
+      previousClose: holding.previousClose ?? null,
+      marketValue,
+      investedValue,
+      unrealizedPnL,
+      unrealizedPnLPercent,
+      latestMovementPercent,
+      exposure
+    };
   }
 
   getTransactionsForHolding(holdingId: string): StockTransaction[] {

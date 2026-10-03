@@ -6,7 +6,11 @@
 
 const INTENTS = {
   HOLDING_PERIOD: 'HOLDING_PERIOD',
+  BUY_DECISION: 'BUY_DECISION',
+  SELL_DECISION: 'SELL_DECISION',
+  BUY_SELL_DECISION: 'BUY_SELL_DECISION',
   BUY_SELL_DECISION_SUPPORT: 'BUY_SELL_DECISION_SUPPORT',
+  POSITION_SCENARIO: 'POSITION_SCENARIO',
   STOCK_PRICE: 'STOCK_PRICE',
   PRICE_MOVEMENT_EXPLANATION: 'PRICE_MOVEMENT_EXPLANATION',
   TECHNICAL_ANALYSIS: 'TECHNICAL_ANALYSIS',
@@ -33,13 +37,25 @@ const INTENTS = {
 };
 
 /**
- * Classify user question text into one of 25 intent categories.
+ * Classify user question text into one of explicit financial intent categories.
  */
 function classifyIntent(questionText, conversationContext = {}) {
   const q = String(questionText || '').trim().toLowerCase();
   if (!q) return INTENTS.CLARIFICATION_REQUIRED;
 
-  // 1. Concept / Educational Explanation
+  // 1. Position Scenario (Hypothetical buy/sell of specific share quantity or allocation)
+  // e.g., "what if i buy 10 shares of tcs", "if i buy 20 shares", "what if i purchase 100 shares"
+  if (
+    (/\b(?:what if|if|suppose|simulate)\s+(?:i\s+)?(?:buy|purchase|sell|add|invest)\s+\d+/i.test(q)) ||
+    (/\b(?:buy|purchase|sell|add)\s+\d+\s*(?:shares|units|stocks?)/i.test(q)) ||
+    (/\bwhat if i buy\b/i.test(q)) ||
+    (/\bwhat if i purchase\b/i.test(q)) ||
+    (/\bwhat if i sell\b/i.test(q))
+  ) {
+    return INTENTS.POSITION_SCENARIO;
+  }
+
+  // 2. Concept / Educational Explanation
   if (
     q.startsWith('explain ') ||
     q.includes('in simple words') ||
@@ -55,21 +71,59 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.CONCEPT_EXPLANATION;
   }
 
-  // 2. Holding Period
+  // 3. Holding Period
   if (
     q.includes('how many days') ||
     q.includes('how long can i hold') ||
     q.includes('how long to hold') ||
+    q.includes('how long should i hold') ||
     q.includes('holding period') ||
     q.includes('holding horizon') ||
     q.includes('how many months') ||
     q.includes('duration to hold') ||
-    q.includes('holding duration')
+    q.includes('holding duration') ||
+    q.includes('i need to hold')
   ) {
     return INTENTS.HOLDING_PERIOD;
   }
 
-  // 3. Price Movement Explanation
+  // 4. Sell Decision (Dedicated exit / profit-taking / stop-loss intent)
+  if (
+    q.includes('thinking to sell') ||
+    q.includes('thinking of selling') ||
+    q.includes('should i sell') ||
+    q.includes('should i exit') ||
+    q.includes('can i sell') ||
+    q.includes('want to sell') ||
+    q.includes('planning to sell') ||
+    q.includes('time to sell') ||
+    q.includes('time to exit') ||
+    q.includes('book profit') ||
+    q.includes('cut loss') ||
+    q.includes('exit my position') ||
+    q.includes('sell my shares') ||
+    q === 'sell'
+  ) {
+    return INTENTS.SELL_DECISION;
+  }
+
+  // 5. Buy Decision / Buy-Sell Decision Support
+  if (
+    q.includes('can i buy') ||
+    q.includes('should i buy') ||
+    q.includes('is it a buy') ||
+    q.includes('worth buying') ||
+    q.includes('good time to buy') ||
+    q.includes('can i enter') ||
+    q.includes('should i enter') ||
+    q.includes('buy or sell') ||
+    q.includes('buy or hold') ||
+    q === 'buy'
+  ) {
+    return INTENTS.BUY_DECISION;
+  }
+
+  // 6. Price Movement Explanation
   if (
     q.includes('why is') ||
     q.includes('why did') ||
@@ -84,7 +138,7 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.PRICE_MOVEMENT_EXPLANATION;
   }
 
-  // 4. Company Comparison
+  // 7. Company Comparison
   if (
     q.includes('compare') ||
     q.includes('versus') ||
@@ -96,19 +150,20 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.COMPANY_COMPARISON;
   }
 
-  // 5. Portfolio Exposure
+  // 8. Portfolio Exposure & Holdings
   if (
     q.includes('my exposure') ||
     q.includes('my position') ||
     q.includes('my holdings') ||
     q.includes('how many shares do i own') ||
     q.includes('do i own') ||
-    q.includes('my portfolio size')
+    q.includes('my portfolio size') ||
+    q.includes('exposure to')
   ) {
     return INTENTS.PORTFOLIO_EXPOSURE;
   }
 
-  // 6. Portfolio Impact
+  // 9. Portfolio Impact
   if (
     q.includes('portfolio impact') ||
     q.includes('affect my portfolio') ||
@@ -118,7 +173,7 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.PORTFOLIO_IMPACT;
   }
 
-  // 7. Scenario / What-If Analysis
+  // 10. Scenario / Stress Test (Macro / Price percentage shock)
   if (
     q.includes('what if') ||
     q.includes('falls 5%') ||
@@ -133,11 +188,12 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.SCENARIO_ANALYSIS;
   }
 
-  // 8. Earnings Analysis
+  // 11. Earnings Analysis
   if (
     q.includes('earnings') ||
     q.includes('quarterly result') ||
     q.includes('quarterly results') ||
+    q.includes('latest earnings') ||
     q.includes('q1') ||
     q.includes('q2') ||
     q.includes('q3') ||
@@ -150,7 +206,7 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.EARNINGS_ANALYSIS;
   }
 
-  // 9. Filings Analysis
+  // 12. Filings Analysis
   if (
     q.includes('filing') ||
     q.includes('filings') ||
@@ -165,7 +221,7 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.FILINGS_ANALYSIS;
   }
 
-  // 10. Fundamental Analysis
+  // 13. Fundamental Analysis
   if (
     q.includes('debt') ||
     q.includes('balance sheet') ||
@@ -179,7 +235,7 @@ function classifyIntent(questionText, conversationContext = {}) {
     return INTENTS.FUNDAMENTAL_ANALYSIS;
   }
 
-  // 11. Technical Analysis
+  // 14. Technical Analysis
   if (
     q.includes('technical analysis') ||
     q.includes('moving average') ||
@@ -190,20 +246,6 @@ function classifyIntent(questionText, conversationContext = {}) {
     q.includes('chart trend')
   ) {
     return INTENTS.TECHNICAL_ANALYSIS;
-  }
-
-  // 12. Buy/Sell Decision Support
-  if (
-    q.includes('can i buy') ||
-    q.includes('should i buy') ||
-    q.includes('should i sell') ||
-    q.includes('should i exit') ||
-    q.includes('should i hold') ||
-    q.includes('is it a buy') ||
-    q.includes('buy or sell') ||
-    q.includes('worth buying')
-  ) {
-    return INTENTS.BUY_SELL_DECISION_SUPPORT;
   }
 
   // 13. Stock Price Quote

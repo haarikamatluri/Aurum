@@ -716,8 +716,10 @@ function getUserWatchlist(userId) {
   return memoryWatchlists.get(uid);
 }
 
+app.use('/api/watchlist', requireAuth);
+
 app.get('/api/watchlist', async (req, res) => {
-  const userId = req.userId || 'demo-user';
+  const userId = req.userId;
   if (isMongoConnected && db) {
     try {
       const items = await db.collection('watchlist').find({ userId }).toArray();
@@ -730,7 +732,7 @@ app.get('/api/watchlist', async (req, res) => {
 });
 
 app.post('/api/watchlist', async (req, res) => {
-  const userId = req.userId || 'demo-user';
+  const userId = req.userId;
   const symbol = (req.body.symbol || '').toString().trim().toUpperCase();
   if (!symbol) return res.status(400).json({ error: 'symbol is required' });
 
@@ -750,7 +752,7 @@ app.post('/api/watchlist', async (req, res) => {
 });
 
 app.delete('/api/watchlist/:symbol', async (req, res) => {
-  const userId = req.userId || 'demo-user';
+  const userId = req.userId;
   const symbol = (req.params.symbol || '').toString().trim().toUpperCase();
   if (!symbol) return res.status(400).json({ error: 'symbol is required' });
 
@@ -3415,8 +3417,9 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false)
 
   const ai = new GoogleGenAI({ apiKey });
   const modelsToTry = [
+    'gemini-3.1-flash-lite',
     'gemini-2.5-flash',
-    'gemini-3.1-pro-preview'
+    'gemini-3.5-flash-lite'
   ];
 
   let lastError = null;
@@ -3431,7 +3434,7 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false)
         config.tools = [{ googleSearch: {} }];
       }
 
-      // Fast timeout per model try (1.5s)
+      // Safe timeout per model try (10s)
       const callPromise = ai.models.generateContent({
         model,
         contents: prompt,
@@ -3440,7 +3443,7 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false)
 
       let timer;
       const timeoutPromise = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Model call timeout (1.5s)')), 1500);
+        timer = setTimeout(() => reject(new Error('Model call timeout (10s)')), 10000);
       });
 
       const response = await Promise.race([callPromise, timeoutPromise]).finally(() => clearTimeout(timer));
@@ -3469,11 +3472,22 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false)
         return { text, groundingMetadata, webSources };
       }
     } catch (err) {
-      console.warn(`[GeminiGrounding] Model ${model} failed:`, err.message);
+      console.warn(`[GeminiGrounding] Model ${model} failed (enableSearch=${enableSearch}):`, err.message);
       lastError = err;
-      if (err.message.includes('429') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED')) {
-        // Quota exhausted - stop retrying immediately to save latency
-        break;
+      // If failed with search tool enabled (e.g. 429 quota exhaustion), retry immediately without search tool
+      if (enableSearch) {
+        try {
+          const fallbackResp = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: { temperature: 0.2, topP: 0.8, maxOutputTokens: 2500 }
+          });
+          if (fallbackResp.text) {
+            return { text: fallbackResp.text, groundingMetadata: null, webSources: [] };
+          }
+        } catch (fbErr) {
+          lastError = fbErr;
+        }
       }
     }
   }
@@ -3490,6 +3504,8 @@ async function callGeminiBackend(prompt, userApiKey, enableSearch = false) {
 // Aurum AI Analyst Subsystem Router (/api/analyst/*)
 // ============================================================================
 const { createAnalystRouter } = require('./src/server/analyst/analyst-router');
+const { processAnalystQuery } = require('./src/server/analyst/engines/analyst-orchestrator');
+
 const analystRouter = createAnalystRouter({
   geminiBackendCaller: callGeminiBackend,
   isMongoConnected,
@@ -3500,417 +3516,81 @@ const analystRouter = createAnalystRouter({
 });
 app.use('/api/analyst', analystRouter);
 
+// Canonical delegation for legacy /api/ai endpoints:
+// All endpoints delegate directly to canonical processAnalystQuery.
 app.post('/api/ai/analyze', async (req, res) => {
   try {
-    const { symbol, companyName, market, question, portfolioContext, news: clientNews } = req.body;
+    const { symbol, companyName, market, question, portfolioContext } = req.body;
     if (!symbol) {
       return res.status(400).json({ error: 'symbol parameter is required' });
     }
 
-    const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
-    const sym = symbol.toUpperCase();
-    const cName = companyName || sym;
+    const envelope = await processAnalystQuery({
+      question: question || `Analyze ${symbol}`,
+      symbol,
+      market: market || 'IN',
+      userHoldings: portfolioContext ? [portfolioContext] : [],
+      geminiCaller: callGeminiBackend
+    });
 
-    // 1. Fetch live market quote directly
-    const ticker = sym === 'TCS' ? 'TCS.NS' : (sym === 'RELIANCE' ? 'RELIANCE.NS' : (sym === 'INFY' ? 'INFY.NS' : sym));
-    const marketQuote = await fetchYahooQuote(ticker);
+    const data = envelope.data || {};
+    const dyn = data.dynamicResponse || {};
+    const sec = data.security || {};
+    const pred = data.prediction || {};
 
-    // 2. Fetch live news articles with snippets directly
-    let news = Array.isArray(clientNews) && clientNews.length > 0
-      ? clientNews
-      : await fetchMarketNewsInternal(sym, cName, market);
-
-    const newsDetailsText = news.length > 0
-      ? news.map((n, i) => `Article ${i + 1}:
-  Headline: "${n.title}"
-  Source: ${n.publisher || 'Financial Press'}
-  Summary: "${n.snippet || n.title}"`).join('\n\n')
-      : 'No live headlines available.';
-
-    const curPriceStr = marketQuote?.price ? `₹${marketQuote.price.toLocaleString('en-IN')}` : `₹2,089.60`;
-    const changeStr = marketQuote ? `${marketQuote.change >= 0 ? '+' : ''}${marketQuote.change?.toFixed(2) || '0.00'} (${marketQuote.changePercent?.toFixed(2) || '0.00'}%)` : '-0.73%';
-
-    const prompt = `
-You are Aurum, a senior equity research analyst inside the Aurum portfolio intelligence application.
-Analyze ${sym} (${cName}) answering: "${question || 'What is the latest analysis for this stock?'}"
-
-REAL-TIME MARKET QUOTE DATA:
-- Symbol: ${sym} (${cName})
-- Current Price: ${curPriceStr}
-- Today's Price Change: ${changeStr}
-- Day Low/High Range: ₹${marketQuote?.low?.toFixed(2) || 'N/A'} - ₹${marketQuote?.high?.toFixed(2) || 'N/A'}
-
-VERIFIED NEWS REPORTS & ARTICLES:
-${newsDetailsText}
-
-${portfolioContext && portfolioContext.shares > 0 ? `USER PORTFOLIO POSITION:
-- Shares owned: ${portfolioContext.shares}
-- Average purchase price: ₹${portfolioContext.avgCost}
-- Current total value: ₹${(portfolioContext.shares * (marketQuote?.price || portfolioContext.avgCost)).toFixed(2)}` : ''}
-
-STRICT ANALYSIS RULES:
-1. Base all points DIRECTLY on the verified news reports and quote data above.
-2. DO NOT output generic placeholder text like "Movement is driven by latest news flow" or "TCS is trading at...".
-3. 'quickTake.whatHappened': State exact price ${curPriceStr} (${changeStr}) and the main news catalyst.
-4. 'quickTake.why': State the exact operational/business reason from the news (e.g., earnings announcements, analyst target cuts, discretionary spending trends).
-5. 'supportingEvidence': Provide 2-3 specific real positive catalysts from the news with exact titles/quotes.
-6. 'contradictingEvidence': Provide 2-3 specific real negative risks/downgrades from the news with exact titles/quotes.
-7. 'uncertainFactors': Provide 2 specific real uncertainty drivers (e.g. valuation multiples vs historical 25x average, upcoming guidance).
-
-Return valid JSON strictly matching this schema:
-{
-  "assessment": {
-    "type": "POSITIVE" | "MIXED" | "NEGATIVE" | "INSUFFICIENT",
-    "evidenceStrength": "STRONG" | "MODERATE" | "LIMITED",
-    "summary": "<2-4 sentence specific evidence-backed summary directly analyzing the news and price action>"
-  },
-  "quickTake": {
-    "whatHappened": "<Real factual summary of price action and headline event>",
-    "why": "<Specific operational/business reason from the news>",
-    "portfolioImpact": "<Exact portfolio impact explanation>",
-    "bottomLine": "<1-sentence objective takeaway>"
-  },
-  "supportingEvidence": [
-    { "claim": "<Short specific title>", "evidence": "<Specific fact from news>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
-  ],
-  "contradictingEvidence": [
-    { "claim": "<Short specific title>", "evidence": "<Specific fact from news>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
-  ],
-  "uncertainFactors": [
-    { "claim": "<Short specific title>", "evidence": "<Specific fact/uncertainty>", "sourceTitle": "<Publisher>", "sourceUrl": "<Link>", "date": "<Time ago>" }
-  ],
-  "risks": [
-    { "item": "<Risk title>", "whyItMatters": "<Specific explanation>" }
-  ],
-  "scenarios": {
-    "positive": [ { "trigger": "<Specific Trigger>", "outcome": "<Outcome>" } ],
-    "neutral": [ { "trigger": "<Specific Trigger>", "outcome": "<Outcome>" } ],
-    "negative": [ { "trigger": "<Specific Trigger>", "outcome": "<Outcome>" } ]
-  }
-}
-`;
-
-    try {
-      const rawJsonText = await callGeminiBackend(prompt, userApiKey);
-      let parsed = {};
-      try {
-        const clean = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsed = JSON.parse(clean);
-      } catch {
-        parsed = {};
-      }
-
-      // Calculate portfolio impact deterministically if user owns stock
-      let portfolioImpact = null;
-      if (portfolioContext && portfolioContext.shares > 0) {
-        const shares = Number(portfolioContext.shares);
-        const avgCost = Number(portfolioContext.avgCost || 0);
-        const currentPrice = Number(marketQuote?.price || portfolioContext.currentPrice || avgCost);
-        const prevPrice = Number(portfolioContext.previousClose || currentPrice);
-
-        const investment = shares * avgCost;
-        const currentValue = shares * currentPrice;
-        const profitLoss = currentValue - investment;
-        const totalReturnPercent = investment > 0 ? ((currentValue - investment) / investment) * 100 : 0;
-        const latestMovementPercent = prevPrice > 0 ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
-
-        portfolioImpact = {
-          shares,
-          averageCost: avgCost,
-          currentValue,
-          profitLoss,
-          totalReturnPercent,
-          latestMovementPercent,
-          portfolioExposurePercent: portfolioContext.exposurePercent || 0,
-        };
-      }
-
-      // Dynamic synthesis for any missing or generic fields using REAL news items
-      const topNews = news[0];
-      const secondNews = news[1] || news[0];
-
-      let quickTake = parsed.quickTake || {};
-      if (!quickTake.whatHappened || quickTake.whatHappened.includes('is trading with active') || quickTake.whatHappened.includes('is trading at')) {
-        quickTake.whatHappened = topNews
-          ? `${sym} is trading at ${curPriceStr} (${changeStr} today) following headlines: "${topNews.title}".`
-          : `${sym} is trading at ${curPriceStr} (${changeStr} today) amidst ongoing market price consolidation.`;
-      }
-
-      if (!quickTake.why || quickTake.why.includes('driven by latest market news')) {
-        quickTake.why = topNews
-          ? `Price action reflects market reaction to recent coverage: "${topNews.title}" as sell-side analysts re-assess forward earnings expectations.`
-          : `Price action reflects ongoing sector valuation adjustments and analyst revisions following quarterly results.`;
-      }
-
-      if (!quickTake.portfolioImpact || quickTake.portfolioImpact.includes('affected by recent price')) {
-        quickTake.portfolioImpact = portfolioImpact
-          ? `Your ${portfolioImpact.shares} shares are worth ₹${portfolioImpact.currentValue.toLocaleString('en-IN')}, currently tracking a total P/L of ₹${portfolioImpact.profitLoss.toFixed(2)} (${portfolioImpact.totalReturnPercent.toFixed(2)}%).`
-          : `No direct holding in portfolio. Track price action for entry opportunities.`;
-      }
-
-      if (!quickTake.bottomLine) {
-        quickTake.bottomLine = `Monitor upcoming quarterly earnings guidance and corporate deal TCV announcements.`;
-      }
-
-      // Ensure EXACTLY 3 items for Supporting Evidence from real news
-      let sEv = parsed.supportingEvidence || [];
-      while (sEv.length < 3) {
-        const newsItem = news[sEv.length] || news[0];
-        if (newsItem) {
-          sEv.push({
-            claim: newsItem.title.length > 55 ? newsItem.title.slice(0, 52) + '...' : newsItem.title,
-            evidence: newsItem.snippet || newsItem.title,
-            sourceTitle: newsItem.publisher || 'Financial Press',
-            sourceUrl: newsItem.link || '#',
-            date: 'Recent'
-          });
-        }
-      }
-      sEv = sEv.slice(0, 3);
-
-      // Ensure EXACTLY 3 items for Contradicting Evidence from real news
-      let cEv = parsed.contradictingEvidence || [];
-      while (cEv.length < 3) {
-        const newsItem = news[cEv.length + 2] || news[1] || news[0];
-        if (newsItem) {
-          cEv.push({
-            claim: newsItem.title.length > 55 ? newsItem.title.slice(0, 52) + '...' : newsItem.title,
-            evidence: newsItem.snippet || newsItem.title,
-            sourceTitle: newsItem.publisher || 'Financial Press',
-            sourceUrl: newsItem.link || '#',
-            date: 'Recent'
-          });
-        }
-      }
-      cEv = cEv.slice(0, 3);
-
-      // Ensure EXACTLY 3 items for Uncertain Factors from real news
-      let uFactors = parsed.uncertainFactors || [];
-      const uNews0 = news[0]?.title ? `Re-evaluating valuation impact of "${news[0].title.slice(0, 45)}..."` : `${sym}'s current valuation ratios remain subject to sector re-rating.`;
-      const uNews1 = news[1]?.title ? `Forward pipeline execution following "${news[1].title.slice(0, 45)}..."` : `Forward deal pipeline execution and margin trajectory.`;
-      const uDefs = [
-        { claim: 'Valuation & P/E Multiples Re-assessment', evidence: uNews0, sourceTitle: news[0]?.publisher || 'Market Dynamics', sourceUrl: news[0]?.link || '#', date: 'Recent' },
-        { claim: 'Upcoming Earnings & Guidance Catalyst', evidence: uNews1, sourceTitle: news[1]?.publisher || 'Analyst Consensus', sourceUrl: news[1]?.link || '#', date: 'Upcoming' },
-        { claim: 'Enterprise IT Discretionary Spend Recovery', evidence: `Enterprise spending trajectory across US/European markets for ${sym}.`, sourceTitle: 'Macro Intelligence', sourceUrl: '#', date: 'Watch' }
-      ];
-      while (uFactors.length < 3) {
-        uFactors.push(uDefs[uFactors.length]);
-      }
-      uFactors = uFactors.slice(0, 3);
-
-      // Ensure EXACTLY 3 items for Key Risks directly citing live news headlines
-      let risks = parsed.risks || [];
-      const rNews0 = news[0] ? `Market reaction & volatility following headlines: "${news[0].title}" (${news[0].publisher}).` : `Broader interest-rate sensitivity and valuation multiples require monitoring.`;
-      const rNews1 = news[1] ? `Operational deal integration & execution details: "${news[1].title}" (${news[1].publisher}).` : `Cross-currency movements may impact reported quarterly operating margins.`;
-      const rNews2 = news[2] ? `Enterprise discretionary spending caution cited in recent report: "${news[2].title}".` : `Discretionary IT budget pauses could delay order pipeline conversion.`;
-
-      const rDefs = [
-        { item: `${sym} Market & News Volatility`, whyItMatters: rNews0 },
-        { item: `Deal Execution & Integration Risk`, whyItMatters: rNews1 },
-        { item: `Discretionary Spend & FX Sensitivity`, whyItMatters: rNews2 }
-      ];
-      while (risks.length < 3) {
-        risks.push(rDefs[risks.length]);
-      }
-      risks = risks.slice(0, 3);
-
-      return res.json({
-        symbol: sym,
-        companyName: cName,
-        question: question || 'Analysis overview',
-        assessment: parsed.assessment || {
-          type: 'MIXED',
-          evidenceStrength: 'MODERATE',
-          summary: `${sym} is trading at ${curPriceStr} (${changeStr}) as market commentary evaluates recent analyst target revisions against valuation support.`
-        },
-        quickTake,
-        supportingEvidence: sEv,
-        contradictingEvidence: cEv,
-        uncertainFactors: uFactors,
-        risks,
-        whatToWatch: parsed.whatToWatch || [],
-        scenarios: parsed.scenarios || {
-          positive: [{ trigger: `Strong deal execution on "${news[0]?.title ? news[0].title.slice(0, 45) : 'growth catalysts'}..."`, outcome: 'Multiple Expansion' }],
-          neutral: [{ trigger: `Consolidation following "${news[1]?.title ? news[1].title.slice(0, 45) : 'market headlines'}..."`, outcome: 'Range-bound Action' }],
-          negative: [{ trigger: `Discretionary spend slowdown cited in "${news[2]?.title ? news[2].title.slice(0, 45) : 'sector reports'}..."`, outcome: 'Multiple Compression' }]
-        },
-        portfolioImpact,
-        sources: news.map((n) => ({
-          title: n.title,
-          publisher: n.publisher || 'Financial Source',
-          url: n.link || '',
-          publishedAt: n.pubDate || new Date().toISOString(),
-        })),
-        dataFreshness: {
-          marketData: 'Live Market Feed',
-          news: `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-          earnings: 'Latest Q Reporting Period',
-          filings: 'Latest Regulatory Filings',
-        },
-        generatedAt: new Date().toISOString(),
-        disclaimer: 'Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.',
-      });
-    } catch (aiErr) {
-      console.warn('[AI/Analyze] Backend AI error (using live market synthesis):', aiErr.message);
-      
-      const topNews = news[0];
-      const secondNews = news[1] || news[0];
-      const thirdNews = news[2] || news[0];
-      const fourthNews = news[3] || news[0];
-
-      const sEv = [
-        topNews ? {
-          claim: topNews.title.length > 55 ? topNews.title.slice(0, 52) + '...' : topNews.title,
-          evidence: topNews.snippet || topNews.title,
-          sourceTitle: topNews.publisher || 'Financial Press',
-          sourceUrl: topNews.link || '#',
-          date: 'Recent'
-        } : {
-          claim: 'Solid Market Positioning',
-          evidence: `${sym} demonstrates strong market positioning and revenue execution in its primary sector.`,
-          sourceTitle: 'Sector Intelligence',
-          sourceUrl: '#',
-          date: 'Recent'
-        },
-        secondNews ? {
-          claim: secondNews.title.length > 55 ? secondNews.title.slice(0, 52) + '...' : secondNews.title,
-          evidence: secondNews.snippet || secondNews.title,
-          sourceTitle: secondNews.publisher || 'Financial Press',
-          sourceUrl: secondNews.link || '#',
-          date: 'Recent'
-        } : {
-          claim: 'Operational Margin & Cash Flow Defense',
-          evidence: `Consistent operating cash flow generation provides strong downside valuation defense.`,
-          sourceTitle: 'Financial Analysis',
-          sourceUrl: '#',
-          date: 'Recent'
-        },
-        fourthNews ? {
-          claim: fourthNews.title.length > 55 ? fourthNews.title.slice(0, 52) + '...' : fourthNews.title,
-          evidence: fourthNews.snippet || fourthNews.title,
-          sourceTitle: fourthNews.publisher || 'Financial Press',
-          sourceUrl: fourthNews.link || '#',
-          date: 'Recent'
-        } : {
-          claim: 'Institutional & Balance Sheet Support',
-          evidence: `${sym} exhibits high dividend payout stability and healthy balance sheet debt ratios.`,
-          sourceTitle: 'Exchange Data',
-          sourceUrl: '#',
-          date: 'Recent'
-        }
-      ];
-
-      const cEv = [
-        thirdNews ? {
-          claim: thirdNews.title.length > 55 ? thirdNews.title.slice(0, 52) + '...' : thirdNews.title,
-          evidence: thirdNews.snippet || thirdNews.title,
-          sourceTitle: thirdNews.publisher || 'Financial Press',
-          sourceUrl: thirdNews.link || '#',
-          date: 'Recent'
-        } : {
-          claim: 'Headline Sensitivity & Order Conversion Pause',
-          evidence: `Macroeconomic uncertainty could trigger short-term order conversion pullbacks for ${sym}.`,
-          sourceTitle: 'Macro Trends',
-          sourceUrl: '#',
-          date: 'Recent'
-        },
-        {
-          claim: 'Analyst Valuation Re-rating Caution',
-          evidence: `Sell-side valuation multiples leave limited buffer for near-term earnings misses.`,
-          sourceTitle: 'Market Commentary',
-          sourceUrl: '#',
-          date: 'Recent'
-        },
-        {
-          claim: 'Discretionary Enterprise Tech Spend Delay',
-          evidence: `Enterprise client budget caution could prolong margin recovery timelines.`,
-          sourceTitle: 'Sector Report',
-          sourceUrl: '#',
-          date: 'Recent'
-        }
-      ];
-
-      const uFactors = [
-        {
-          claim: 'Valuation & P/E Multiples Re-assessment',
-          evidence: `${sym}'s current valuation ratios remain subject to broader market and sector re-rating risks.`,
-          sourceTitle: 'Market Dynamics',
-          sourceUrl: '#',
-          date: 'Recent'
-        },
-        {
-          claim: 'Upcoming Quarterly Earnings & Guidance Catalyst',
-          evidence: `Forward deal pipeline execution and operating margin trajectory remain key variables for upcoming management commentary.`,
-          sourceTitle: 'Analyst Consensus',
-          sourceUrl: '#',
-          date: 'Upcoming'
-        },
-        {
-          claim: 'Global Interest Rate Policy Impact',
-          evidence: `Central bank monetary policy decisions affect enterprise capital allocation timelines.`,
-          sourceTitle: 'Macro Intelligence',
-          sourceUrl: '#',
-          date: 'Watch'
-        }
-      ];
-
-      const risks = [
-        {
-          item: `${sym} Market & News Volatility`,
-          whyItMatters: topNews ? `Active price fluctuations driven by news coverage: "${topNews.title}" (${topNews.publisher}).` : `Broader market interest-rate sensitivity requires monitoring.`
-        },
-        {
-          item: `Deal Execution & Operational Integration`,
-          whyItMatters: secondNews ? `Execution trajectory following recent announcements: "${secondNews.title}".` : `Margin performance depends on deal pipeline conversion.`
-        },
-        {
-          item: `Discretionary IT Spend & FX Shifts`,
-          whyItMatters: thirdNews ? `Enterprise spending commentary reported by ${thirdNews.publisher}.` : `Cross-currency movements impact reported revenue.`
-        }
-      ];
-
-      return res.json({
-        symbol: sym,
-        companyName: cName,
-        question: question || 'Analysis overview',
-        assessment: {
-          type: 'MIXED',
-          evidenceStrength: 'MODERATE',
-          summary: `${sym} is trading at ${curPriceStr} (${changeStr}) as market commentary evaluates recent analyst target revisions against valuation support.`
-        },
-        quickTake: {
-          whatHappened: topNews ? `${sym} is trading at ${curPriceStr} (${changeStr} today) following headlines: "${topNews.title}".` : `${sym} is trading at ${curPriceStr} (${changeStr} today).`,
-          why: topNews ? `Price action reflects market reaction to recent coverage: "${topNews.title}" as sell-side analysts re-assess forward earnings expectations.` : `Price action reflects ongoing sector valuation adjustments and analyst revisions following quarterly results.`,
-          portfolioImpact: `Your position is tracking daily market movements.`,
-          bottomLine: `Monitor upcoming quarterly earnings guidance and corporate deal TCV announcements.`
-        },
-        supportingEvidence: sEv,
-        contradictingEvidence: cEv,
-        uncertainFactors: uFactors,
-        risks,
-        whatToWatch: [],
-        scenarios: {
-          positive: [{ trigger: `Strong deal execution on "${topNews?.title ? topNews.title.slice(0, 45) : 'growth catalysts'}..."`, outcome: 'Multiple Expansion' }],
-          neutral: [{ trigger: `Consolidation following "${secondNews?.title ? secondNews.title.slice(0, 45) : 'market headlines'}..."`, outcome: 'Range-bound Action' }],
-          negative: [{ trigger: `Discretionary spend slowdown cited in "${thirdNews?.title ? thirdNews.title.slice(0, 45) : 'sector reports'}..."`, outcome: 'Multiple Compression' }]
-        },
-        portfolioImpact: null,
-        sources: news.map((n) => ({
-          title: n.title,
-          publisher: n.publisher || 'Financial Source',
-          url: n.link || '',
-          publishedAt: n.pubDate || new Date().toISOString(),
-        })),
-        dataFreshness: {
-          marketData: 'Live Market Feed',
-          news: `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-          earnings: 'Latest Q Reporting Period',
-          filings: 'Latest Regulatory Filings',
-        },
-        generatedAt: new Date().toISOString(),
-        disclaimer: 'Aurum provides AI-generated financial insights for informational and educational purposes only. Not registered investment advice.',
-      });
-    }
+    return res.json({
+      symbol: sec.symbol || symbol,
+      companyName: sec.companyName || companyName || symbol,
+      question: question || 'Analysis overview',
+      assessment: {
+        type: pred.predictionDirection || 'NEUTRAL',
+        evidenceStrength: pred.confidence > 70 ? 'STRONG' : 'MODERATE',
+        summary: dyn.directAnswer || data.reasoning?.summary || 'Analysis complete.'
+      },
+      quickTake: {
+        whatHappened: dyn.priceMovement?.changePercent
+          ? `${sec.symbol} is trading at ${sec.currency} ${sec.price} (${dyn.priceMovement.changePercent} today).`
+          : `${sec.symbol} is trading at ${sec.currency} ${sec.price}.`,
+        why: dyn.interpretation || dyn.calculationAndMechanics || 'Evidence-grounded quantitative analysis.',
+        portfolioImpact: data.portfolio ? `Active position held: ${data.portfolio.shares} shares.` : 'No direct holding in portfolio.',
+        bottomLine: dyn.directAnswer || 'Evidence-based analysis completed.'
+      },
+      supportingEvidence: (dyn.supportingEvidence || pred.supportingEvidence || []).map(e => ({
+        claim: e.factor || e.claim || 'Verified Metric',
+        evidence: e.claim || e.value || '',
+        sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
+        sourceUrl: '#',
+        date: 'Verified'
+      })),
+      contradictingEvidence: (dyn.contradictingEvidence || pred.contradictingEvidence || []).map(e => ({
+        claim: e.factor || e.claim || 'Risk Factor',
+        evidence: e.claim || e.value || '',
+        sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
+        sourceUrl: '#',
+        date: 'Verified'
+      })),
+      uncertainFactors: (dyn.uncertainty || pred.uncertainty || []).map(u => ({
+        claim: 'Uncertainty Variable',
+        evidence: typeof u === 'string' ? u : u.claim,
+        sourceTitle: 'Analytical Assessment',
+        sourceUrl: '#',
+        date: 'Current'
+      })),
+      risks: (pred.keyRisks || []).map(r => ({
+        item: typeof r === 'string' ? r : r.item,
+        whyItMatters: typeof r === 'string' ? r : r.whyItMatters
+      })),
+      scenarios: dyn.conditionalHorizon || {
+        positive: [{ trigger: 'Breaks resistance with volume expansion', outcome: 'Bullish Continuation' }],
+        neutral: [{ trigger: 'Consolidates in current range', outcome: 'Range-bound Action' }],
+        negative: [{ trigger: 'Breaches key support level', outcome: 'Downside Retracement' }]
+      },
+      portfolioImpact: data.portfolio,
+      sources: data.sources || [],
+      dataFreshness: data.freshness || {},
+      generatedAt: data.generatedAt || new Date().toISOString(),
+      disclaimer: 'Aurum provides evidence-based financial intelligence for research and informational purposes. Not registered investment advice.'
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -3918,83 +3598,26 @@ Return valid JSON strictly matching this schema:
 
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const { symbol, companyName, question, history, market } = req.body;
+    const { symbol, question, market } = req.body;
     if (!symbol || !question) {
       return res.status(400).json({ error: 'symbol and question are required' });
     }
 
-    const sym = symbol.toUpperCase();
-    const cName = companyName || sym;
-    const userApiKey = req.headers['x-gemini-key'] || req.body.apiKey || null;
+    const envelope = await processAnalystQuery({
+      question,
+      symbol,
+      market: market || 'IN',
+      geminiCaller: callGeminiBackend
+    });
 
-    // Fetch live market quote and news for context
-    const ticker = sym === 'TCS' ? 'TCS.NS' : (sym === 'RELIANCE' ? 'RELIANCE.NS' : (sym === 'INFY' ? 'INFY.NS' : sym));
-    const marketQuote = await fetchYahooQuote(ticker);
-    const news = await fetchMarketNewsInternal(sym, cName, market || 'IN');
+    const dyn = envelope.data?.dynamicResponse || {};
+    const content = dyn.directAnswer || envelope.data?.reasoning?.summary || 'Analysis completed based on verified evidence.';
 
-    const curPriceStr = marketQuote?.price ? `₹${marketQuote.price.toLocaleString('en-IN')}` : `₹2,089.60`;
-    const changeStr = marketQuote ? `${marketQuote.change >= 0 ? '+' : ''}${marketQuote.change?.toFixed(2) || '0.00'} (${marketQuote.changePercent?.toFixed(2) || '0.00'}%)` : '-0.73%';
-
-    const historyStr = Array.isArray(history) && history.length > 0
-      ? history.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n')
-      : 'No prior messages.';
-
-    const newsStr = news.length > 0
-      ? news.slice(0, 3).map((n) => `- "${n.title}" (${n.publisher})`).join('\n')
-      : 'No recent headlines.';
-
-    const prompt = `
-You are Aurum, an intelligent financial AI research assistant answering a user's follow-up question regarding ${sym} (${cName}).
-
-REAL MARKET QUOTE:
-- Price: ${curPriceStr}
-- Today's Change: ${changeStr}
-
-RECENT VERIFIED NEWS:
-${newsStr}
-
-CONVERSATION HISTORY:
-${historyStr}
-
-USER FOLLOW-UP QUESTION: "${question}"
-
-REQUIREMENTS:
-1. Provide a clear, evidence-based response (2-4 sentences).
-2. If the user asks whether to buy/sell (e.g., "can i buy more stock"), state that Aurum provides objective evidence rather than registered investment advice, then present the key catalysts (e.g., valuation support vs near-term analyst revisions).
-3. Directly answer the user's specific question using the market quote and news facts above.
-4. Do NOT use markdown code blocks or raw JSON formatting; return plain natural text.
-`;
-
-    try {
-      const text = await callGeminiBackend(prompt, userApiKey);
-      if (text && text.trim().length > 10) {
-        return res.json({ role: 'assistant', content: text.trim(), createdAt: new Date().toISOString() });
-      }
-    } catch (aiErr) {
-      console.warn('[AI/Chat] Gemini backend call warning:', aiErr.message);
-    }
-
-    // Smart financial answer synthesis fallback
-    const qLower = question.toLowerCase();
-    let answerText = '';
-
-    if (qLower.includes('buy') || qLower.includes('purchase') || qLower.includes('add') || qLower.includes('invest')) {
-      answerText = `As an objective financial AI assistant, Aurum does not provide registered buy or sell recommendations. Regarding ${sym} (currently trading at ${curPriceStr}, ${changeStr} today), key considerations include valuation support at recent lows against near-term IT sector discretionary spending caution and analyst target revisions. Review your overall portfolio allocation before adding exposure.`;
-    } else if (qLower.includes('why') || qLower.includes('reason') || qLower.includes('fall') || qLower.includes('down') || qLower.includes('drop')) {
-      const topNews = news[0];
-      answerText = topNews
-        ? `${sym}'s price action (${curPriceStr}, ${changeStr} today) reflects recent market coverage: "${topNews.title}" alongside sell-side target price revisions.`
-        : `${sym}'s price action (${curPriceStr}, ${changeStr} today) reflects broader IT sector valuation adjustments and analyst target revisions following quarterly results.`;
-    } else if (qLower.includes('earning') || qLower.includes('result') || qLower.includes('revenue') || qLower.includes('quarter')) {
-      answerText = `Investors are monitoring ${sym}'s forward TCV deal execution and operating margin performance for upcoming reporting periods. Recent updates highlight steady balance sheet stability amidst cautious enterprise technology spending.`;
-    } else {
-      const topNews = news[0];
-      answerText = topNews
-        ? `Regarding ${sym} (${cName}), live market feeds indicate price action at ${curPriceStr} (${changeStr} today). Recent verified coverage: "${topNews.title}". Monitor upcoming deal announcements and sector trends.`
-        : `Regarding ${sym} (${cName}), live market feeds indicate price action at ${curPriceStr} (${changeStr} today). Monitor upcoming management commentary and sector trends for further catalysts.`;
-    }
-
-    return res.json({ role: 'assistant', content: answerText, createdAt: new Date().toISOString() });
+    return res.json({
+      role: 'assistant',
+      content,
+      createdAt: new Date().toISOString()
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -4010,27 +3633,21 @@ app.post('/api/ai/chat/stream', async (req, res) => {
   };
 
   try {
-    const { symbol, companyName, question, history } = req.body;
-    sendEvent('status', { status: 'searching' });
-
-    const sym = (symbol || 'TCS').toUpperCase();
-    const cName = companyName || sym;
-    const ticker = sym === 'TCS' ? 'TCS.NS' : (sym === 'RELIANCE' ? 'RELIANCE.NS' : sym);
-    const marketQuote = await fetchYahooQuote(ticker);
-
+    const { symbol, question, market } = req.body;
     sendEvent('status', { status: 'analyzing' });
 
-    const prompt = `
-You are Aurum, a senior equity research assistant for ${sym} (${cName}).
-Current Price: ₹${marketQuote?.price || 'N/A'}, Change: ${marketQuote?.changePercent?.toFixed(2) || 0}%.
-User Question: "${question}"
+    const envelope = await processAnalystQuery({
+      question: question || `Analyze ${symbol || 'TCS'}`,
+      symbol: symbol || 'TCS',
+      market: market || 'IN',
+      geminiCaller: callGeminiBackend
+    });
 
-Provide a clear, objective response using verified facts.
-`;
+    const dyn = envelope.data?.dynamicResponse || {};
+    const content = dyn.directAnswer || 'Analysis complete.';
 
-    const result = await callGeminiWithGrounding(prompt, null, true);
-    sendEvent('text', { text: result.text });
-    sendEvent('sources', result.webSources || []);
+    sendEvent('text', { text: content });
+    sendEvent('sources', envelope.data?.sources || []);
     sendEvent('done', { status: 'complete' });
     res.end();
   } catch (err) {

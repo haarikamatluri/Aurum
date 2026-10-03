@@ -1036,11 +1036,12 @@ export class Dashboard implements OnInit, OnDestroy {
   });
 
   protected readonly todayGain = computed(() => {
-    const val = this.currentSummary().currentValue ?? this.currentSummary().totalInvested;
-    return val * 0.0115; // 1.15% daily movement indicator
+    return this.currentSummary().todayGain ?? 0;
   });
 
-  protected readonly todayGainPct = computed(() => 1.15);
+  protected readonly todayGainPct = computed(() => {
+    return this.currentSummary().todayGainPct ?? 0;
+  });
 
   protected readonly marketFilterLabel = computed(() => {
     switch (this.selectedMarket()) {

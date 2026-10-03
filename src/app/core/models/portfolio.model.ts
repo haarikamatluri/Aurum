@@ -33,9 +33,12 @@ export interface Holding {
   totalInvested: number;
   /** Current market price — null if API not yet connected. */
   currentPrice: number | null;
+  previousClose: number | null;
   currentValue: number | null;
   profitLoss: number | null;
   profitLossPct: number | null;
+  todayPnL: number | null;
+  todayPnLPct: number | null;
   addedAt: string;
   updatedAt: string;
 }
@@ -59,6 +62,8 @@ export interface PortfolioSummary {
   currentValue: number | null;
   totalGain: number | null;
   totalGainPct: number | null;
+  todayGain: number | null;
+  todayGainPct: number | null;
   totalRealizedGain: number;
   holdingCount: number;
   currency: CurrencyCode;
@@ -91,4 +96,19 @@ export interface StockSearchResult {
   exchange: string;
   market: MarketRegion;
   currency: CurrencyCode;
+}
+
+/** Canonical portfolio position snapshot for UI components */
+export interface PortfolioPositionSnapshot {
+  symbol: string;
+  quantity: number;
+  averageCost: number;
+  currentPrice: number | null;
+  previousClose: number | null;
+  marketValue: number | null;
+  investedValue: number;
+  unrealizedPnL: number | null;
+  unrealizedPnLPercent?: number;
+  latestMovementPercent?: number | null;
+  exposure?: number;
 }

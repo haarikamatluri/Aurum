@@ -98,7 +98,31 @@ async function compareCompanies(symbolA, symbolB, market = 'IN') {
     }
   ];
 
+  const takeaway = `Comparison between ${symA} and ${symB} highlights ${fA.peRatio && fB.peRatio && fA.peRatio < fB.peRatio ? `${symA}'s lower valuation multiple (${fA.peRatio}x vs ${fB.peRatio}x)` : `${symB}'s relative valuation profile`} alongside ${fA.returnOnEquity && fB.returnOnEquity && fA.returnOnEquity > fB.returnOnEquity ? `${symA}'s stronger Return on Equity (${fA.returnOnEquity}% vs ${fB.returnOnEquity}%)` : `${symB}'s operational metrics`}.`;
+
+  const compAnswer = `### Comparative Intelligence: ${symA} vs ${symB}\n\n` +
+    `**Executive Quantitative Takeaway:**\n` +
+    `${takeaway}\n\n` +
+    `**Side-by-Side Metric Comparison:**\n` +
+    `• **Current Price:** ${symA}: ₹${mA.price || 'N/A'} (${mA.changePercent || 0}%) vs ${symB}: ₹${mB.price || 'N/A'} (${mB.changePercent || 0}%)\n` +
+    metrics.map(m => `• **${m.metric} (${m.category}):** ${symA}: ${m.valueA} | ${symB}: ${m.valueB}${m.favorable ? ` *(Favorable: ${m.favorable})*` : ''}`).join('\n') +
+    `\n\n**Data Verification:** Extracted directly from live multi-source market gateways and official corporate statements.`;
+
   const payload = {
+    success: true,
+    requestId: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    intent: 'COMPANY_COMPARISON',
+    symbol: `${symA} vs ${symB}`,
+    responseType: 'COMPARISON',
+    answer: compAnswer,
+    sections: [
+      { title: 'Executive Comparison', content: takeaway }
+    ],
+    evidence: metrics.map(m => ({ metric: m.metric, value: `${symA}: ${m.valueA} | ${symB}: ${m.valueB}`, source: 'Comparative Gateways' })),
+    calculations: [],
+    sources: [
+      { name: 'Multi-Source Exchange Gateway', type: 'Comparative Quotes & Fundamentals', timestamp: new Date().toISOString(), freshness: 'LIVE' }
+    ],
     symbolA: symA,
     symbolB: symB,
     companyA: mA.companyName || symA,
@@ -108,11 +132,14 @@ async function compareCompanies(symbolA, symbolB, market = 'IN') {
     changeA: mA.changePercent,
     changeB: mB.changePercent,
     comparisonTable: metrics,
-    quantitativeTakeaway: `Comparison between ${symA} and ${symB} highlights ${fA.peRatio && fB.peRatio && fA.peRatio < fB.peRatio ? `${symA}'s lower valuation multiple` : `${symB}'s relative valuation profile`} alongside ${fA.returnOnEquity && fB.returnOnEquity && fA.returnOnEquity > fB.returnOnEquity ? `${symA}'s stronger Return on Equity` : `${symB}'s operational metrics`}. Review specific portfolio exposure and allocation limits before rebalancing.`,
+    quantitativeTakeaway: takeaway,
+    dataFreshness: 'LIVE',
+    generatedAt: new Date().toISOString(),
     timestamp: new Date().toISOString()
   };
 
   return createAnalystEnvelope({
+    symbol: `${symA}_${symB}`,
     market,
     data: payload,
     status: 'LIVE',
