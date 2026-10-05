@@ -18,9 +18,10 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy compiled Angular distribution bundle & server
+# Copy compiled Angular distribution bundle, server, and backend logic
 COPY --from=build /app/dist ./dist
 COPY server.js ./
+COPY src/server ./src/server
 
 # Railway sets PORT dynamically (defaults to 8080 if not set)
 EXPOSE 8080 4050 80
