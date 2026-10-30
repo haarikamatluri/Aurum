@@ -125,6 +125,73 @@ function formatStartupError(validation) {
 }
 
 /**
+ * Safe diagnostic extraction without exposing any secret contents or reversible representations.
+ * 
+ * @param {object} [env=process.env]
+ * @param {string[]} [argv=process.argv]
+ * @param {string|Function} [cwd=process.cwd()]
+ * @returns {object} Safe configuration diagnostic summary
+ */
+function getDiagnosticInfo(env = process.env, argv = process.argv, cwd = process.cwd()) {
+  const isRailway = Boolean(
+    env.RAILWAY_ENVIRONMENT ||
+    env.RAILWAY_PROJECT_ID ||
+    env.RAILWAY_SERVICE_ID ||
+    env.RAILWAY_STATIC_URL ||
+    env.RAILWAY_PUBLIC_DOMAIN ||
+    env.RAILWAY_GIT_COMMIT_SHA
+  );
+  const secret = env.JWT_SECRET;
+  const exists = secret !== undefined && secret !== null;
+  const isEmpty = exists && typeof secret === 'string' && secret.trim().length === 0;
+  const validation = validateJwtSecret(secret, env.NODE_ENV);
+  const workingDir = typeof cwd === 'function' ? cwd() : cwd;
+
+  return {
+    nodeEnv: env.NODE_ENV || 'undefined',
+    jwtSecretPresent: exists,
+    jwtSecretEmpty: isEmpty,
+    jwtSecretValid: validation.valid,
+    entryPoint: (argv && argv[1]) ? argv[1] : 'server.js',
+    workingDirectory: workingDir || '.',
+    isRailway,
+    railwayEnvironment: env.RAILWAY_ENVIRONMENT || null,
+    railwayServiceName: env.RAILWAY_SERVICE_NAME || null
+  };
+}
+
+/**
+ * Emits a structured, safe startup diagnostic block.
+ * CRITICAL SECURITY: Never prints actual JWT_SECRET contents or hashes.
+ * 
+ * @param {object} [env=process.env]
+ * @param {string[]} [argv=process.argv]
+ * @param {string|Function} [cwd=process.cwd()]
+ * @param {Function} [logger=console.log]
+ * @returns {object} Safe diagnostic info object
+ */
+function printStartupDiagnostic(env = process.env, argv = process.argv, cwd = process.cwd(), logger = console.log) {
+  const diag = getDiagnosticInfo(env, argv, cwd);
+  logger('[CONFIG DIAGNOSTIC]');
+  logger(`NODE_ENV: ${diag.nodeEnv}`);
+  logger(`JWT_SECRET_PRESENT: ${diag.jwtSecretPresent}`);
+  logger(`JWT_SECRET_EMPTY: ${diag.jwtSecretEmpty}`);
+  logger(`JWT_SECRET_VALID: ${diag.jwtSecretValid}`);
+  logger(`ENTRY_POINT: ${diag.entryPoint}`);
+  logger(`WORKING_DIRECTORY: ${diag.workingDirectory}`);
+  logger(`IS_RAILWAY: ${diag.isRailway}`);
+  if (diag.isRailway) {
+    if (diag.railwayEnvironment) {
+      logger(`RAILWAY_ENVIRONMENT: ${diag.railwayEnvironment}`);
+    }
+    if (diag.railwayServiceName) {
+      logger(`RAILWAY_SERVICE_NAME: ${diag.railwayServiceName}`);
+    }
+  }
+  return diag;
+}
+
+/**
  * Resolves the canonical JWT secret according to the environment.
  * 
  * @param {string} [nodeEnv=process.env['NODE_ENV']] - Current NODE_ENV.
@@ -243,6 +310,8 @@ module.exports = {
   KNOWN_INSECURE_SECRETS,
   validateJwtSecret,
   formatStartupError,
+  getDiagnosticInfo,
+  printStartupDiagnostic,
   getJwtSecret,
   assertProductionJwtSecret,
   signUserToken,

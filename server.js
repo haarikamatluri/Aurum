@@ -36,6 +36,7 @@ const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 const MONGODB_DB_NAME = (process.env.MONGODB_DB_NAME || 'portfolio_intelligence').trim();
 
 // Enforce production JWT_SECRET security policy before any requests are served
+jwtConfig.printStartupDiagnostic();
 jwtConfig.assertProductionJwtSecret();
 const JWT_SECRET = jwtConfig.getJwtSecret();
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();

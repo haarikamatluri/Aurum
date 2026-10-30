@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const {
   validateJwtSecret,
   formatStartupError,
+  getDiagnosticInfo,
+  printStartupDiagnostic,
   getJwtSecret,
   assertProductionJwtSecret,
   signUserToken,
@@ -349,6 +351,85 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
       process.env['JWT_SECRET'] = SECURE_TEST_SECRET;
       const secret = getJwtSecret('production', process.env['JWT_SECRET']);
       expect(secret).toBe(SECURE_TEST_SECRET);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 11: Safe Startup Environment Diagnostics (Task 3)
+  // --------------------------------------------------------------------------
+  describe('11. Safe Startup Environment Diagnostics (Task 3)', () => {
+    it('should accurately report diagnostic status when JWT_SECRET is missing in Railway production', () => {
+      const mockEnv = {
+        NODE_ENV: 'production',
+        RAILWAY_ENVIRONMENT: 'production',
+        RAILWAY_SERVICE_NAME: 'backend'
+      };
+      const diag = getDiagnosticInfo(mockEnv, ['node', '/app/server.js'], '/app');
+      expect(diag.nodeEnv).toBe('production');
+      expect(diag.jwtSecretPresent).toBe(false);
+      expect(diag.jwtSecretEmpty).toBe(false);
+      expect(diag.jwtSecretValid).toBe(false);
+      expect(diag.entryPoint).toBe('/app/server.js');
+      expect(diag.workingDirectory).toBe('/app');
+      expect(diag.isRailway).toBe(true);
+      expect(diag.railwayEnvironment).toBe('production');
+      expect(diag.railwayServiceName).toBe('backend');
+    });
+
+    it('should accurately report diagnostic status when JWT_SECRET is empty string', () => {
+      const mockEnv = {
+        NODE_ENV: 'production',
+        JWT_SECRET: '   '
+      };
+      const diag = getDiagnosticInfo(mockEnv, ['node', 'server.js'], 'D:/app');
+      expect(diag.jwtSecretPresent).toBe(true);
+      expect(diag.jwtSecretEmpty).toBe(true);
+      expect(diag.jwtSecretValid).toBe(false);
+      expect(diag.isRailway).toBe(false);
+    });
+
+    it('should accurately report diagnostic status when JWT_SECRET is valid and secure', () => {
+      const mockEnv = {
+        NODE_ENV: 'production',
+        JWT_SECRET: SECURE_TEST_SECRET,
+        RAILWAY_ENVIRONMENT: 'production',
+        RAILWAY_PROJECT_ID: 'proj-123'
+      };
+      const diag = getDiagnosticInfo(mockEnv, ['node', '/app/server.js'], '/app');
+      expect(diag.jwtSecretPresent).toBe(true);
+      expect(diag.jwtSecretEmpty).toBe(false);
+      expect(diag.jwtSecretValid).toBe(true);
+      expect(diag.isRailway).toBe(true);
+    });
+
+    it('should emit the formatted diagnostic banner via printStartupDiagnostic without printing secret content', () => {
+      const logs: string[] = [];
+      const mockLogger = (msg: string) => logs.push(msg);
+      const secretToProtect = 'SUPER_SECRET_VALUE_THAT_MUST_NEVER_BE_LOGGED_IN_CLEAR_TEXT_12345';
+      const mockEnv = {
+        NODE_ENV: 'production',
+        JWT_SECRET: secretToProtect,
+        RAILWAY_ENVIRONMENT: 'production',
+        RAILWAY_SERVICE_NAME: 'backend'
+      };
+
+      printStartupDiagnostic(mockEnv, ['node', '/app/server.js'], '/app', mockLogger);
+
+      const allOutput = logs.join('\n');
+      expect(allOutput).toContain('[CONFIG DIAGNOSTIC]');
+      expect(allOutput).toContain('NODE_ENV: production');
+      expect(allOutput).toContain('JWT_SECRET_PRESENT: true');
+      expect(allOutput).toContain('JWT_SECRET_VALID: true');
+      expect(allOutput).toContain('ENTRY_POINT: /app/server.js');
+      expect(allOutput).toContain('WORKING_DIRECTORY: /app');
+      expect(allOutput).toContain('IS_RAILWAY: true');
+      expect(allOutput).toContain('RAILWAY_ENVIRONMENT: production');
+      expect(allOutput).toContain('RAILWAY_SERVICE_NAME: backend');
+
+      // CRITICAL SECURITY ASSERTION: Under no circumstances should the secret or any part of it be logged
+      expect(allOutput).not.toContain(secretToProtect);
+      expect(allOutput).not.toContain(secretToProtect.slice(0, 10));
+      expect(allOutput).not.toContain(String(secretToProtect.length));
     });
   });
 });
