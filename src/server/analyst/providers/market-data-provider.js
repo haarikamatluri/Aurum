@@ -7,6 +7,7 @@
 
 const { createAnalystEnvelope } = require('../envelope');
 const { resolveSecurity } = require('./security-master');
+const FinancialCalculationEngine = require('../engines/financial-calculation-engine');
 
 // In-memory cache for market quotes & candles
 const quoteCache = new Map();
@@ -73,10 +74,11 @@ async function fetchUpstoxQuote(security) {
     const change = price - prevClose;
     const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
 
+    const quoteTime = new Date().toISOString();
     return {
       success: true,
       provider: 'Upstox Pro Market Gateway',
-      source: 'NSE/BSE Institutional Feed',
+      source: 'Upstox Market Data Feed',
       data: {
         symbol: security.symbol,
         canonicalSymbol: security.canonicalSymbol,
@@ -90,9 +92,9 @@ async function fetchUpstoxQuote(security) {
         dayHigh: item.ohlc?.high || price,
         dayLow: item.ohlc?.low || price,
         volume: item.volume || 0,
-        timestamp: new Date().toISOString(),
+        timestamp: quoteTime,
         provider: 'Upstox Pro Market Gateway',
-        source: 'NSE/BSE Institutional Feed',
+        source: 'Upstox Market Data Feed',
         freshness: 0,
         status: 'LIVE'
       }
@@ -129,11 +131,14 @@ async function fetchFinnhubQuote(security) {
     const prevClose = data.pc || price;
     const change = data.d !== undefined ? data.d : (price - prevClose);
     const changePercent = data.dp !== undefined ? data.dp : (prevClose > 0 ? (change / prevClose) * 100 : 0);
+    const quoteTimestamp = data.t ? new Date(data.t * 1000).toISOString() : new Date().toISOString();
+    const ageSeconds = data.t ? Math.max(0, Math.floor((Date.now() - (data.t * 1000)) / 1000)) : 0;
+    const status = ageSeconds < 300 ? 'LIVE' : (ageSeconds < 1800 ? 'DELAYED' : 'STALE');
 
     return {
       success: true,
-      provider: 'Finnhub Institutional Real-Time',
-      source: 'NASDAQ/NYSE Official BBO',
+      provider: 'Finnhub Financial Data Feed',
+      source: 'Finnhub Market Data API',
       data: {
         symbol: security.symbol,
         canonicalSymbol: security.canonicalSymbol,
@@ -147,11 +152,11 @@ async function fetchFinnhubQuote(security) {
         dayHigh: data.h || price,
         dayLow: data.l || price,
         volume: 0, // Finnhub basic quote doesn't return day volume
-        timestamp: data.t ? new Date(data.t * 1000).toISOString() : new Date().toISOString(),
-        provider: 'Finnhub Institutional Real-Time',
-        source: 'NASDAQ/NYSE Official BBO',
-        freshness: 0,
-        status: 'LIVE'
+        timestamp: quoteTimestamp,
+        provider: 'Finnhub Financial Data Feed',
+        source: 'Finnhub Market Data API',
+        freshness: ageSeconds,
+        status
       }
     };
   } catch (err) {
@@ -182,15 +187,23 @@ async function fetchTwelveDataQuote(security) {
       return { success: false, reason: data.message || 'TWELVE_DATA_ERROR' };
     }
 
+    // Guard against currency contamination (e.g. Twelve Data returning US ADR in USD for an Indian NSE stock)
+    if (security.currency && data.currency && security.currency.toUpperCase() !== data.currency.toUpperCase()) {
+      return { success: false, reason: `TWELVE_DATA_CURRENCY_MISMATCH_${data.currency}_VS_${security.currency}` };
+    }
+
     const price = parseFloat(data.close);
     const prevClose = parseFloat(data.previous_close || price);
     const change = parseFloat(data.change || (price - prevClose));
     const changePercent = parseFloat(data.percent_change || 0);
+    const quoteTimestamp = data.datetime ? new Date(data.datetime).toISOString() : new Date().toISOString();
+    const ageSeconds = data.datetime ? Math.max(0, Math.floor((Date.now() - new Date(data.datetime).getTime()) / 1000)) : 0;
+    const status = ageSeconds < 300 ? 'LIVE' : (ageSeconds < 1800 ? 'DELAYED' : 'STALE');
 
     return {
       success: true,
       provider: 'Twelve Data Global Markets',
-      source: 'Global Market Exchange Network',
+      source: 'Twelve Data API',
       data: {
         symbol: security.symbol,
         canonicalSymbol: security.canonicalSymbol,
@@ -204,11 +217,11 @@ async function fetchTwelveDataQuote(security) {
         dayHigh: parseFloat(data.high || price),
         dayLow: parseFloat(data.low || price),
         volume: parseInt(data.volume || 0, 10),
-        timestamp: data.datetime ? new Date(data.datetime).toISOString() : new Date().toISOString(),
+        timestamp: quoteTimestamp,
         provider: 'Twelve Data Global Markets',
-        source: 'Global Market Exchange Network',
-        freshness: 0,
-        status: 'LIVE'
+        source: 'Twelve Data API',
+        freshness: ageSeconds,
+        status
       }
     };
   } catch (err) {
@@ -474,9 +487,11 @@ async function fetchChartAndTechnicals(symbol, marketHint = 'IN') {
       }
     }
 
-    if (points.length === 0) return cached ? cached.data : null;
+    const validation = FinancialCalculationEngine.validateCandleIntegrity(points);
+    const cleanPoints = validation.isValid ? validation.validBars : points;
+    if (cleanPoints.length === 0) return cached ? cached.data : null;
 
-    const closePrices = points.map(p => p.close);
+    const closePrices = cleanPoints.map(p => p.close);
     const currentPrice = closePrices[closePrices.length - 1];
 
     // Mathematical Technical Indicators
@@ -492,17 +507,19 @@ async function fetchChartAndTechnicals(symbol, marketHint = 'IN') {
     // Bollinger Bands (20, 2)
     const bollinger = calculateBollingerBands(closePrices, 20, 2);
 
-    // ATR (14)
-    const atr14 = calculateATR(points, 14);
+    // Canonical Wilder ATR (14)
+    const atr14 = calculateATR(cleanPoints, 14);
 
     // Annualized Historical Volatility
     const histVolatility = calculateHistoricalVolatility(closePrices, 20);
 
     // Volume Z-Score & Trend
-    const volZScore = calculateVolumeZScore(points.map(p => p.volume), 20);
+    const volZScore = calculateVolumeZScore(cleanPoints.map(p => p.volume), 20);
 
-    // Support and Resistance via local swing pivot clusters
-    const { support, resistance } = calculateSupportResistance(points.slice(-60), currentPrice);
+    // Support and Resistance via Confirmed Fractal Swing Pivot Clusters
+    const srResult = FinancialCalculationEngine.calculateSupportResistance(cleanPoints, currentPrice, { lookback: 60, k: 2 });
+    const support = srResult.support || (currentPrice * 0.96);
+    const resistance = srResult.resistance || (currentPrice * 1.04);
 
     // Trend Determination
     let trend = 'NEUTRAL';
@@ -512,8 +529,15 @@ async function fetchChartAndTechnicals(symbol, marketHint = 'IN') {
     }
 
     const payload = {
-      points: points.slice(-30),
+      points: cleanPoints.slice(-30),
+      historical: cleanPoints,
       currentPrice,
+      lastCompletedCandleTimestamp: validation.lastCompletedCandleTimestamp,
+      candleIntegrity: {
+        totalOriginal: validation.totalOriginal,
+        totalCleaned: validation.totalCleaned,
+        issuesCount: validation.issuesCount
+      },
       technicals: {
         rsi14: Number(rsi14.toFixed(1)),
         rsiCondition: rsi14 > 70 ? 'OVERBOUGHT' : rsi14 < 30 ? 'OVERSOLD' : 'NEUTRAL',
@@ -542,6 +566,7 @@ async function fetchChartAndTechnicals(symbol, marketHint = 'IN') {
         volumeZScore: Number(volZScore.toFixed(2)),
         support: Number(support.toFixed(2)),
         resistance: Number(resistance.toFixed(2)),
+        supportMetadata: srResult,
         trend
       }
     };
@@ -658,19 +683,8 @@ function calculateBollingerBands(closes, period = 20, stdDevMultiplier = 2) {
 }
 
 function calculateATR(points, period = 14) {
-  if (points.length < period + 1) return 0;
-  const trs = [];
-  for (let i = 1; i < points.length; i++) {
-    const current = points[i];
-    const prev = points[i - 1];
-    const tr = Math.max(
-      current.high - current.low,
-      Math.abs(current.high - prev.close),
-      Math.abs(current.low - prev.close)
-    );
-    trs.push(tr);
-  }
-  return calculateSMA(trs, period) || 0;
+  if (!points || points.length < period + 1) return 0;
+  return FinancialCalculationEngine.calculateATR(points, period) || 0;
 }
 
 function calculateHistoricalVolatility(closes, period = 20) {
@@ -696,18 +710,14 @@ function calculateVolumeZScore(volumes, period = 20) {
 
 function calculateSupportResistance(points, currentPrice) {
   if (!points || points.length < 5) {
-    return { support: currentPrice * 0.95, resistance: currentPrice * 1.05 };
+    return { support: currentPrice * 0.96, resistance: currentPrice * 1.04 };
   }
-  const lows = points.map(p => p.low).sort((a, b) => a - b);
-  const highs = points.map(p => p.high).sort((a, b) => a - b);
-
-  const supportCandidates = lows.filter(l => l < currentPrice);
-  const support = supportCandidates.length > 0 ? supportCandidates[Math.floor(supportCandidates.length * 0.75)] : currentPrice * 0.96;
-
-  const resistanceCandidates = highs.filter(h => h > currentPrice);
-  const resistance = resistanceCandidates.length > 0 ? resistanceCandidates[Math.floor(resistanceCandidates.length * 0.25)] : currentPrice * 1.04;
-
-  return { support, resistance };
+  const res = FinancialCalculationEngine.calculateSupportResistance(points, currentPrice, { lookback: 60, k: 2 });
+  return {
+    support: res.support || (currentPrice * 0.96),
+    resistance: res.resistance || (currentPrice * 1.04),
+    metadata: res
+  };
 }
 
 // ============================================================================
@@ -783,7 +793,9 @@ async function getStockMarketData(symbol, marketHint = 'IN') {
   const combinedData = {
     ...quote,
     technicals: chartAndTechnicals?.technicals || null,
-    recentPoints: chartAndTechnicals?.points || []
+    recentPoints: chartAndTechnicals?.points || [],
+    historical: chartAndTechnicals?.historical || chartAndTechnicals?.points || [],
+    lastCompletedCandleTimestamp: chartAndTechnicals?.lastCompletedCandleTimestamp || quote.timestamp
   };
 
   return createAnalystEnvelope({

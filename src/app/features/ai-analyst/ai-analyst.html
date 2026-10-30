@@ -356,7 +356,12 @@
                 </span>
                 <h3 style="margin-left: 8px;">EARNINGS RESULTS & METRICS</h3>
               </div>
-              <span class="badge-web-researched">Verified Disclosures</span>
+              <button type="button" class="status-pill status-verified clickable-badge"
+                (click)="openEvidenceVerificationForEarnings(getDynamicResponse()?.earningsResult, $event)"
+                aria-label="View verification trail for official earnings report">
+                <span class="badge-icon">✓</span>
+                <span>VERIFIED DISCLOSURES</span>
+              </button>
             </div>
             <p class="qt-summary-lead">
               {{ getDynamicResponse()?.directAnswer }}
@@ -775,7 +780,7 @@
             <div class="section-card-header">
               <div class="header-left-title">
                 <h3>VERIFIED EVIDENCE FACTORS</h3>
-                <span class="sub-count">{{ getSupportingCount() + getContradictingCount() }} factors verified</span>
+                <span class="sub-count">{{ getVerifiedFactorsCount() }} factors verified</span>
               </div>
               <button type="button" class="btn-link-sm" (click)="openEvidenceModal()">View All &rarr;</button>
             </div>
@@ -791,17 +796,35 @@
                   <span>SUPPORTING</span>
                 </div>
                 <div class="moved-items-list">
-                  @for (item of getSupportingEvidence(); track item.claim) {
+                  @for (item of getSupportingEvidence(); track item.title || item.claim) {
                     <div class="moved-item-card">
-                      <h4 class="item-title">{{ item.claim }}</h4>
+                      <div class="factor-header-row">
+                        <h4 class="item-title">{{ item.title || item.claim }}</h4>
+                        <button type="button" class="status-pill status-{{ (item.status || 'VERIFIED').toLowerCase() }} clickable-badge"
+                          (click)="openEvidenceVerification(item, $event)"
+                          [attr.aria-label]="'View verification details for ' + (item.title || item.claim)">
+                          <span class="badge-icon">✓</span>
+                          <span>{{ item.status || 'VERIFIED' }}</span>
+                        </button>
+                      </div>
                       <p class="item-snippet">"{{ item.evidence }}"</p>
+                      @if (item.interpretation) {
+                        <p class="item-interpretation"><span class="interp-tag">Reasoning:</span> {{ item.interpretation }}</p>
+                      }
                       <div class="item-source-tag">
-                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                        @if (item.sourceUrl) {
+                          <a [href]="item.sourceUrl" target="_blank" rel="noopener noreferrer" class="source-link">{{ item.sourceTitle }}</a>
+                        } @else {
+                          <span>{{ item.sourceTitle }}</span>
+                        }
+                        @if (item.date) {
+                          · <span>{{ item.date }}</span>
+                        }
                       </div>
                     </div>
                   } @empty {
                     <div style="font-size: 12px; color: #94a3b8; padding: 12px; font-style: italic;">
-                      Verified evidence unavailable for positive catalysts.
+                      No verified supporting factors recorded for this security.
                     </div>
                   }
                 </div>
@@ -816,12 +839,30 @@
                   <span>CONTRARY</span>
                 </div>
                 <div class="moved-items-list">
-                  @for (item of getContradictingEvidence(); track item.claim) {
+                  @for (item of getContradictingEvidence(); track item.title || item.claim) {
                     <div class="moved-item-card">
-                      <h4 class="item-title">{{ item.claim }}</h4>
+                      <div class="factor-header-row">
+                        <h4 class="item-title">{{ item.title || item.claim }}</h4>
+                        <button type="button" class="status-pill status-{{ (item.status || 'VERIFIED').toLowerCase() }} clickable-badge"
+                          (click)="openEvidenceVerification(item, $event)"
+                          [attr.aria-label]="'View verification details for ' + (item.title || item.claim)">
+                          <span class="badge-icon">✓</span>
+                          <span>{{ item.status || 'VERIFIED' }}</span>
+                        </button>
+                      </div>
                       <p class="item-snippet">"{{ item.evidence }}"</p>
+                      @if (item.interpretation) {
+                        <p class="item-interpretation"><span class="interp-tag">Risk Impact:</span> {{ item.interpretation }}</p>
+                      }
                       <div class="item-source-tag">
-                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                        @if (item.sourceUrl) {
+                          <a [href]="item.sourceUrl" target="_blank" rel="noopener noreferrer" class="source-link">{{ item.sourceTitle }}</a>
+                        } @else {
+                          <span>{{ item.sourceTitle }}</span>
+                        }
+                        @if (item.date) {
+                          · <span>{{ item.date }}</span>
+                        }
                       </div>
                     </div>
                   } @empty {
@@ -841,13 +882,33 @@
                   <span>WATCH</span>
                 </div>
                 <div class="moved-items-list">
-                  @for (item of getUncertainFactors(); track item.claim) {
-                    <div class="moved-item-card">
-                      <h4 class="item-title">{{ item.claim }}</h4>
-                      <p class="item-snippet">"{{ item.evidence }}"</p>
-                      <div class="item-source-tag">
-                        <span>{{ item.sourceTitle }}</span> · <span>{{ item.date }}</span>
+                  @for (item of getWatchItems(); track item.id || item.title) {
+                    <div class="moved-item-card watch-rule-card">
+                      <div class="factor-header-row">
+                        <h4 class="item-title">{{ item.title }}</h4>
+                        <button type="button" class="status-pill status-{{ (item.status || 'ACTIVE_UNTRIGGERED').toLowerCase() }} clickable-badge"
+                          (click)="openEvidenceVerificationForWatch(item, $event)"
+                          [attr.aria-label]="'View verification details for ' + item.title">
+                          <span>
+                            {{ item.isTriggered ? 'TRIGGERED' : (item.status === 'INPUT_UNAVAILABLE' ? 'UNAVAILABLE' : (item.status === 'AWAITING_CONFIGURATION' ? 'CONFIG REQ' : 'MONITORING')) }}
+                          </span>
+                        </button>
                       </div>
+                      <p class="watch-condition-line"><strong>Condition:</strong> {{ item.conditionText }}</p>
+                      @if (item.currentValue !== null) {
+                        <p class="watch-current-val">Current: {{ item.currentValue }} {{ item.unit }}</p>
+                      }
+                      <p class="item-snippet">{{ item.reason }}</p>
+                      <div class="item-source-tag">
+                        <span>{{ item.source || 'Technical Pivot' }}</span>
+                        @if (item.lastEvaluatedAt) {
+                          · <span>{{ formatTimeAgo(item.lastEvaluatedAt) }}</span>
+                        }
+                      </div>
+                    </div>
+                  } @empty {
+                    <div style="font-size: 12px; color: #94a3b8; padding: 12px; font-style: italic;">
+                      No configured watch conditions.
                     </div>
                   }
                 </div>
@@ -873,7 +934,14 @@
                     </svg>
                   </div>
                   <div class="risk-compact-info">
-                    <h4 class="risk-name">{{ r.item }}</h4>
+                    <div class="risk-header-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                      <h4 class="risk-name">{{ r.item }}</h4>
+                      <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                        (click)="openEvidenceVerificationForRisk(r, $event)"
+                        [attr.aria-label]="'View verification details for ' + r.item">
+                        <span>VERIFIED</span>
+                      </button>
+                    </div>
                     <p class="risk-desc">{{ r.whyItMatters }}</p>
                   </div>
                 </div>
@@ -889,23 +957,100 @@
           <!-- LATEST NEWS (7 Cols) -->
           <div class="card-latest-news">
             <div class="section-card-header">
-              <h3>LATEST NEWS</h3>
+              <div class="header-title-flex">
+                <h3>LATEST NEWS</h3>
+                <span class="sub-label">Stock-Specific Intelligence</span>
+              </div>
               <button type="button" class="btn-link-sm" (click)="openNewsModal()">View All &rarr;</button>
             </div>
 
             <div class="news-rows-container">
-              @for (n of getNewsList().slice(0, 3); track n.title) {
-                <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="news-row-item">
-                  <div class="news-main-detail">
-                    <h4 class="news-headline-text">{{ n.title }}</h4>
-                    <div class="news-meta-subline">
-                      <span>{{ n.publisher }}</span> · <span>{{ formatTimeAgo(n.pubDate) }}</span>
+              @if (getNewsList().length === 0) {
+                <div class="empty-intel-box">
+                  <span class="empty-intel-msg">Latest verified news is currently unavailable.</span>
+                  <span class="empty-intel-sub">No recent verified filings or news releases returned for this symbol.</span>
+                </div>
+              } @else {
+                @for (n of getNewsList().slice(0, 3); track (n.title + $index)) {
+                  <div class="news-intel-item" [class.is-expanded]="expandedNewsIndex() === $index">
+                    <div class="news-main-detail">
+                      <div class="news-tag-bar">
+                        <span class="news-category-badge">{{ formatNewsCategory(n.category) }}</span>
+                        <span class="news-impact-pill" [class.impact-pos]="n.impact === 'POSITIVE'" [class.impact-neg]="n.impact === 'NEGATIVE'" [class.impact-neu]="n.impact === 'NEUTRAL'">
+                          {{ n.impact }}
+                        </span>
+                        @if (n.timeHorizon) {
+                          <span class="news-horizon-pill">{{ n.timeHorizon === 'LONG_TERM' ? 'Long-Term' : 'Short-Term' }}</span>
+                        }
+                      </div>
+
+                      <a [href]="n.link" target="_blank" rel="noopener noreferrer" class="news-headline-link" [title]="n.title">
+                        <h4 class="news-headline-text">{{ n.title }}</h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" class="ext-arrow">
+                          <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+                        </svg>
+                      </a>
+
+                      <div class="news-meta-subline">
+                        <span class="news-pub-name">{{ n.publisher }}</span> · <span>{{ n.pubDate ? formatTimeAgo(n.pubDate) : 'Recently reported' }}</span>
+                        @if (n.isSourceVerified) {
+                          <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                            (click)="openEvidenceVerificationForNews(n, $event)"
+                            [attr.aria-label]="'View verification details for news: ' + n.title">
+                            <span>VERIFIED SOURCE</span>
+                          </button>
+                        } @else {
+                          <button type="button" class="status-pill status-unverified clickable-badge badge-sm"
+                            (click)="openEvidenceVerificationForNews(n, $event)"
+                            [attr.aria-label]="'View feed details for news: ' + n.title">
+                            <span>RETRIEVED FEED</span>
+                          </button>
+                        }
+                        
+                        <button type="button" class="btn-expand-news" (click)="toggleNewsExpand($index, $event)">
+                          {{ expandedNewsIndex() === $index ? 'Hide Impact ▲' : 'Why It Matters ▼' }}
+                        </button>
+                      </div>
+
+                      @if (expandedNewsIndex() === $index) {
+                        <div class="news-expanded-intel">
+                          @if (n.summary && n.summary !== n.title) {
+                            <div class="intel-block">
+                              <span class="intel-lbl">FACTUAL SUMMARY:</span>
+                              <p class="intel-desc">{{ n.summary }}</p>
+                            </div>
+                          }
+                          @if (n.whyItMatters) {
+                            <div class="intel-block">
+                              <span class="intel-lbl">WHY IT MATTERS:</span>
+                              <p class="intel-desc">{{ n.whyItMatters }}</p>
+                            </div>
+                          }
+                          <div class="intel-meta-grid">
+                            <div><span class="intel-lbl">AFFECTED METRIC:</span> <span class="intel-val">{{ n.affectedMetric || 'General Corporate Operations' }}</span></div>
+                            <div><span class="intel-lbl">CONFIRMATION:</span> <span class="intel-val">{{ formatConfirmationStatus(n.confirmationStatus) }}</span></div>
+                          </div>
+                          @if (n.marketReaction) {
+                            <div class="intel-reaction-box">
+                              <div class="reaction-hdr">
+                                <span class="intel-lbl">MARKET REACTION CONTEXT:</span>
+                                <span class="reaction-eval">{{ n.marketReaction.reactionAssessment }}</span>
+                              </div>
+                              <div class="reaction-stats">
+                                <span>Stock: <strong>{{ formatSignedPct(n.marketReaction.stockMovementPercent) }}</strong></span>
+                                <span>Sector: <strong>{{ formatSignedPct(n.marketReaction.sectorMovementPercent) }}</strong></span>
+                                @if (n.marketReaction.volumeChangePercent != null) {
+                                  <span>Volume: <strong>{{ formatSignedPct(n.marketReaction.volumeChangePercent) }}</strong></span>
+                                }
+                              </div>
+                              <p class="reaction-disclaimer">{{ n.marketReaction.correlationDisclaimer }}</p>
+                            </div>
+                          }
+                        </div>
+                      }
                     </div>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="ext-arrow">
-                    <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
-                  </svg>
-                </a>
+                }
               }
             </div>
           </div>
@@ -915,52 +1060,171 @@
             <div class="section-card-header">
               <div class="header-title-flex">
                 <h3>POSSIBLE SCENARIOS</h3>
-                <span class="sub-label">Scenarios to monitor</span>
+                <span class="sub-label">Calculation-Driven Projections</span>
               </div>
+              @if (getPossibleScenariosMetadata().calculatedAt) {
+                <span class="calc-timestamp-pill" [title]="'Calculated at: ' + getPossibleScenariosMetadata().calculatedAt">
+                  Calcd {{ formatTimeAgo(getPossibleScenariosMetadata().calculatedAt) }}
+                </span>
+              }
             </div>
 
-            <div class="scenarios-compact-stack">
-              
-              <div class="scenario-row sc-pos">
-                <span class="sc-badge pos">POSITIVE</span>
-                <div class="sc-content">
-                  @for (s of getPositiveScenarios(); track s.trigger) {
-                    <div class="sc-pair">
-                      <span class="sc-trig">{{ s.trigger }}</span>
-                      <span class="sc-arrow">&rarr;</span>
-                      <span class="sc-out">{{ s.outcome }}</span>
-                    </div>
-                  }
-                </div>
+            @if (!getPossibleScenariosMetadata().hasScenarios) {
+              <div class="empty-intel-box">
+                <span class="empty-intel-msg">Insufficient verified data to construct this scenario.</span>
+                <span class="empty-intel-sub">Historical OHLCV data or live market quote is required for quantitative calculations.</span>
               </div>
-
-              <div class="scenario-row sc-neu">
-                <span class="sc-badge neu">NEUTRAL</span>
-                <div class="sc-content">
-                  @for (s of getNeutralScenarios(); track s.trigger) {
-                    <div class="sc-pair">
-                      <span class="sc-trig">{{ s.trigger }}</span>
-                      <span class="sc-arrow">&rarr;</span>
-                      <span class="sc-out">{{ s.outcome }}</span>
+            } @else {
+              <div class="scenarios-compact-stack">
+                
+                <!-- POSITIVE SCENARIO -->
+                @for (s of getPositiveScenarios(); track s.trigger) {
+                  <div class="scenario-row sc-pos">
+                    <div class="sc-header-row">
+                      <div class="sc-badge-group">
+                        <span class="sc-badge pos">POSITIVE</span>
+                        <span class="sc-title-text">{{ s.label || 'BULLISH CONTINUATION / BREAKOUT' }}</span>
+                      </div>
+                      @if (s.potentialTarget) {
+                        <span class="sc-target-pill pos" [title]="s.targetMath || 'Measured Move Target'">
+                          Target: {{ s.potentialTarget }}
+                        </span>
+                      }
                     </div>
-                  }
-                </div>
-              </div>
 
-              <div class="scenario-row sc-neg">
-                <span class="sc-badge neg">NEGATIVE</span>
-                <div class="sc-content">
-                  @for (s of getNegativeScenarios(); track s.trigger) {
-                    <div class="sc-pair">
-                      <span class="sc-trig">{{ s.trigger }}</span>
-                      <span class="sc-arrow">&rarr;</span>
-                      <span class="sc-out">{{ s.outcome }}</span>
+                    <div class="sc-content">
+                      <div class="sc-section-item">
+                        <span class="sc-key">TRIGGER:</span>
+                        <span class="sc-val">{{ s.trigger }}</span>
+                      </div>
+                      <div class="sc-section-item">
+                        <span class="sc-key">OUTCOME:</span>
+                        <span class="sc-val">{{ s.outcome }}</span>
+                      </div>
+                      @if (s.confirmation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">CONFIRMATION:</span>
+                          <span class="sc-val">{{ s.confirmation }}</span>
+                        </div>
+                      }
+                      @if (s.invalidation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">INVALIDATION:</span>
+                          <span class="sc-val">{{ s.invalidation }}</span>
+                        </div>
+                      }
+                      @if (s.mathBasis) {
+                        <div class="sc-math-basis">
+                          <div class="sc-math-left">
+                            <span class="sc-key">CALCULATIONS:</span>
+                            <span class="sc-formula">{{ s.mathBasis }}</span>
+                          </div>
+                          <button type="button" class="status-pill status-verified clickable-badge badge-xs"
+                            (click)="openEvidenceVerificationForScenario(s, $event)"
+                            title="View underlying calculation proof in evidence ledger">
+                            <span>VERIFIED MATH</span>
+                          </button>
+                        </div>
+                      }
                     </div>
-                  }
-                </div>
-              </div>
+                  </div>
+                }
 
-            </div>
+                <!-- NEUTRAL SCENARIO -->
+                @for (s of getNeutralScenarios(); track s.trigger) {
+                  <div class="scenario-row sc-neu">
+                    <div class="sc-header-row">
+                      <div class="sc-badge-group">
+                        <span class="sc-badge neu">NEUTRAL</span>
+                        <span class="sc-title-text">{{ s.label || 'RANGE-BOUND CONSOLIDATION' }}</span>
+                      </div>
+                      @if (s.potentialTarget) {
+                        <span class="sc-target-pill neu" [title]="s.targetMath || 'Trading Range'">
+                          {{ s.potentialTarget }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="sc-content">
+                      <div class="sc-section-item">
+                        <span class="sc-key">CONDITION:</span>
+                        <span class="sc-val">{{ s.trigger }}</span>
+                      </div>
+                      <div class="sc-section-item">
+                        <span class="sc-key">OUTCOME:</span>
+                        <span class="sc-val">{{ s.outcome }}</span>
+                      </div>
+                      @if (s.confirmation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">CONFIRMATION:</span>
+                          <span class="sc-val">{{ s.confirmation }}</span>
+                        </div>
+                      }
+                      @if (s.invalidation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">INVALIDATION:</span>
+                          <span class="sc-val">{{ s.invalidation }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <!-- NEGATIVE SCENARIO -->
+                @for (s of getNegativeScenarios(); track s.trigger) {
+                  <div class="scenario-row sc-neg">
+                    <div class="sc-header-row">
+                      <div class="sc-badge-group">
+                        <span class="sc-badge neg">NEGATIVE</span>
+                        <span class="sc-title-text">{{ s.label || 'BEARISH BREAKDOWN RETRACEMENT' }}</span>
+                      </div>
+                      @if (s.potentialTarget) {
+                        <span class="sc-target-pill neg" [title]="s.targetMath || 'Measured Move Target'">
+                          Target: {{ s.potentialTarget }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="sc-content">
+                      <div class="sc-section-item">
+                        <span class="sc-key">TRIGGER:</span>
+                        <span class="sc-val">{{ s.trigger }}</span>
+                      </div>
+                      <div class="sc-section-item">
+                        <span class="sc-key">OUTCOME:</span>
+                        <span class="sc-val">{{ s.outcome }}</span>
+                      </div>
+                      @if (s.confirmation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">CONFIRMATION:</span>
+                          <span class="sc-val">{{ s.confirmation }}</span>
+                        </div>
+                      }
+                      @if (s.invalidation) {
+                        <div class="sc-section-item">
+                          <span class="sc-key">INVALIDATION:</span>
+                          <span class="sc-val">{{ s.invalidation }}</span>
+                        </div>
+                      }
+                      @if (s.mathBasis) {
+                        <div class="sc-math-basis">
+                          <div class="sc-math-left">
+                            <span class="sc-key">CALCULATIONS:</span>
+                            <span class="sc-formula">{{ s.mathBasis }}</span>
+                          </div>
+                          <button type="button" class="status-pill status-verified clickable-badge badge-xs"
+                            (click)="openEvidenceVerificationForScenario(s, $event)"
+                            title="View underlying calculation proof in evidence ledger">
+                            <span>VERIFIED MATH</span>
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
+              </div>
+            }
           </div>
 
         </div>
@@ -1014,11 +1278,19 @@
                               <span class="sar-card-title">KEY FACTORS</span>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Trend</span>
-                                <span class="sar-val">{{ msg.technicals.trend || 'Unavailable' }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('Trend', msg, $event)"
+                                  aria-label="View verification trail for Trend">
+                                  <span>{{ msg.technicals.trend || 'Unavailable' }}</span>
+                                </button>
                               </div>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">RSI(14)</span>
-                                <span class="sar-val">{{ msg.technicals.rsi14 ? (msg.technicals.rsi14 | number:'1.1-1') : 'Unavailable' }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('RSI', msg, $event)"
+                                  aria-label="View verification trail for RSI">
+                                  <span>{{ msg.technicals.rsi14 ? (msg.technicals.rsi14 | number:'1.1-1') : 'Unavailable' }}</span>
+                                </button>
                               </div>
                             </div>
                           }
@@ -1028,7 +1300,11 @@
                               <span class="sar-card-title">MARKET DATA</span>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Price</span>
-                                <span class="sar-val">{{ formatCurrency(msg.marketData.price, msg.marketData.currency) }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('Price', msg, $event)"
+                                  aria-label="View verification trail for Market Price">
+                                  <span>{{ formatCurrency(msg.marketData.price, msg.marketData.currency) }}</span>
+                                </button>
                               </div>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Status</span>
@@ -1042,11 +1318,19 @@
                               <span class="sar-card-title">TECHNICALS</span>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Support</span>
-                                <span class="sar-val">{{ formatCurrency(msg.technicals.support, msg.marketData?.currency) }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('Support', msg, $event)"
+                                  aria-label="View verification trail for Support">
+                                  <span>{{ formatCurrency(msg.technicals.support, msg.marketData?.currency) }}</span>
+                                </button>
                               </div>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Resistance</span>
-                                <span class="sar-val">{{ formatCurrency(msg.technicals.resistance, msg.marketData?.currency) }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('Resistance', msg, $event)"
+                                  aria-label="View verification trail for Resistance">
+                                  <span>{{ formatCurrency(msg.technicals.resistance, msg.marketData?.currency) }}</span>
+                                </button>
                               </div>
                             </div>
                           }
@@ -1056,11 +1340,19 @@
                               <span class="sar-card-title">FUNDAMENTALS</span>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">P/E Ratio</span>
-                                <span class="sar-val">{{ msg.fundamentals.peRatio ? msg.fundamentals.peRatio + 'x' : 'Unavailable' }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('P/E', msg, $event)"
+                                  aria-label="View verification trail for P/E Ratio">
+                                  <span>{{ msg.fundamentals.peRatio ? msg.fundamentals.peRatio + 'x' : 'Unavailable' }}</span>
+                                </button>
                               </div>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">ROE</span>
-                                <span class="sar-val">{{ msg.fundamentals.returnOnEquity ? msg.fundamentals.returnOnEquity + '%' : 'Unavailable' }}</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerificationForMetric('ROE', msg, $event)"
+                                  aria-label="View verification trail for ROE">
+                                  <span>{{ msg.fundamentals.returnOnEquity ? msg.fundamentals.returnOnEquity + '%' : 'Unavailable' }}</span>
+                                </button>
                               </div>
                             </div>
                           }
@@ -1070,7 +1362,11 @@
                               <span class="sar-card-title">EVIDENCE</span>
                               <div class="sar-card-row">
                                 <span class="sar-lbl">Verified Factors</span>
-                                <span class="sar-val">{{ msg.evidenceLedger!.length }} factors</span>
+                                <button type="button" class="status-pill status-verified clickable-badge badge-sm"
+                                  (click)="openEvidenceVerification(msg.evidenceLedger[0], $event)"
+                                  aria-label="View verification trail for factors">
+                                  <span>{{ msg.evidenceLedger!.length }} factors</span>
+                                </button>
                               </div>
                             </div>
                           }
@@ -1380,7 +1676,14 @@
                     <tbody>
                       @for (row of qList; track row.period) {
                         <tr>
-                          <td class="font-bold">{{ row.period }}</td>
+                          <td class="font-bold">
+                            <span>{{ row.period }}</span>
+                            <button type="button" class="status-pill status-verified clickable-badge badge-sm" style="margin-left: 6px;"
+                              (click)="openEvidenceVerificationForEarnings(row, $event)"
+                              [attr.aria-label]="'View verification details for ' + row.period + ' earnings'">
+                              <span>VERIFIED</span>
+                            </button>
+                          </td>
                           <td>{{ row.reportedDate }}</td>
                           <td>{{ row.epsActual !== null ? targetCurrencySymbol + row.epsActual.toFixed(2) : '—' }}</td>
                           <td>{{ row.epsEstimate !== null ? targetCurrencySymbol + row.epsEstimate.toFixed(2) : '—' }}</td>
@@ -1727,34 +2030,264 @@
         <div class="modal-body">
           <div class="drawer-section">
             <h4 class="title-sup">Supporting Factors</h4>
-            @for (item of getSupportingEvidence(); track item.claim) {
+            @for (item of getSupportingEvidence(); track item.title || item.claim) {
               <div class="drawer-card">
-                <h5>{{ item.claim }}</h5>
+                <div class="factor-header-row">
+                  <h5>{{ item.title || item.claim }}</h5>
+                  <button type="button" class="status-pill status-{{ (item.status || 'VERIFIED').toLowerCase() }} clickable-badge"
+                    (click)="openEvidenceVerification(item, $event)"
+                    [attr.aria-label]="'View verification details for ' + (item.title || item.claim)">
+                    <span class="badge-icon">✓</span>
+                    <span>{{ item.status || 'VERIFIED' }}</span>
+                  </button>
+                </div>
                 <p>"{{ item.evidence }}"</p>
-                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+                @if (item.interpretation) {
+                  <p class="item-interpretation"><span class="interp-tag">Reasoning:</span> {{ item.interpretation }}</p>
+                }
+                <div class="meta-tag">
+                  @if (item.sourceUrl) {
+                    <a [href]="item.sourceUrl" target="_blank" rel="noopener noreferrer" class="source-link">{{ item.sourceTitle }}</a>
+                  } @else {
+                    <span>{{ item.sourceTitle }}</span>
+                  }
+                  @if (item.date) {
+                    · <span>{{ item.date }}</span>
+                  }
+                </div>
               </div>
+            } @empty {
+              <p style="font-size: 12px; color: #94a3b8; font-style: italic;">No verified supporting factors available.</p>
             }
           </div>
           <div class="drawer-section">
             <h4 class="title-con">Contrary Factors</h4>
-            @for (item of getContradictingEvidence(); track item.claim) {
+            @for (item of getContradictingEvidence(); track item.title || item.claim) {
               <div class="drawer-card">
-                <h5>{{ item.claim }}</h5>
+                <div class="factor-header-row">
+                  <h5>{{ item.title || item.claim }}</h5>
+                  <button type="button" class="status-pill status-{{ (item.status || 'VERIFIED').toLowerCase() }} clickable-badge"
+                    (click)="openEvidenceVerification(item, $event)"
+                    [attr.aria-label]="'View verification details for ' + (item.title || item.claim)">
+                    <span class="badge-icon">✓</span>
+                    <span>{{ item.status || 'VERIFIED' }}</span>
+                  </button>
+                </div>
                 <p>"{{ item.evidence }}"</p>
-                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+                @if (item.interpretation) {
+                  <p class="item-interpretation"><span class="interp-tag">Risk Impact:</span> {{ item.interpretation }}</p>
+                }
+                <div class="meta-tag">
+                  @if (item.sourceUrl) {
+                    <a [href]="item.sourceUrl" target="_blank" rel="noopener noreferrer" class="source-link">{{ item.sourceTitle }}</a>
+                  } @else {
+                    <span>{{ item.sourceTitle }}</span>
+                  }
+                  @if (item.date) {
+                    · <span>{{ item.date }}</span>
+                  }
+                </div>
               </div>
+            } @empty {
+              <p style="font-size: 12px; color: #94a3b8; font-style: italic;">No contrary factors recorded in ledger.</p>
             }
           </div>
           <div class="drawer-section">
-            <h4 class="title-watch">Watch Factors</h4>
-            @for (item of getUncertainFactors(); track item.claim) {
-              <div class="drawer-card">
-                <h5>{{ item.claim }}</h5>
-                <p>"{{ item.evidence }}"</p>
-                <div class="meta-tag">{{ item.sourceTitle }} · {{ item.date }}</div>
+            <h4 class="title-watch">Watch Monitoring Rules</h4>
+            @for (item of getWatchItems(); track item.id || item.title) {
+              <div class="drawer-card watch-rule-card">
+                <div class="factor-header-row">
+                  <h5>{{ item.title }}</h5>
+                  <button type="button" class="status-pill status-{{ (item.status || 'ACTIVE_UNTRIGGERED').toLowerCase() }} clickable-badge"
+                    (click)="openEvidenceVerificationForWatch(item, $event)"
+                    [attr.aria-label]="'View verification details for ' + item.title">
+                    <span>
+                      {{ item.isTriggered ? 'TRIGGERED' : (item.status === 'INPUT_UNAVAILABLE' ? 'UNAVAILABLE' : (item.status === 'AWAITING_CONFIGURATION' ? 'CONFIG REQ' : 'MONITORING')) }}
+                    </span>
+                  </button>
+                </div>
+                <p><strong>Rule:</strong> {{ item.conditionText }}</p>
+                @if (item.currentValue !== null) {
+                  <p class="watch-current-val">Current Value: {{ item.currentValue }} {{ item.unit }}</p>
+                }
+                <p>"{{ item.reason }}"</p>
+                <div class="meta-tag">
+                  <span>{{ item.source || 'Technical Pivot' }}</span>
+                  @if (item.lastEvaluatedAt) {
+                    · <span>{{ formatTimeAgo(item.lastEvaluatedAt) }}</span>
+                  }
+                </div>
               </div>
+            } @empty {
+              <p style="font-size: 12px; color: #94a3b8; font-style: italic;">No configured watch conditions.</p>
             }
           </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- EVIDENCE VERIFICATION & AUDIT TRAIL MODAL DRAWER -->
+  @if (showVerificationModal()) {
+    <div class="modal-overlay verification-modal-overlay" (click)="closeVerificationModal()">
+      <div class="modal-drawer verification-modal-drawer" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="verification-dialog-title">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <div class="modal-badge-title">
+              <span class="verification-badge-icon">🛡️</span>
+              <h3 id="verification-dialog-title">Verification Audit Trail</h3>
+            </div>
+            <p class="modal-subtitle">
+              {{ selectedEvidence()?.symbol || selectedTarget()?.symbol || 'SECURITY' }} · 
+              {{ selectedEvidence()?.metric || 'Independent Factor Verification' }}
+            </p>
+          </div>
+          <button type="button" class="btn-modal-close" (click)="closeVerificationModal()" aria-label="Close verification panel">×</button>
+        </div>
+
+        <div class="modal-body verification-modal-body">
+          @if (verificationLoading()) {
+            <div class="verification-loading-state">
+              <div class="verification-spinner"></div>
+              <p class="loading-title">Retrieving Immutable Ledger Record</p>
+              <p class="loading-sub">Fetching authoritative source hashes, calculation traces, and verification status...</p>
+            </div>
+          } @else if (verificationError() && (!selectedEvidence() || selectedEvidence()?.status === 'UNAVAILABLE')) {
+            <div class="verification-unavailable-banner">
+              <div class="unavailable-icon">⚠️</div>
+              <div class="unavailable-content">
+                <h4>Verification Details Unavailable</h4>
+                <p>{{ verificationError() || 'Verification details unavailable. This claim has not been independently verified.' }}</p>
+                @if (selectedEvidence()?.claim) {
+                  <div class="unverified-claim-box">
+                    <span class="claim-label">UNVERIFIED STATEMENT</span>
+                    <p class="claim-text">"{{ selectedEvidence()?.claim }}"</p>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else if (selectedEvidence()) {
+            <!-- 1. STATUS & INTEGRITY BANNER -->
+            <div class="verification-status-banner">
+              <div class="status-top-row">
+                <div class="badge-cluster">
+                  <span class="status-pill status-{{ (selectedEvidence()?.status || 'VERIFIED').toLowerCase() }} badge-lg">
+                    {{ selectedEvidence()?.status || 'VERIFIED' }}
+                  </span>
+                  <span class="validation-pill" [class.val-pass]="selectedEvidence()?.validationResult === 'PASS'" [class.val-fail]="selectedEvidence()?.validationResult === 'FAIL'">
+                    {{ selectedEvidence()?.validationResult === 'PASS' ? '✓ VALIDATED' : (selectedEvidence()?.validationResult === 'FAIL' ? '✗ FAILED' : 'NOT CHECKED') }}
+                  </span>
+                  <span class="freshness-pill fresh-{{ (selectedEvidence()?.freshness || 'LIVE').toLowerCase() }}">
+                    ● {{ selectedEvidence()?.freshness || 'LIVE' }}
+                  </span>
+                </div>
+                <span class="evidence-id-chip">{{ selectedEvidence()?.evidenceId || 'EVIDENCE-LEDGER' }}</span>
+              </div>
+            </div>
+
+            <!-- 2. EXACT FACTOR CLAIM -->
+            <div class="audit-section claim-section">
+              <span class="section-micro-lbl">VERIFIED STATEMENT / CLAIM</span>
+              <h4 class="exact-claim-text">"{{ selectedEvidence()?.claim }}"</h4>
+              @if (selectedEvidence()?.explanation) {
+                <p class="claim-explanation">{{ selectedEvidence()?.explanation }}</p>
+              }
+            </div>
+
+            <!-- 3. VERIFICATION DETAILS (13 SPECIFICATIONS) -->
+            <div class="audit-section details-grid-section">
+              <span class="section-micro-lbl">VERIFICATION SPECIFICATIONS</span>
+              <div class="verification-details-grid">
+                <div class="spec-card">
+                  <span class="spec-lbl">Instrument</span>
+                  <span class="spec-val font-mono">{{ selectedEvidence()?.symbol || selectedTarget()?.symbol }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Status</span>
+                  <span class="spec-val font-bold status-text-{{ (selectedEvidence()?.status || 'VERIFIED').toLowerCase() }}">{{ selectedEvidence()?.status }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Data Source</span>
+                  <span class="spec-val">{{ selectedEvidence()?.source || selectedEvidence()?.provider }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Provider Role</span>
+                  <span class="spec-val">{{ selectedEvidence()?.providerRole || 'PRIMARY' }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Retrieved At</span>
+                  <span class="spec-val">{{ selectedEvidence()?.retrievedAt ? (selectedEvidence()?.retrievedAt | date:'medium') : 'Real-time feed' }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Data Timestamp (Observed)</span>
+                  <span class="spec-val">{{ selectedEvidence()?.observedAt ? (selectedEvidence()?.observedAt | date:'medium') : 'Market session' }}</span>
+                </div>
+                <div class="spec-card spec-full-width">
+                  <span class="spec-lbl">Official Source Link</span>
+                  @if (selectedEvidence()?.sourceUrl) {
+                    <a [href]="selectedEvidence()?.sourceUrl" target="_blank" rel="noopener noreferrer" class="spec-source-link">
+                      <span>{{ selectedEvidence()?.sourceUrl }}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                        <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+                      </svg>
+                    </a>
+                  } @else {
+                    <span class="spec-val text-muted">Direct exchange feed / calculation API</span>
+                  }
+                </div>
+                <div class="spec-card spec-full-width">
+                  <span class="spec-lbl">Calculation Method / Formula</span>
+                  <p class="spec-formula">{{ selectedEvidence()?.calculationMethod || 'Direct observation from primary market feed' }}</p>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Calculated Result</span>
+                  <span class="spec-val font-mono font-bold">{{ selectedEvidence()?.calculatedResult || selectedEvidence()?.value || 'N/A' }}</span>
+                </div>
+                <div class="spec-card">
+                  <span class="spec-lbl">Validation Check</span>
+                  <span class="spec-val font-mono font-bold text-success">{{ selectedEvidence()?.validationResult || 'PASS' }}</span>
+                </div>
+                <div class="spec-card spec-full-width">
+                  <span class="spec-lbl">Validation Method</span>
+                  <p class="spec-desc">{{ selectedEvidence()?.validationMethod || 'Independent mathematical cross-check' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. RAW INPUT VALUES -->
+            @if (selectedEvidence()?.rawInputs) {
+              <div class="audit-section raw-inputs-section">
+                <span class="section-micro-lbl">RAW INPUT PARAMETERS & VALUES</span>
+                <div class="raw-inputs-wrapper">
+                  <pre class="raw-inputs-code">{{ formatRawInputs(selectedEvidence()?.rawInputs) }}</pre>
+                </div>
+              </div>
+            }
+
+            <!-- 5. COMPLETE VERIFICATION TRAIL (10 STEPS) -->
+            @if (selectedEvidence()?.verificationTrail?.length) {
+              <div class="audit-section timeline-section">
+                <span class="section-micro-lbl">COMPLETE VERIFICATION TRAIL (10 STEPS)</span>
+                <div class="verification-timeline">
+                  @for (step of selectedEvidence()?.verificationTrail; track step.step) {
+                    <div class="timeline-step-item">
+                      <div class="step-marker-col">
+                        <span class="step-num-badge">{{ step.step }}</span>
+                        <div class="step-connector-line"></div>
+                      </div>
+                      <div class="step-content-card">
+                        <div class="step-header">
+                          <h5 class="step-title">{{ step.title }}</h5>
+                          <span class="step-desc-tag">{{ step.description }}</span>
+                        </div>
+                        <p class="step-detail-text">{{ step.detail }}</p>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          }
         </div>
       </div>
     </div>

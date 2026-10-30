@@ -28,13 +28,20 @@ async function fetchBraveNews(query) {
     const json = await res.json();
     const results = json.web?.results || [];
 
-    return results.map(r => ({
-      title: r.title,
-      url: r.url,
-      publisher: r.profile?.name || extractDomain(r.url),
-      snippet: r.description || r.title,
-      publishedAt: r.page_age || new Date().toISOString()
-    }));
+    return results.map(r => {
+      let pub = null;
+      if (r.page_age) {
+        const d = new Date(r.page_age);
+        if (!isNaN(d.getTime())) pub = d.toISOString();
+      }
+      return {
+        title: r.title,
+        url: r.url,
+        publisher: r.profile?.name || extractDomain(r.url),
+        snippet: r.description || r.title,
+        publishedAt: pub
+      };
+    });
   } catch {
     return [];
   }
@@ -76,13 +83,21 @@ async function fetchGoogleRssNews(query) {
 
       let snippet = descMatch ? descMatch[1].replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").trim() : title;
 
+      let pubDate = null;
+      if (pubDateMatch) {
+        const pd = new Date(pubDateMatch[1]);
+        if (!isNaN(pd.getTime())) {
+          pubDate = pd.toISOString();
+        }
+      }
+
       if (title && !title.includes('Google News')) {
         articles.push({
           title,
           url: linkMatch ? linkMatch[1] : '',
           publisher: source || 'Financial Press',
           snippet: snippet.length > 25 ? snippet : title,
-          publishedAt: pubDateMatch ? new Date(pubDateMatch[1]).toISOString() : new Date().toISOString()
+          publishedAt: pubDate
         });
       }
     }
@@ -136,7 +151,20 @@ function scoreArticle(article, symbol) {
 /**
  * Get verified news items for a symbol, market, sector, or list of symbols.
  */
-async function getAnalystNews({ symbol, market = 'IN', symbols = [], sector, limit = 10 }) {
+async function getAnalystNews(params = {}) {
+  let symbol, market = 'IN', symbols = [], sector, limit = 10;
+  if (typeof params === 'string') {
+    symbol = params;
+    market = arguments[1] || 'IN';
+    limit = arguments[2] || 10;
+  } else if (params && typeof params === 'object') {
+    symbol = params.symbol;
+    market = params.market || 'IN';
+    symbols = params.symbols || [];
+    sector = params.sector;
+    limit = params.limit || 10;
+  }
+
   const querySymbol = symbol ? String(symbol).toUpperCase() : null;
   const cacheKey = `${querySymbol || 'MULTI'}:${market}:${sector || 'ALL'}:${symbols.join(',')}`;
   const now = Date.now();

@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit, SecurityContext } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit, SecurityContext, HostListener } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { CurrencyPipe, DecimalPipe, UpperCasePipe, SlicePipe } from '@angular/common';
+import { CurrencyPipe, DecimalPipe, UpperCasePipe, SlicePipe, DatePipe } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import {
   AiAnalystService,
@@ -23,6 +23,8 @@ import {
   FilingItem,
   QuarterlyEarningsItem,
   UpcomingEarningsItem,
+  AiEvidence,
+  AiWatchCondition,
 } from '../../core/services/ai-analyst.service';
 import { PortfolioService } from '../../core/services/portfolio.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
@@ -76,7 +78,7 @@ export const POPULAR_RESEARCH_STOCKS: AnalystStockTarget[] = [
 @Component({
   selector: 'app-ai-analyst',
   standalone: true,
-  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, SlicePipe, OrderModalComponent],
+  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, SlicePipe, DatePipe, OrderModalComponent],
   templateUrl: './ai-analyst.html',
   styleUrl: './ai-analyst.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -135,12 +137,21 @@ export class AiAnalystPage implements OnInit {
 
   // News state
   protected readonly stockNews = signal<StockNewsItem[]>([]);
+  protected readonly expandedNewsIndex = signal<number | null>(null);
 
   // Watchlist state
   protected readonly watchlist = signal<Set<string>>(new Set(['TCS', 'NVDA']));
 
   // Methodology expander state
   protected readonly showMethodology = signal<boolean>(false);
+
+  // Evidence Verification Modal & Popover state
+  protected readonly showVerificationModal = signal<boolean>(false);
+  protected readonly verificationLoading = signal<boolean>(false);
+  protected readonly verificationError = signal<string | null>(null);
+  protected readonly selectedEvidence = signal<any | null>(null);
+  protected readonly activeEvidenceFactor = signal<any | null>(null);
+  private readonly evidenceCache = new Map<string, any>();
 
   // Modal drawer states
   protected readonly showEvidenceModal = signal<boolean>(false);
@@ -161,6 +172,236 @@ export class AiAnalystPage implements OnInit {
 
   openRisksModal(): void { this.showRisksModal.set(true); }
   closeRisksModal(): void { this.showRisksModal.set(false); }
+
+  closeVerificationModal(): void {
+    this.showVerificationModal.set(false);
+    this.verificationLoading.set(false);
+    this.verificationError.set(null);
+    this.selectedEvidence.set(null);
+    this.activeEvidenceFactor.set(null);
+  }
+
+  @HostListener('window:keydown.escape')
+  handleEscapeKey(): void {
+    if (this.showVerificationModal()) {
+      this.closeVerificationModal();
+    }
+  }
+
+  async openEvidenceVerification(factorOrId: any, event?: Event): Promise<void> {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+
+    this.showVerificationModal.set(true);
+    this.verificationLoading.set(true);
+    this.verificationError.set(null);
+    this.selectedEvidence.set(null);
+    this.activeEvidenceFactor.set(factorOrId);
+
+    const sym = this.selectedTarget()?.symbol || 'TCS';
+    let evidenceId: string | null = null;
+    let fallbackClaim: string = '';
+
+    if (typeof factorOrId === 'string') {
+      evidenceId = factorOrId;
+      fallbackClaim = factorOrId;
+    } else if (factorOrId) {
+      evidenceId = factorOrId.evidenceId || factorOrId.id || (Array.isArray(factorOrId.evidenceIds) ? factorOrId.evidenceIds[0] : null);
+      fallbackClaim = factorOrId.claim || factorOrId.title || factorOrId.reason || factorOrId.item || factorOrId.metric || '';
+    }
+
+    // If factor doesn't have an explicit evidenceId, search current analysis ledger by metric/claim
+    if (!evidenceId || !evidenceId.startsWith('EVIDENCE-')) {
+      const ca = this.currentAnalysis();
+      const ledger = (ca as any)?.evidence || (ca as any)?.evidenceLedger || [];
+      const match = ledger.find((e: any) => {
+        if (!e) return false;
+        if (factorOrId?.metric && e.metric && e.metric.toLowerCase().includes(factorOrId.metric.toLowerCase())) return true;
+        if (factorOrId?.factor && e.metric && e.metric.toLowerCase().includes(factorOrId.factor.toLowerCase())) return true;
+        if (factorOrId?.title && (e.metric?.toLowerCase().includes(factorOrId.title.toLowerCase()) || e.value?.toString().toLowerCase().includes(factorOrId.title.toLowerCase()))) return true;
+        if (factorOrId?.claim && e.claim && e.claim.toLowerCase().includes(factorOrId.claim.toLowerCase())) return true;
+        return false;
+      });
+      if (match) {
+        evidenceId = match.id || match.evidenceId;
+      }
+    }
+
+    if (!evidenceId) {
+      this.verificationLoading.set(false);
+      this.verificationError.set('Verification details unavailable. This claim has not been independently verified.');
+      this.selectedEvidence.set({
+        claim: fallbackClaim || 'Claim verification data unavailable',
+        status: 'UNAVAILABLE',
+        explanation: 'Verification details unavailable. This claim has not been independently verified.',
+        symbol: sym,
+        source: 'Unavailable',
+        freshness: 'UNAVAILABLE',
+        validationResult: 'NOT CHECKED'
+      });
+      return;
+    }
+
+    // Check cache to avoid duplicate network calls
+    const cacheKey = `${sym}:${evidenceId}`;
+    if (this.evidenceCache.has(cacheKey)) {
+      this.selectedEvidence.set(this.evidenceCache.get(cacheKey));
+      this.verificationLoading.set(false);
+      return;
+    }
+
+    try {
+      const resp = await this.aiService.getEvidenceDetails(evidenceId, sym);
+      if (resp && resp.success && resp.data) {
+        this.evidenceCache.set(cacheKey, resp.data);
+        this.selectedEvidence.set(resp.data);
+      } else {
+        const errorMsg = resp?.message || 'Verification details unavailable. This claim has not been independently verified.';
+        this.verificationError.set(errorMsg);
+        this.selectedEvidence.set({
+          evidenceId,
+          symbol: sym,
+          claim: fallbackClaim || 'Claim details unavailable',
+          status: resp?.status || 'UNAVAILABLE',
+          explanation: errorMsg,
+          freshness: 'UNAVAILABLE',
+          validationResult: 'NOT CHECKED'
+        });
+      }
+    } catch (err: any) {
+      const errorMsg = err?.error?.message || err?.message || 'Verification details unavailable. This claim has not been independently verified.';
+      this.verificationError.set(errorMsg);
+      this.selectedEvidence.set({
+        evidenceId,
+        symbol: sym,
+        claim: fallbackClaim || 'Claim details unavailable',
+        status: 'UNAVAILABLE',
+        explanation: errorMsg,
+        freshness: 'UNAVAILABLE',
+        validationResult: 'NOT CHECKED'
+      });
+    } finally {
+      this.verificationLoading.set(false);
+    }
+  }
+
+  openEvidenceVerificationForMetric(metricName: string, msg?: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const sym = this.selectedTarget()?.symbol || 'TCS';
+    const ledger = msg?.evidenceLedger || (this.currentAnalysis() as any)?.evidence || [];
+    const match = ledger.find((e: any) => e.metric && e.metric.toLowerCase().includes(metricName.toLowerCase()));
+    if (match) {
+      this.openEvidenceVerification(match.id || match.evidenceId, event);
+    } else {
+      let targetId = 'EVIDENCE-001';
+      const mLower = metricName.toLowerCase();
+      if (mLower.includes('rsi')) targetId = 'EVIDENCE-005';
+      else if (mLower.includes('macd')) targetId = 'EVIDENCE-006';
+      else if (mLower.includes('trend')) targetId = 'EVIDENCE-004';
+      else if (mLower.includes('support')) targetId = 'EVIDENCE-002';
+      else if (mLower.includes('resistance')) targetId = 'EVIDENCE-003';
+      else if (mLower.includes('earnings') || mLower.includes('eps')) targetId = 'EVIDENCE-007';
+      else if (mLower.includes('pe') || mLower.includes('p/e') || mLower.includes('roe')) targetId = 'EVIDENCE-007';
+      this.openEvidenceVerification(targetId, event);
+    }
+  }
+
+  openEvidenceVerificationForWatch(watchItem: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const evId = watchItem?.evidenceIds?.[0] || watchItem?.evidenceId;
+    if (evId) {
+      this.openEvidenceVerification(evId, event);
+    } else {
+      const cond = (watchItem?.conditionText || watchItem?.title || '').toLowerCase();
+      const targetId = cond.includes('resistance') ? 'EVIDENCE-003' : 'EVIDENCE-002';
+      this.openEvidenceVerification(targetId, event);
+    }
+  }
+
+  openEvidenceVerificationForRisk(risk: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const ca = this.currentAnalysis();
+    const contradicting = (ca as any)?.contradictingEvidence || [];
+    const match = contradicting.find((c: any) => c.title === risk.item || c.claim === risk.item || c.factor === risk.item);
+    if (match && match.evidenceId) {
+      this.openEvidenceVerification(match.evidenceId, event);
+    } else {
+      // Find contrary factor in ledger or fallback
+      const ledger = (ca as any)?.evidence || (ca as any)?.evidenceLedger || [];
+      const riskEv = ledger.find((e: any) => e.category === 'TECHNICAL_ANALYSIS' || e.category === 'FUNDAMENTALS');
+      this.openEvidenceVerification(riskEv ? (riskEv.id || riskEv.evidenceId) : 'EVIDENCE-003', event);
+    }
+  }
+
+  openEvidenceVerificationForNews(news: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const ca = this.currentAnalysis();
+    const ledger = (ca as any)?.evidence || (ca as any)?.evidenceLedger || [];
+    const match = ledger.find((e: any) => e.category === 'NEWS' && (e.value === news?.title || e.metric?.includes('Headline')));
+    if (match) {
+      this.openEvidenceVerification(match.id || match.evidenceId, event);
+    } else {
+      this.openEvidenceVerification('EVIDENCE-009', event);
+    }
+  }
+
+  openEvidenceVerificationForEarnings(earningsItem: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const ca = this.currentAnalysis();
+    const ledger = (ca as any)?.evidence || (ca as any)?.evidenceLedger || [];
+    const match = ledger.find((e: any) => e.category === 'EARNINGS');
+    if (match) {
+      this.openEvidenceVerification(match.id || match.evidenceId, event);
+    } else {
+      this.openEvidenceVerification('EVIDENCE-007', event);
+    }
+  }
+
+  openEvidenceVerificationForScenario(scenario: any, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const ca = this.currentAnalysis();
+    const ledger = (ca as any)?.evidence || (ca as any)?.evidenceLedger || [];
+    const dir = scenario?.direction || 'POSITIVE';
+    const sym = this.selectedTarget()?.symbol || ca?.symbol || 'TCS';
+    const targetCat = dir === 'POSITIVE' ? 'RESISTANCE' : (dir === 'NEGATIVE' ? 'SUPPORT' : 'TECHNICAL_ANALYSIS');
+    const match = ledger.find((e: any) => e.category === 'TECHNICAL_ANALYSIS' && (e.metric?.toUpperCase().includes(targetCat) || e.metric?.toUpperCase().includes('PRICE')));
+    if (match) {
+      this.openEvidenceVerification(match.id || match.evidenceId, event);
+    } else {
+      const dynamicId = dir === 'POSITIVE' ? `EVID-RESIST-${sym}` : (dir === 'NEGATIVE' ? `EVID-SUPP-${sym}` : `EVID-ATR-${sym}`);
+      this.openEvidenceVerification(dynamicId, event);
+    }
+  }
+
+  formatRawInputs(inputs: any): string {
+    if (!inputs) return 'None recorded';
+    if (typeof inputs === 'string') return inputs;
+    try {
+      return JSON.stringify(inputs, null, 2);
+    } catch {
+      return String(inputs);
+    }
+  }
 
   // Active feature tab
   protected readonly activeTab = signal<'NEWS_VERDICT' | 'MORNING_BELL' | 'EARNINGS_FILINGS' | 'STRESS_TEST'>('NEWS_VERDICT');
@@ -270,7 +511,9 @@ export class AiAnalystPage implements OnInit {
   }
 
   selectTarget(target: AnalystStockTarget): void {
-    const owned = this.portfolio.getHoldingBySymbol(target.symbol);
+    const owned = typeof this.portfolio.getHoldingBySymbol === 'function'
+      ? this.portfolio.getHoldingBySymbol(target.symbol)
+      : this.portfolio.holdings?.()?.find(h => h.symbol.toUpperCase() === target.symbol.toUpperCase());
     if (owned) {
       this.selectHolding(owned);
       return;
@@ -279,7 +522,9 @@ export class AiAnalystPage implements OnInit {
   }
 
   selectSearchResult(result: StockSearchResult): void {
-    const owned = this.portfolio.getHoldingBySymbol(result.symbol);
+    const owned = typeof this.portfolio.getHoldingBySymbol === 'function'
+      ? this.portfolio.getHoldingBySymbol(result.symbol)
+      : this.portfolio.holdings?.()?.find(h => h.symbol.toUpperCase() === result.symbol.toUpperCase());
     if (owned) {
       this.selectHolding(owned);
     } else {
@@ -895,7 +1140,7 @@ export class AiAnalystPage implements OnInit {
     return num.toString();
   }
 
-  formatTimeAgo(dateStr?: string): string {
+  formatTimeAgo(dateStr?: string | null): string {
     if (!dateStr) return '2h ago';
     const str = String(dateStr).trim();
 
@@ -987,52 +1232,80 @@ export class AiAnalystPage implements OnInit {
   }
 
   getSupportingCount(): number {
-    return this.getSupportingEvidence().length;
+    return this.getSupportingEvidence().filter(e => e.status === 'VERIFIED').length;
   }
 
   getContradictingCount(): number {
-    return this.getContradictingEvidence().length;
+    return this.getContradictingEvidence().filter(e => e.status === 'VERIFIED').length;
   }
 
-  getSupportingEvidence() {
+  getVerifiedFactorsCount(): number {
+    const ca = this.currentAnalysis();
+    if (ca?.verifiedEvidence && Array.isArray(ca.verifiedEvidence)) {
+      return ca.verifiedEvidence.length;
+    }
+    return this.getSupportingCount() + this.getContradictingCount();
+  }
+
+  getSupportingEvidence(): AiEvidence[] {
     const ca = this.currentAnalysis();
     const list = ca?.supportingEvidence || [];
-    const sym = this.selectedTarget()?.symbol || 'TCS';
 
     return list.map((item) => ({
-      claim: this.normalizeTitle(item.claim || item.evidence, sym),
-      evidence: this.stripHtml(item.evidence),
-      sourceTitle: item.sourceTitle || 'Evidence Ledger',
-      sourceUrl: item.sourceUrl || '#',
-      date: item.date ? this.formatTimeAgo(item.date) : 'Verified'
+      title: item.title || item.factor || 'Supporting Factor',
+      claim: item.claim || item.title || item.factor || 'Supporting assertion',
+      evidence: this.stripHtml(item.factualObservation || item.evidence || (item.underlyingEvidence ? `${item.underlyingEvidence.metric}: ${item.underlyingEvidence.value}` : '') || item.claim || 'Verified Observation'),
+      factualObservation: this.stripHtml(item.factualObservation || item.evidence || ''),
+      interpretation: item.interpretation ? this.stripHtml(item.interpretation) : null,
+      isInterpretation: Boolean(item.isInterpretation),
+      evidenceId: item.evidenceId || null,
+      underlyingEvidence: item.underlyingEvidence || null,
+      sourceTitle: item.sourceTitle || item.underlyingEvidence?.source || 'Source unavailable',
+      sourceUrl: (item.sourceUrl && item.sourceUrl !== '#') ? item.sourceUrl : null,
+      date: item.date ? this.formatTimeAgo(item.date) : null,
+      status: item.status || (item.evidenceId ? 'VERIFIED' : 'UNVERIFIED'),
+      validationReason: item.validationReason || null,
+      limitations: item.limitations || null
     }));
   }
 
-  getContradictingEvidence() {
+  getContradictingEvidence(): AiEvidence[] {
     const ca = this.currentAnalysis();
     const list = ca?.contradictingEvidence || [];
-    const sym = this.selectedTarget()?.symbol || 'TCS';
 
     return list.map((item) => ({
-      claim: this.normalizeTitle(item.claim || item.evidence, sym),
-      evidence: this.stripHtml(item.evidence),
-      sourceTitle: item.sourceTitle || 'Evidence Ledger',
-      sourceUrl: item.sourceUrl || '#',
-      date: item.date ? this.formatTimeAgo(item.date) : 'Verified'
+      title: item.title || item.factor || 'Contrary Factor',
+      claim: item.claim || item.title || item.factor || 'Contrary assertion',
+      evidence: this.stripHtml(item.factualObservation || item.evidence || (item.underlyingEvidence ? `${item.underlyingEvidence.metric}: ${item.underlyingEvidence.value}` : '') || item.claim || 'Risk Observation'),
+      factualObservation: this.stripHtml(item.factualObservation || item.evidence || ''),
+      interpretation: item.interpretation ? this.stripHtml(item.interpretation) : null,
+      isInterpretation: Boolean(item.isInterpretation),
+      evidenceId: item.evidenceId || null,
+      underlyingEvidence: item.underlyingEvidence || null,
+      sourceTitle: item.sourceTitle || item.underlyingEvidence?.source || 'Source unavailable',
+      sourceUrl: (item.sourceUrl && item.sourceUrl !== '#') ? item.sourceUrl : null,
+      date: item.date ? this.formatTimeAgo(item.date) : null,
+      status: item.status || (item.evidenceId ? 'VERIFIED' : 'UNVERIFIED'),
+      validationReason: item.validationReason || null,
+      limitations: item.limitations || null
     }));
+  }
+
+  getWatchItems(): AiWatchCondition[] {
+    const ca = this.currentAnalysis();
+    return ca?.watch || ca?.watchConditions || [];
   }
 
   getUncertainFactors() {
     const ca = this.currentAnalysis();
     const list = ca?.uncertainFactors || [];
-    const sym = this.selectedTarget()?.symbol || 'TCS';
 
     return list.map((item) => ({
-      claim: this.normalizeTitle(item.claim || item.evidence, sym),
-      evidence: this.stripHtml(item.evidence),
+      claim: item.claim || 'Analytical Assessment',
+      evidence: this.stripHtml(item.evidence || item.claim || ''),
       sourceTitle: item.sourceTitle || 'Analytical Assessment',
-      sourceUrl: item.sourceUrl || '#',
-      date: item.date ? this.formatTimeAgo(item.date) : 'Current'
+      sourceUrl: (item.sourceUrl && item.sourceUrl !== '#') ? item.sourceUrl : null,
+      date: item.date ? this.formatTimeAgo(item.date) : null
     }));
   }
 
@@ -1047,13 +1320,85 @@ export class AiAnalystPage implements OnInit {
     }));
   }
 
+  toggleNewsExpand(index: number, event?: Event): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const cur = this.expandedNewsIndex();
+    this.expandedNewsIndex.set(cur === index ? null : index);
+  }
+
+  formatNewsCategory(cat?: string): string {
+    if (!cat) return 'Company Update';
+    const map: Record<string, string> = {
+      'EARNINGS': 'Earnings',
+      'CONTRACTS_DEALS': 'Contracts & Deals',
+      'REVENUE_GROWTH': 'Revenue Growth',
+      'REGULATORY_LEGAL': 'Regulatory & Legal',
+      'MANAGEMENT': 'Management',
+      'ANALYST_ACTION': 'Analyst Action',
+      'DIVIDENDS_BUYBACKS': 'Dividends & Buybacks',
+      'PRODUCT_LAUNCH': 'Product Launch',
+      'M_AND_A': 'M&A / Corporate',
+      'MACRO_SECTOR': 'Macro / Sector',
+      'COMPANY_DEVELOPMENT': 'Corporate Update'
+    };
+    return map[cat] || cat.replace(/_/g, ' ');
+  }
+
+  formatConfirmationStatus(status?: string): string {
+    if (!status) return 'Reported News';
+    if (status === 'CONFIRMED') return 'Official / Confirmed Announcement';
+    if (status === 'UNCONFIRMED_SPECULATION') return 'Unconfirmed Speculation';
+    return 'Reported Media News';
+  }
+
+  formatSignedPct(val?: number | null): string {
+    if (val == null || isNaN(val)) return 'N/A';
+    const sign = val > 0 ? '+' : '';
+    return `${sign}${val.toFixed(2)}%`;
+  }
+
+  getPossibleScenariosMetadata() {
+    const ca = this.currentAnalysis();
+    const ps = ca?.possibleScenarios;
+    const pos = this.getPositiveScenarios();
+    const neu = this.getNeutralScenarios();
+    const neg = this.getNegativeScenarios();
+    const totalCount = pos.length + neu.length + neg.length;
+
+    return {
+      status: ps?.status || (totalCount > 0 ? 'CALCULATED' : 'INSUFFICIENT_DATA'),
+      symbol: ps?.symbol || this.selectedTarget()?.symbol || '',
+      currentPrice: ps?.currentPrice || ca?.marketData?.price || null,
+      currency: ps?.currency || (this.selectedTarget()?.market === 'US' ? '$' : '₹'),
+      calculatedAt: ps?.calculatedAt || ca?.createdAt || null,
+      dataFreshness: ps?.dataFreshness || ca?.marketData?.dataStatus || 'LIVE',
+      mathBasis: ps?.mathBasis || null,
+      levels: ps?.levels || null,
+      hasScenarios: totalCount > 0
+    };
+  }
+
   getPositiveScenarios() {
     const ca = this.currentAnalysis();
-    const sc = ca?.scenarios?.positive;
-    if (sc && sc.length > 0) {
-      return sc.map((s) => ({
+    const sc = ca?.possibleScenarios?.positive || ca?.scenarios?.positive;
+    if (Array.isArray(sc) && sc.length > 0) {
+      return sc.map((s: any) => ({
+        direction: s.direction || 'POSITIVE',
+        label: s.label || 'BULLISH CONTINUATION / BREAKOUT',
         trigger: this.stripHtml(s.trigger),
-        outcome: this.stripHtml(s.outcome)
+        outcome: this.stripHtml(s.outcome),
+        confirmation: s.confirmation ? this.stripHtml(s.confirmation) : null,
+        invalidation: s.invalidation ? this.stripHtml(s.invalidation) : null,
+        potentialTarget: s.potentialTarget || null,
+        targetMath: s.targetMath || null,
+        atrSensitivityBand: s.atrSensitivityBand || null,
+        mathBasis: s.mathBasis || null,
+        keyRisks: s.keyRisks || null,
+        calculatedAt: s.calculatedAt || ca?.createdAt || null,
+        status: s.status || 'CALCULATED'
       }));
     }
     return [];
@@ -1061,11 +1406,22 @@ export class AiAnalystPage implements OnInit {
 
   getNeutralScenarios() {
     const ca = this.currentAnalysis();
-    const sc = ca?.scenarios?.neutral;
-    if (sc && sc.length > 0) {
-      return sc.map((s) => ({
+    const sc = ca?.possibleScenarios?.neutral || ca?.scenarios?.neutral;
+    if (Array.isArray(sc) && sc.length > 0) {
+      return sc.map((s: any) => ({
+        direction: s.direction || 'NEUTRAL',
+        label: s.label || 'RANGE-BOUND CONSOLIDATION',
         trigger: this.stripHtml(s.trigger),
-        outcome: this.stripHtml(s.outcome)
+        outcome: this.stripHtml(s.outcome),
+        confirmation: s.confirmation ? this.stripHtml(s.confirmation) : null,
+        invalidation: s.invalidation ? this.stripHtml(s.invalidation) : null,
+        potentialTarget: s.potentialTarget || null,
+        targetMath: s.targetMath || null,
+        atrSensitivityBand: s.atrSensitivityBand || null,
+        mathBasis: s.mathBasis || null,
+        keyRisks: s.keyRisks || null,
+        calculatedAt: s.calculatedAt || ca?.createdAt || null,
+        status: s.status || 'CALCULATED'
       }));
     }
     return [];
@@ -1073,29 +1429,73 @@ export class AiAnalystPage implements OnInit {
 
   getNegativeScenarios() {
     const ca = this.currentAnalysis();
-    const sc = ca?.scenarios?.negative;
-    if (sc && sc.length > 0) {
-      return sc.map((s) => ({
+    const sc = ca?.possibleScenarios?.negative || ca?.scenarios?.negative;
+    if (Array.isArray(sc) && sc.length > 0) {
+      return sc.map((s: any) => ({
+        direction: s.direction || 'NEGATIVE',
+        label: s.label || 'BEARISH BREAKDOWN RETRACEMENT',
         trigger: this.stripHtml(s.trigger),
-        outcome: this.stripHtml(s.outcome)
+        outcome: this.stripHtml(s.outcome),
+        confirmation: s.confirmation ? this.stripHtml(s.confirmation) : null,
+        invalidation: s.invalidation ? this.stripHtml(s.invalidation) : null,
+        potentialTarget: s.potentialTarget || null,
+        targetMath: s.targetMath || null,
+        atrSensitivityBand: s.atrSensitivityBand || null,
+        mathBasis: s.mathBasis || null,
+        keyRisks: s.keyRisks || null,
+        calculatedAt: s.calculatedAt || ca?.createdAt || null,
+        status: s.status || 'CALCULATED'
       }));
     }
     return [];
   }
 
   getNewsList() {
+    const ca = this.currentAnalysis();
+    // Prioritize newsIntelligence from currentAnalysis if available
+    const caNews = ca?.newsIntelligence || ca?.news;
+    if (Array.isArray(caNews) && caNews.length > 0) {
+      return caNews.map((n: any) => ({
+        title: n.title,
+        publisher: n.publisher || 'Financial News',
+        link: n.link || n.url || '#',
+        pubDate: n.pubDate || n.publishedAt || null,
+        category: n.category || 'COMPANY_DEVELOPMENT',
+        impact: n.impact || 'NEUTRAL',
+        confirmationStatus: n.confirmationStatus || 'REPORTED_NEWS',
+        affectedMetric: n.affectedMetric || 'General Operations',
+        timeHorizon: n.timeHorizon || 'SHORT_TERM',
+        summary: n.summary || n.title,
+        whyItMatters: n.whyItMatters || null,
+        marketReaction: n.marketReaction || null,
+        verificationStatus: n.verificationStatus || (n.isSourceVerified ? 'SOURCE_VERIFIED' : 'RETRIEVED_FEED'),
+        isSourceVerified: Boolean(n.isSourceVerified),
+        freshness: n.freshness || 'RECENT'
+      }));
+    }
+
     const news = this.stockNews();
     if (news && news.length > 0) {
-      return news.map(n => ({
+      return news.map((n: any) => ({
         title: n.title,
-        publisher: n.publisher,
-        link: n.link,
-        pubDate: n.pubDate
+        publisher: n.publisher || 'Financial News',
+        link: n.link || '#',
+        pubDate: n.pubDate || null,
+        category: n.category || 'COMPANY_DEVELOPMENT',
+        impact: n.impact || 'NEUTRAL',
+        confirmationStatus: n.confirmationStatus || 'REPORTED_NEWS',
+        affectedMetric: n.affectedMetric || 'General Operations',
+        timeHorizon: n.timeHorizon || 'SHORT_TERM',
+        summary: n.summary || n.title,
+        whyItMatters: n.whyItMatters || null,
+        marketReaction: n.marketReaction || null,
+        verificationStatus: n.verificationStatus || (n.isSourceVerified ? 'SOURCE_VERIFIED' : 'RETRIEVED_FEED'),
+        isSourceVerified: Boolean(n.isSourceVerified),
+        freshness: n.freshness || 'RECENT'
       }));
     }
 
     // Fallback to sources if empty
-    const ca = this.currentAnalysis();
     const sources = ca?.sources || [];
     const sym = this.selectedTarget()?.symbol || 'TCS';
 
@@ -1103,7 +1503,18 @@ export class AiAnalystPage implements OnInit {
       title: this.normalizeTitle(s.title, sym),
       publisher: s.publisher || 'Financial Source',
       link: s.url || '#',
-      pubDate: (s as any).publishedAt || ca?.createdAt || new Date().toISOString(),
+      pubDate: (s as any).publishedAt || ca?.createdAt || null,
+      category: 'COMPANY_DEVELOPMENT',
+      impact: 'NEUTRAL',
+      confirmationStatus: 'REPORTED_NEWS',
+      affectedMetric: 'General Operations',
+      timeHorizon: 'SHORT_TERM',
+      summary: this.normalizeTitle(s.title, sym),
+      whyItMatters: null,
+      marketReaction: null,
+      verificationStatus: 'RETRIEVED_FEED',
+      isSourceVerified: false,
+      freshness: 'RECENT'
     }));
   }
 

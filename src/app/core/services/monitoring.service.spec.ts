@@ -1,9 +1,21 @@
-import { TestBed } from '@angular/core/testing';
+import { Injector, runInInjectionContext } from '@angular/core';
 import { MonitoringService } from './monitoring.service';
 import { PortfolioService } from './portfolio.service';
 import { NotificationService } from './notification.service';
 import { MarketRegion, CurrencyCode } from '../models/portfolio.model';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map<string, string>();
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => store.set(k, String(v)),
+    removeItem: (k: string) => store.delete(k),
+    clear: () => store.clear(),
+    key: (i: number) => Array.from(store.keys())[i] ?? null,
+    get length() { return store.size; }
+  };
+}
 
 describe('MonitoringService - Alert Movement Calculation', () => {
   let service: MonitoringService;
@@ -35,9 +47,15 @@ describe('MonitoringService - Alert Movement Calculation', () => {
       avgPurchasePrice: 100,
     });
 
-    service = new (MonitoringService as any)();
-    (service as any).portfolio = portSpy;
-    (service as any).notifications = notifSpy;
+    localStorage.clear();
+    const injector = Injector.create({
+      providers: [
+        { provide: PortfolioService, useValue: portSpy },
+        { provide: NotificationService, useValue: notifSpy }
+      ]
+    });
+    service = runInInjectionContext(injector, () => new MonitoringService());
+    service.initAlertState('h1', 'TEST', 100, 'US' as MarketRegion, 'USD' as CurrencyCode);
   });
 
   afterEach(() => {

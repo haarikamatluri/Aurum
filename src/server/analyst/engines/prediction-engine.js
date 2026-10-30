@@ -20,10 +20,11 @@ class PredictionEngine {
     news = [],
     macro = {},
     portfolioContext = null,
-    freshness = {}
+    freshness = {},
+    ledger = null
   }) {
-    // Insufficient Evidence Guard
-    if (!quote.price || typeof quote.price !== 'number' || quote.status === 'UNAVAILABLE') {
+    // Insufficient Evidence Guard: If price is missing or unavailable, report honestly
+    if (!quote || !quote.price || typeof quote.price !== 'number' || quote.status === 'UNAVAILABLE') {
       return {
         predictionDirection: 'INSUFFICIENT_EVIDENCE',
         action: 'INSUFFICIENT_EVIDENCE',
@@ -32,11 +33,11 @@ class PredictionEngine {
         confidence: 0,
         timeHorizon: 'CONDITIONAL',
         supportingEvidence: [],
-        contradictingEvidence: ['Verified real-time market price data is currently unavailable.'],
-        uncertainty: ['Data source was unreachable or returned an empty quote.'],
+        contradictingEvidence: [],
+        uncertainty: ['Verified real-time market price data is currently unavailable. Analytical assessment requires live market quote baseline.'],
         invalidatingConditions: ['Fresh market feed connection required to establish analytical baseline.'],
-        keyDrivers: ['Market data unavailable for analysis.'],
-        keyRisks: ['Insufficient price or fundamental evidence.'],
+        keyDrivers: [],
+        keyRisks: ['Insufficient price or fundamental evidence from market data provider.'],
         modelStatus: 'Deterministic evidence-based analysis; no validated predictive model is currently active.'
       };
     }
@@ -50,48 +51,90 @@ class PredictionEngine {
     let bearishPoints = 0;
     let dataPointsEvaluated = 0;
 
-    const curPriceStr = `${quote.currency || '₹'}${quote.price.toLocaleString('en-IN')}`;
+    const curPrice = quote.price;
+    const curUnit = quote.currency || (market === 'US' ? 'USD' : 'INR');
+
+    // Helper to find evidence item in ledger
+    const findEvidence = (predicate) => {
+      if (!ledger) return null;
+      const entries = ledger.getAll ? ledger.getAll() : (ledger.entries || []);
+      return entries.find(predicate) || null;
+    };
 
     // 1. Technical Trend & Momentum Analysis
     if (technicals) {
       dataPointsEvaluated += 2;
       const rsi = technicals.rsi14;
       if (typeof rsi === 'number') {
+        const rsiEv = findEvidence(e => e.metric && e.metric.includes('RSI'));
         if (rsi < 35) {
           bullishPoints += 2;
           supportingEvidence.push({
-            factor: 'Technical Momentum',
-            claim: `RSI(14) at ${rsi.toFixed(1)} indicates oversold support conditions near recent range lows.`,
-            provenance: 'Daily OHLCV Chart Calculation'
+            factor: 'Oversold Technical Momentum',
+            claim: `14-day RSI is ${rsi.toFixed(1)} (oversold territory)`,
+            reasoning: `Oversold RSI readings below 35 frequently signal near-term exhaustion of selling pressure and tactical bounce potential.`,
+            evidenceId: rsiEv ? rsiEv.id : null,
+            evidenceValue: rsi,
+            evidenceMetric: rsiEv ? rsiEv.metric : 'Relative Strength Index (RSI 14)',
+            unit: 'points',
+            source: rsiEv ? rsiEv.source : 'Daily OHLCV Chart Calculation',
+            sourceUrl: rsiEv ? rsiEv.sourceUrl : null,
+            observedAt: rsiEv ? rsiEv.observedAt : null,
+            provenance: rsiEv ? rsiEv.source : 'Daily OHLCV Chart Calculation'
           });
         } else if (rsi > 70) {
           bearishPoints += 2;
           contradictingEvidence.push({
-            factor: 'Technical Momentum',
-            claim: `RSI(14) at ${rsi.toFixed(1)} signals near-term overbought resistance and potential consolidation.`,
-            provenance: 'Daily OHLCV Chart Calculation'
+            factor: 'Overbought Technical Resistance',
+            claim: `14-day RSI is ${rsi.toFixed(1)} (overbought territory)`,
+            reasoning: `RSI readings above 70 indicate extended short-term momentum with heightened risk of consolidation or mean-reversion pullbacks.`,
+            evidenceId: rsiEv ? rsiEv.id : null,
+            evidenceValue: rsi,
+            evidenceMetric: rsiEv ? rsiEv.metric : 'Relative Strength Index (RSI 14)',
+            unit: 'points',
+            source: rsiEv ? rsiEv.source : 'Daily OHLCV Chart Calculation',
+            sourceUrl: rsiEv ? rsiEv.sourceUrl : null,
+            observedAt: rsiEv ? rsiEv.observedAt : null,
+            provenance: rsiEv ? rsiEv.source : 'Daily OHLCV Chart Calculation'
           });
         }
       }
 
+      const trendEv = findEvidence(e => e.metric && e.metric.includes('Trend'));
       if (technicals.trend === 'BULLISH') {
         bullishPoints += 2;
         supportingEvidence.push({
-          factor: 'Trend Structure',
-          claim: `Trading above key moving average clusters (${technicals.movingAverages?.sma20 ? quote.currency + technicals.movingAverages.sma20 : 'SMA20'}) in an active upward trend.`,
-          provenance: 'Moving Average Trend Filter'
+          factor: 'Upward Moving Average Alignment',
+          claim: `Trading in an active BULLISH trend regime above moving average bands`,
+          reasoning: `Price trades above short-term and intermediate moving average clusters, confirming upward structural momentum.`,
+          evidenceId: trendEv ? trendEv.id : null,
+          evidenceValue: technicals.trend,
+          evidenceMetric: trendEv ? trendEv.metric : 'Price Trend Regime',
+          unit: 'regime',
+          source: trendEv ? trendEv.source : 'Moving Average Trend Filter',
+          sourceUrl: trendEv ? trendEv.sourceUrl : null,
+          observedAt: trendEv ? trendEv.observedAt : null,
+          provenance: trendEv ? trendEv.source : 'Moving Average Trend Filter'
         });
       } else if (technicals.trend === 'BEARISH') {
         bearishPoints += 2;
         contradictingEvidence.push({
-          factor: 'Trend Structure',
-          claim: `Trading below key moving average resistance with negative momentum structure.`,
-          provenance: 'Moving Average Trend Filter'
+          factor: 'Negative Trend Structure',
+          claim: `Trading in a BEARISH trend regime below moving average clusters`,
+          reasoning: `Sustained positioning below intermediate moving averages reflects institutional distribution and overhead supply.`,
+          evidenceId: trendEv ? trendEv.id : null,
+          evidenceValue: technicals.trend,
+          evidenceMetric: trendEv ? trendEv.metric : 'Price Trend Regime',
+          unit: 'regime',
+          source: trendEv ? trendEv.source : 'Moving Average Trend Filter',
+          sourceUrl: trendEv ? trendEv.sourceUrl : null,
+          observedAt: trendEv ? trendEv.observedAt : null,
+          provenance: trendEv ? trendEv.source : 'Moving Average Trend Filter'
         });
       }
 
       if (technicals.support) {
-        invalidatingConditions.push(`Decisive close below key support at ${quote.currency || '₹'}${technicals.support} invalidates positive holding thesis.`);
+        invalidatingConditions.push(`A decisive daily close below tactical support at ${curUnit} ${technicals.support} invalidates positive trend structure.`);
       }
     }
 
@@ -99,63 +142,114 @@ class PredictionEngine {
     if (fundamentals && (fundamentals.peRatio != null || fundamentals.returnOnEquity != null)) {
       dataPointsEvaluated += 2;
       const pe = fundamentals.peRatio;
-      if (pe != null) {
+      if (pe != null && !isNaN(pe)) {
+        const peEv = findEvidence(e => e.metric && e.metric.includes('P/E'));
         if (pe > 0 && pe < 22) {
           bullishPoints += 2;
           supportingEvidence.push({
-            factor: 'Valuation Multiples',
-            claim: `Favorable valuation multiple: P/E of ${pe}x provides margin of safety relative to broader market multiples.`,
-            provenance: fundamentals.source || 'Corporate Financial Disclosures'
+            factor: 'Attractive Valuation Multiple',
+            claim: `Price-to-Earnings (P/E) multiple is ${pe}x`,
+            reasoning: `A multiple below 22x provides valuation support and margin of safety relative to broader peer medians.`,
+            evidenceId: peEv ? peEv.id : null,
+            evidenceValue: pe,
+            evidenceMetric: peEv ? peEv.metric : 'Price-to-Earnings (P/E Ratio)',
+            unit: 'x',
+            source: peEv ? peEv.source : 'Corporate Financial Disclosures',
+            sourceUrl: peEv ? peEv.sourceUrl : null,
+            observedAt: peEv ? peEv.observedAt : null,
+            provenance: peEv ? peEv.source : 'Corporate Financial Disclosures'
           });
         } else if (pe > 45) {
           bearishPoints += 2;
           contradictingEvidence.push({
-            factor: 'Valuation Multiples',
-            claim: `Elevated valuation multiple: P/E of ${pe}x leaves limited buffer against operational earnings growth slowdowns.`,
-            provenance: fundamentals.source || 'Corporate Financial Disclosures'
+            factor: 'Premium Valuation Multiple',
+            claim: `Price-to-Earnings (P/E) multiple is elevated at ${pe}x`,
+            reasoning: `Elevated multiple leaves limited cushion if future quarterly revenue or margin growth falls short of market expectations.`,
+            evidenceId: peEv ? peEv.id : null,
+            evidenceValue: pe,
+            evidenceMetric: peEv ? peEv.metric : 'Price-to-Earnings (P/E Ratio)',
+            unit: 'x',
+            source: peEv ? peEv.source : 'Corporate Financial Disclosures',
+            sourceUrl: peEv ? peEv.sourceUrl : null,
+            observedAt: peEv ? peEv.observedAt : null,
+            provenance: peEv ? peEv.source : 'Corporate Financial Disclosures'
           });
-          invalidatingConditions.push(`Multiple compression risk if forward quarterly growth falls below market consensus expectations.`);
+          invalidatingConditions.push(`Multiple compression risk if forward earnings growth decelerates.`);
         }
       }
 
       const roe = fundamentals.returnOnEquity;
-      if (roe != null) {
+      if (roe != null && !isNaN(roe)) {
+        const roeEv = findEvidence(e => e.metric && e.metric.includes('ROE'));
         if (roe > 20) {
           bullishPoints += 1.5;
           supportingEvidence.push({
-            factor: 'Capital Efficiency',
-            claim: `High return on equity (ROE of ${roe}%) demonstrates superior operational capital allocation.`,
-            provenance: fundamentals.source || 'Corporate Financial Disclosures'
+            factor: 'Superior Return on Capital',
+            claim: `Return on Equity (ROE) is strong at ${roe}%`,
+            reasoning: `ROE exceeding 20% indicates disciplined operational reinvestment and high net capital productivity.`,
+            evidenceId: roeEv ? roeEv.id : null,
+            evidenceValue: roe,
+            evidenceMetric: roeEv ? roeEv.metric : 'Return on Equity (ROE)',
+            unit: '%',
+            source: roeEv ? roeEv.source : 'Corporate Financial Disclosures',
+            sourceUrl: roeEv ? roeEv.sourceUrl : null,
+            observedAt: roeEv ? roeEv.observedAt : null,
+            provenance: roeEv ? roeEv.source : 'Corporate Financial Disclosures'
           });
         } else if (roe < 8) {
           bearishPoints += 1.5;
           contradictingEvidence.push({
-            factor: 'Capital Efficiency',
-            claim: `Subdued return on equity (ROE of ${roe}%) reflects compressed net return on capital.`,
-            provenance: fundamentals.source || 'Corporate Financial Disclosures'
+            factor: 'Subdued Capital Efficiency',
+            claim: `Return on Equity (ROE) is subdued at ${roe}%`,
+            reasoning: `Low return on equity indicates compressed operating returns relative to shareholder equity base.`,
+            evidenceId: roeEv ? roeEv.id : null,
+            evidenceValue: roe,
+            evidenceMetric: roeEv ? roeEv.metric : 'Return on Equity (ROE)',
+            unit: '%',
+            source: roeEv ? roeEv.source : 'Corporate Financial Disclosures',
+            sourceUrl: roeEv ? roeEv.sourceUrl : null,
+            observedAt: roeEv ? roeEv.observedAt : null,
+            provenance: roeEv ? roeEv.source : 'Corporate Financial Disclosures'
           });
         }
       }
     } else {
-      uncertainty.push('Detailed fundamental balance sheet ratios require latest statutory filing publication.');
+      uncertainty.push('Detailed balance sheet valuation ratios require latest statutory filing publication.');
     }
 
     // 3. Earnings Track Record
     if (earnings && earnings.status) {
       dataPointsEvaluated += 1;
+      const epsEv = findEvidence(e => e.metric && e.metric.includes('EPS'));
       if (earnings.status === 'BEAT') {
         bullishPoints += 2;
         supportingEvidence.push({
-          factor: 'Quarterly Earnings',
-          claim: `Reported EPS beat consensus expectations (${earnings.epsSurprise > 0 ? '+' : ''}${earnings.epsSurprisePercent}% surprise in ${earnings.latestReportingPeriod || 'recent quarter'}).`,
-          provenance: earnings.source || 'Quarterly Financial Statements'
+          factor: 'Quarterly Earnings Outperformance',
+          claim: `Reported EPS beat consensus expectations (${earnings.epsSurprise > 0 ? '+' : ''}${earnings.epsSurprisePercent}% surprise in ${earnings.latestReportingPeriod || 'recent quarter'})`,
+          reasoning: `Quarterly earnings beat demonstrates operational execution exceeding analyst consensus forecasts.`,
+          evidenceId: epsEv ? epsEv.id : null,
+          evidenceValue: earnings.latestEPSActual,
+          evidenceMetric: epsEv ? epsEv.metric : 'Quarterly Reported EPS',
+          unit: curUnit,
+          source: epsEv ? epsEv.source : 'Quarterly Financial Statements',
+          sourceUrl: epsEv ? epsEv.sourceUrl : null,
+          observedAt: epsEv ? epsEv.observedAt : null,
+          provenance: epsEv ? epsEv.source : 'Quarterly Financial Statements'
         });
       } else if (earnings.status === 'MISS') {
         bearishPoints += 2;
         contradictingEvidence.push({
-          factor: 'Quarterly Earnings',
-          claim: `Reported EPS trailed consensus estimates (${earnings.epsSurprisePercent}% surprise in ${earnings.latestReportingPeriod || 'recent quarter'}).`,
-          provenance: earnings.source || 'Quarterly Financial Statements'
+          factor: 'Quarterly Earnings Shortfall',
+          claim: `Reported EPS trailed consensus estimates (${earnings.epsSurprisePercent}% surprise in ${earnings.latestReportingPeriod || 'recent quarter'})`,
+          reasoning: `Earnings miss reflects operational margin headwinds or revenue shortfall relative to market expectations.`,
+          evidenceId: epsEv ? epsEv.id : null,
+          evidenceValue: earnings.latestEPSActual,
+          evidenceMetric: epsEv ? epsEv.metric : 'Quarterly Reported EPS',
+          unit: curUnit,
+          source: epsEv ? epsEv.source : 'Quarterly Financial Statements',
+          sourceUrl: epsEv ? epsEv.sourceUrl : null,
+          observedAt: epsEv ? epsEv.observedAt : null,
+          provenance: epsEv ? epsEv.source : 'Quarterly Financial Statements'
         });
         invalidatingConditions.push('Sequential revenue or operating margin deterioration in upcoming quarterly report.');
       } else if (earnings.status === 'ESTIMATE_UNAVAILABLE') {
@@ -178,39 +272,43 @@ class PredictionEngine {
         if (negKeywords.some(k => text.includes(k))) negativeHeadlines++;
       });
 
+      const newsEv = findEvidence(e => e.category === 'NEWS');
       if (positiveHeadlines > negativeHeadlines) {
         bullishPoints += 1.5;
         supportingEvidence.push({
-          factor: 'Market Newsflow',
-          claim: `Positive news sentiment: verified coverage highlights commercial deal wins and growth catalysts: "${news[0].title}".`,
+          factor: 'Positive Commercial News Flow',
+          claim: `Verified coverage highlights commercial growth and contract catalysts: "${news[0].title}"`,
+          reasoning: `Active news catalysts provide fundamental tailwinds and positive institutional attention.`,
+          evidenceId: newsEv ? newsEv.id : null,
+          evidenceValue: news[0].title,
+          evidenceMetric: newsEv ? newsEv.metric : 'Verified Headline',
+          unit: 'headline',
+          source: news[0].publisher || (newsEv ? newsEv.source : 'Financial Newswire'),
+          sourceUrl: news[0].url || (newsEv ? newsEv.sourceUrl : null),
+          observedAt: news[0].publishedAt || (newsEv ? newsEv.observedAt : null),
           provenance: news[0].publisher || 'Financial Newswire'
         });
       } else if (negativeHeadlines > positiveHeadlines) {
         bearishPoints += 1.5;
         contradictingEvidence.push({
-          factor: 'Market Newsflow',
-          claim: `Adverse newsflow: headline scrutiny reflects cautious sentiment: "${news[0].title}".`,
+          factor: 'Adverse Regulatory or Media Sentiment',
+          claim: `Headline scrutiny reflects cautious sentiment: "${news[0].title}"`,
+          reasoning: `Negative news headlines introduce near-term sentiment friction and valuation overhang.`,
+          evidenceId: newsEv ? newsEv.id : null,
+          evidenceValue: news[0].title,
+          evidenceMetric: newsEv ? newsEv.metric : 'Verified Headline',
+          unit: 'headline',
+          source: news[0].publisher || (newsEv ? newsEv.source : 'Financial Newswire'),
+          sourceUrl: news[0].url || (newsEv ? newsEv.sourceUrl : null),
+          observedAt: news[0].publishedAt || (newsEv ? newsEv.observedAt : null),
           provenance: news[0].publisher || 'Financial Newswire'
         });
       }
     }
 
-    // 5. Portfolio Ownership Context
-    if (portfolioContext && portfolioContext.shares > 0) {
-      const curVal = portfolioContext.shares * quote.price;
-      const inv = portfolioContext.shares * portfolioContext.avgCost;
-      const pl = curVal - inv;
-      const plPct = inv > 0 ? (pl / inv) * 100 : 0;
-      supportingEvidence.push({
-        factor: 'Portfolio Position',
-        claim: `You currently hold ${portfolioContext.shares} shares worth ${quote.currency || '₹'}${curVal.toLocaleString('en-IN')} (P&L: ${pl >= 0 ? '+' : ''}${quote.currency || '₹'}${pl.toFixed(2)} [${plPct >= 0 ? '+' : ''}${plPct.toFixed(2)}%]).`,
-        provenance: 'User Active Portfolio'
-      });
-    }
-
-    // 6. Macro & Volatility Guard
+    // 5. Macro & Volatility Guard
     if (macro && macro.bonds?.us10yYield && macro.bonds.us10yYield !== 'UNAVAILABLE') {
-      uncertainty.push(`Macro sensitivity: Benchmark 10-Year yield sits at ${macro.bonds.us10yYield}; changes in sovereign yields affect equity discount rates.`);
+      uncertainty.push(`Macro sensitivity: Benchmark 10-Year yield sits at ${macro.bonds.us10yYield}; sovereign yield shifts affect equity cost of capital.`);
     }
 
     // Determine Prediction Direction & Decision Thesis
@@ -241,7 +339,7 @@ class PredictionEngine {
     const baseScore = 50 + (netConviction * 7.5);
     const score = Math.max(15, Math.min(85, Math.round(baseScore)));
 
-    // Evidence Confidence (represents evidence coverage & data completeness, not certainty!)
+    // Evidence Confidence (represents evidence coverage & data completeness)
     const coverageFraction = Math.min(1.0, dataPointsEvaluated / 6);
     const confidence = Math.round(45 + (coverageFraction * 35));
 

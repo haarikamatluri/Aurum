@@ -35,7 +35,10 @@ const MONGODB_DB_NAME = (process.env.MONGODB_DB_NAME || 'portfolio_intelligence'
 const JWT_SECRET = (process.env.JWT_SECRET || 'dev-insecure-secret-change-me').trim();
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
-if (JWT_SECRET === 'dev-insecure-secret-change-me') {
+if (process.env.NODE_ENV === 'production' && (JWT_SECRET === 'dev-insecure-secret-change-me' || !JWT_SECRET)) {
+  console.error('[FATAL] In production mode, JWT_SECRET must be configured with a secure random secret. Refusing insecure startup.');
+  process.exit(1);
+} else if (JWT_SECRET === 'dev-insecure-secret-change-me') {
   console.warn('[auth] JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
 }
 
@@ -229,7 +232,7 @@ app.use(async (req, res, next) => {
 });
 
 // Health & DB status endpoints
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   res.status(200).json({
     status: 'healthy',
     mongoConnected: isMongoConnected,
@@ -347,19 +350,27 @@ async function markResetCodeUsed(id) {
   if (r) r.used = true;
 }
 
+function getAuthToken(req) {
+  if (req.cookies && req.cookies.token) return req.cookies.token;
+  if (req.headers && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    return req.headers.authorization.slice(7).trim();
+  }
+  return null;
+}
+
 function requireAuth(req, res, next) {
-  const token = req.cookies ? req.cookies.token : null;
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   try {
     req.userId = jwt.verify(token, JWT_SECRET).sub;
     return next();
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired session' });
+    return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
   }
 }
 
 function optionalAuth(req, res, next) {
-  const token = req.cookies ? req.cookies.token : null;
+  const token = getAuthToken(req);
   if (token) {
     try {
       req.userId = jwt.verify(token, JWT_SECRET).sub;
@@ -1554,10 +1565,22 @@ app.get('/api/broker/balances', optionalAuth, async (req, res) => {
 });
 
 // 4. GET /api/broker/positions — Real-Time Open Positions (Intraday & Delivery)
-app.get('/api/broker/positions', optionalAuth, async (req, res) => {
+app.get('/api/broker/positions', requireAuth, async (req, res) => {
   try {
+    let positions = [];
+    let brokerConnected = false;
+    if (zerodhaAdapter.isConfigured()) {
+      try {
+        positions = await zerodhaAdapter.getPositions();
+        brokerConnected = true;
+      } catch (e) {
+        // Token expired or network issue
+      }
+    }
     return res.json({
-      positions: [],
+      positions,
+      brokerConnected,
+      message: brokerConnected ? 'Live broker positions retrieved.' : 'Broker disconnected. No active live broker positions found.',
       fetchedAt: new Date().toISOString()
     });
   } catch (err) {
@@ -1566,10 +1589,21 @@ app.get('/api/broker/positions', optionalAuth, async (req, res) => {
 });
 
 // 5. GET /api/broker/order-history — Read-Only Normalized Order Logs
-app.get('/api/broker/order-history', optionalAuth, async (req, res) => {
+app.get('/api/broker/order-history', requireAuth, async (req, res) => {
   try {
+    let orders = [];
+    let brokerConnected = false;
+    if (zerodhaAdapter.isConfigured()) {
+      try {
+        orders = await zerodhaAdapter.getOrders();
+        brokerConnected = true;
+      } catch (e) {}
+    } else {
+      orders = Array.from(liveOrderStore.values()).filter(o => o.userId === req.userId);
+    }
     return res.json({
-      orders: [],
+      orders,
+      brokerConnected,
       fetchedAt: new Date().toISOString()
     });
   } catch (err) {
@@ -1578,19 +1612,27 @@ app.get('/api/broker/order-history', optionalAuth, async (req, res) => {
 });
 
 // 6. GET /api/broker/reconciliation — Real Reconciliation (Aurum DB vs External Broker API)
-app.get('/api/broker/reconciliation', optionalAuth, async (req, res) => {
+app.get('/api/broker/reconciliation', requireAuth, async (req, res) => {
   try {
-    const memoryHoldings = getMemoryStore(req.userId || 'demo-user').holdings;
+    const userStore = getMemoryStore(req.userId);
+    const memoryHoldings = userStore.holdings || [];
     let externalHoldings = [];
-    try {
-      if (zerodhaAdapter.isConfigured()) {
+    let brokerConnected = false;
+
+    if (zerodhaAdapter.isConfigured()) {
+      try {
         externalHoldings = await zerodhaAdapter.getHoldings();
+        brokerConnected = true;
+      } catch (e) {
+        // Zerodha unauthenticated or missing token
       }
-    } catch (e) {
-      // Zerodha unauthenticated or missing token
     }
 
-    const report = performReconciliation(memoryHoldings, externalHoldings, 48250.00, 48250.00);
+    const localCashBalance = typeof userStore.cashBalance === 'number' ? userStore.cashBalance : 50000.00;
+    const externalCashBalance = brokerConnected ? localCashBalance : 0.00;
+
+    const report = performReconciliation(memoryHoldings, externalHoldings, localCashBalance, externalCashBalance);
+    report.brokerConnected = brokerConnected;
     return res.json(report);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -1598,7 +1640,7 @@ app.get('/api/broker/reconciliation', optionalAuth, async (req, res) => {
 });
 
 // 6b. POST /api/broker/zerodha/login — Zerodha Request Token OAuth Exchange
-app.post('/api/broker/zerodha/login', optionalAuth, async (req, res) => {
+app.post('/api/broker/zerodha/login', requireAuth, async (req, res) => {
   try {
     const { requestToken } = req.body || {};
     if (!requestToken) {
@@ -1607,7 +1649,7 @@ app.post('/api/broker/zerodha/login', optionalAuth, async (req, res) => {
     const session = await zerodhaAdapter.exchangeRequestToken(requestToken);
     await recordAuditLog({
       eventType: 'BROKER_OAUTH_SUCCESS',
-      userId: req.userId || 'demo-user',
+      userId: req.userId,
       brokerId: 'zerodha',
       details: { kiteUserId: session.userId }
     });
@@ -1618,15 +1660,40 @@ app.post('/api/broker/zerodha/login', optionalAuth, async (req, res) => {
 });
 
 // 7. POST /api/broker/sync — Manual Portfolio Synchronization
-app.post('/api/broker/sync', optionalAuth, async (req, res) => {
+app.post('/api/broker/sync', requireAuth, async (req, res) => {
   try {
     const syncTime = new Date().toISOString();
+    let isConnected = false;
+    let synchronizedHoldingsCount = 0;
+
+    if (zerodhaAdapter.isConfigured()) {
+      try {
+        const ext = await zerodhaAdapter.getHoldings();
+        if (Array.isArray(ext)) {
+          synchronizedHoldingsCount = ext.length;
+          isConnected = true;
+        }
+      } catch (e) {}
+    }
+
     await updateUserRecord(req.userId, { brokerLastSyncAt: syncTime });
+
+    if (!isConnected) {
+      return res.json({
+        success: false,
+        brokerConnected: false,
+        syncedAt: syncTime,
+        synchronizedHoldingsCount: 0,
+        message: 'Broker account is not connected. Connect broker API credentials in Settings to synchronize live holdings.'
+      });
+    }
+
     return res.json({
       success: true,
+      brokerConnected: true,
       syncedAt: syncTime,
-      synchronizedHoldingsCount: 5,
-      message: 'Successfully synchronized broker account holdings, positions, and balances.'
+      synchronizedHoldingsCount,
+      message: `Successfully synchronized ${synchronizedHoldingsCount} broker account holdings.`
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -1700,7 +1767,7 @@ function evaluateRiskRules(userId, orderReq, userHoldings) {
 }
 
 // 1. GET & POST /api/trading/kill-switch — Emergency Kill Switch Controls
-app.get('/api/trading/kill-switch', optionalAuth, async (req, res) => {
+app.get('/api/trading/kill-switch', requireAuth, async (req, res) => {
   const ksState = await getKillSwitchState(db);
   return res.json({
     active: ksState.active,
@@ -1709,7 +1776,7 @@ app.get('/api/trading/kill-switch', optionalAuth, async (req, res) => {
   });
 });
 
-app.post('/api/trading/kill-switch', optionalAuth, async (req, res) => {
+app.post('/api/trading/kill-switch', requireAuth, async (req, res) => {
   try {
     const { active, reason } = req.body;
     tradingKillSwitchActive = !!active;
@@ -1728,7 +1795,7 @@ app.post('/api/trading/kill-switch', optionalAuth, async (req, res) => {
 
     await recordAuditLog({
       eventType: active ? 'KILL_SWITCH_ENGAGED' : 'KILL_SWITCH_DISENGAGED',
-      userId: req.userId || 'demo-user',
+      userId: req.userId,
       details: { active: ksState.active, reason: ksState.reason }
     });
 
@@ -1744,18 +1811,30 @@ app.post('/api/trading/kill-switch', optionalAuth, async (req, res) => {
 });
 
 // 2. POST /api/orders/preview — Validate Order & Generate Order Ticket Preview
-app.post('/api/orders/preview', optionalAuth, async (req, res) => {
+app.post('/api/orders/preview', requireAuth, async (req, res) => {
   try {
-    const userId = req.userId || 'demo-user';
+    const userId = req.userId;
     const { symbol, side, quantity, orderType, price, exchange, market, currency } = req.body;
     const cleanSym = (symbol || '').trim().toUpperCase();
-    const qData = await fetchYahooQuote(cleanSym === 'TCS' ? 'TCS.NS' : (cleanSym === 'RELIANCE' ? 'RELIANCE.NS' : cleanSym));
 
-    const estPrice = price ? Number(price) : (qData?.price || 100);
+    if (!cleanSym) {
+      return res.status(400).json({ error: 'Valid ticker symbol is required.' });
+    }
+
     const qty = Number(quantity || 1);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      return res.status(400).json({ error: 'Quantity must be a positive integer.' });
+    }
+
+    const qData = await fetchYahooQuote(cleanSym === 'TCS' ? 'TCS.NS' : (cleanSym === 'RELIANCE' ? 'RELIANCE.NS' : cleanSym));
+    if (!qData?.price && !price) {
+      return res.status(400).json({ error: `Market quote for ${cleanSym} is unavailable. Cannot generate order preview.` });
+    }
+
+    const estPrice = price ? Number(price) : qData.price;
     const orderCurrency = currency || (market === 'IN' || cleanSym.endsWith('.NS') || ['TCS', 'RELIANCE', 'INFY'].includes(cleanSym) ? 'INR' : 'USD');
     const estimatedValue = qty * estPrice;
-    const estimatedFees = estimatedValue * 0.001; // 0.1% transaction fee
+    const estimatedFees = estimatedValue * 0.001; // 0.1% simulated transaction fee
 
     const userHoldings = getMemoryStore(userId).holdings;
     const riskCheck = evaluateRiskRules(userId, { symbol: cleanSym, side, quantity: qty, price: estPrice, currency: orderCurrency, orderType }, userHoldings);
@@ -1774,6 +1853,8 @@ app.post('/api/orders/preview', optionalAuth, async (req, res) => {
         estimatedValue: estimatedValue,
         estimatedFees: estimatedFees,
         totalCost: estimatedValue + estimatedFees,
+        isSimulated: true,
+        executionType: 'PAPER_TRADING',
         requiresExplicitConfirmation: true,
         riskCheck
       }
@@ -1784,9 +1865,9 @@ app.post('/api/orders/preview', optionalAuth, async (req, res) => {
 });
 
 // 3. POST /api/orders — Execute User-Confirmed Order with Idempotency & Risk Engine
-app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) => {
+app.post(['/api/orders', '/api/broker/orders'], requireAuth, async (req, res) => {
   try {
-    const userId = req.userId || 'demo-user';
+    const userId = req.userId;
     const idempotencyKey = req.headers['x-idempotency-key'] || req.body.idempotencyKey || null;
 
     if (idempotencyKey && idempotencyStore.has(idempotencyKey)) {
@@ -1796,13 +1877,49 @@ app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) =
 
     const { symbol, side, quantity, orderType, price, exchange, market, currency } = req.body;
     const cleanSym = (symbol || '').trim().toUpperCase();
+    if (!cleanSym) {
+      return res.status(400).json({ success: false, error: 'A valid stock ticker symbol is required.' });
+    }
+
     const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      return res.status(400).json({ success: false, error: 'Order quantity must be a positive integer.' });
+    }
+
     const sideClean = (side || 'BUY').toUpperCase();
     const orderTypeClean = (orderType || 'MARKET').toUpperCase();
     const orderCurrency = currency || (market === 'IN' || cleanSym.endsWith('.NS') || ['TCS', 'RELIANCE', 'INFY'].includes(cleanSym) ? 'INR' : 'USD');
 
+    // Fetch verified market quote (reject if unavailable, NEVER fallback to 100)
     const qData = await fetchYahooQuote(cleanSym === 'TCS' ? 'TCS.NS' : (cleanSym === 'RELIANCE' ? 'RELIANCE.NS' : cleanSym));
-    const executionPrice = price ? Number(price) : (qData?.price || 100);
+    const marketPrice = qData?.price;
+    if (!marketPrice || isNaN(marketPrice) || marketPrice <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'MARKET_DATA_UNAVAILABLE',
+        error: `Live market quote for ${cleanSym} is currently unavailable. Orders cannot be executed without a verified price.`
+      });
+    }
+
+    let executionPrice = marketPrice;
+    let isFilled = true;
+    let orderStatus = 'FILLED';
+
+    if (orderTypeClean === 'LIMIT') {
+      const limitP = Number(price);
+      if (!price || isNaN(limitP) || limitP <= 0) {
+        return res.status(400).json({ success: false, error: 'A valid positive limitPrice is required for LIMIT orders.' });
+      }
+      if (sideClean === 'BUY' && marketPrice > limitP) {
+        isFilled = false;
+        orderStatus = 'PENDING';
+        executionPrice = limitP;
+      } else if (sideClean === 'SELL' && marketPrice < limitP) {
+        isFilled = false;
+        orderStatus = 'PENDING';
+        executionPrice = limitP;
+      }
+    }
 
     const userHoldings = getMemoryStore(userId).holdings;
     const riskDecision = evaluateRiskRules(userId, { symbol: cleanSym, side: sideClean, quantity: qty, price: executionPrice, currency: orderCurrency, orderType: orderTypeClean }, userHoldings);
@@ -1843,10 +1960,13 @@ app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) =
       quantity: qty,
       orderType: orderTypeClean,
       price: executionPrice,
-      status: 'FILLED', // Trade execution confirmed
-      filledQuantity: qty,
-      filledPrice: executionPrice,
-      executedAt: new Date().toISOString(),
+      status: orderStatus,
+      filledQuantity: isFilled ? qty : 0,
+      filledPrice: isFilled ? executionPrice : null,
+      executedAt: isFilled ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),
+      isSimulated: true,
+      executionType: 'PAPER_TRADING',
       idempotencyKey
     };
 
@@ -1855,45 +1975,51 @@ app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) =
     }
     liveOrderStore.set(orderId, newOrder);
 
-    // Update User Portfolio Holdings & Positions
-    if (sideClean === 'BUY') {
-      let existingIndex = userHoldings.findIndex((h) => h.symbol === cleanSym);
-      if (existingIndex >= 0) {
-        const h = userHoldings[existingIndex];
-        const oldShares = h.shares || h.quantity || 0;
-        const totalCost = (oldShares * h.avgPurchasePrice) + (qty * executionPrice);
-        h.shares = oldShares + qty;
-        h.avgPurchasePrice = totalCost / h.shares;
-        h.currentPrice = executionPrice;
-      } else {
-        userHoldings.push({
-          id: `h-${Date.now()}`,
-          symbol: cleanSym,
-          companyName: newOrder.companyName,
-          exchange: newOrder.exchange,
-          market: newOrder.market,
-          currency: newOrder.currency,
-          shares: qty,
-          avgPurchasePrice: executionPrice,
-          totalInvested: qty * executionPrice,
-          currentPrice: executionPrice,
-          currentValue: qty * executionPrice,
-          purchaseDate: new Date().toISOString().split('T')[0]
-        });
-      }
-    } else if (sideClean === 'SELL') {
-      let existingIndex = userHoldings.findIndex((h) => h.symbol === cleanSym);
-      if (existingIndex >= 0) {
-        const h = userHoldings[existingIndex];
-        h.shares -= qty;
-        if (h.shares <= 0) {
-          userHoldings.splice(existingIndex, 1);
+    // Update User Portfolio Holdings & Positions (only when filled)
+    if (isFilled) {
+      if (sideClean === 'BUY') {
+        let existingIndex = userHoldings.findIndex((h) => h.symbol === cleanSym);
+        if (existingIndex >= 0) {
+          const h = userHoldings[existingIndex];
+          const oldShares = h.shares || h.quantity || 0;
+          const totalCost = (oldShares * h.avgPurchasePrice) + (qty * executionPrice);
+          h.shares = oldShares + qty;
+          h.avgPurchasePrice = totalCost / h.shares;
+          h.currentPrice = executionPrice;
+          h.currentValue = h.shares * executionPrice;
+          h.totalInvested = h.shares * h.avgPurchasePrice;
+        } else {
+          userHoldings.push({
+            id: `h-${Date.now()}`,
+            symbol: cleanSym,
+            companyName: newOrder.companyName,
+            exchange: newOrder.exchange,
+            market: newOrder.market,
+            currency: newOrder.currency,
+            shares: qty,
+            avgPurchasePrice: executionPrice,
+            totalInvested: qty * executionPrice,
+            currentPrice: executionPrice,
+            currentValue: qty * executionPrice,
+            purchaseDate: new Date().toISOString().split('T')[0]
+          });
+        }
+      } else if (sideClean === 'SELL') {
+        let existingIndex = userHoldings.findIndex((h) => h.symbol === cleanSym);
+        if (existingIndex >= 0) {
+          const h = userHoldings[existingIndex];
+          h.shares -= qty;
+          h.totalInvested = h.shares * h.avgPurchasePrice;
+          h.currentValue = h.shares * executionPrice;
+          if (h.shares <= 0) {
+            userHoldings.splice(existingIndex, 1);
+          }
         }
       }
     }
 
     await recordAuditLog({
-      eventType: 'ORDER_EXECUTED',
+      eventType: isFilled ? 'ORDER_EXECUTED' : 'ORDER_PLACED_PENDING',
       userId,
       orderId,
       symbol: cleanSym,
@@ -1904,13 +2030,15 @@ app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) =
       currency: orderCurrency,
       idempotencyKey,
       riskDecision,
-      status: 'FILLED'
+      status: orderStatus
     });
 
     return res.json({
       success: true,
       order: newOrder,
-      message: `Order Executed Successfully: ${sideClean} ${qty} shares of ${cleanSym} @ ${orderCurrency === 'INR' ? '₹' : '$'}${executionPrice.toFixed(2)}.`
+      message: isFilled
+        ? `Paper Order Executed (Simulated): ${sideClean} ${qty} shares of ${cleanSym} @ ${orderCurrency === 'INR' ? '₹' : '$'}${executionPrice.toFixed(2)}.`
+        : `Limit Order Placed into Pending Queue: ${sideClean} ${qty} shares of ${cleanSym} @ ${orderCurrency === 'INR' ? '₹' : '$'}${executionPrice.toFixed(2)}.`
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -1918,13 +2046,17 @@ app.post(['/api/orders', '/api/broker/orders'], optionalAuth, async (req, res) =
 });
 
 // 4. POST /api/orders/:orderId/cancel — Order Cancellation State Machine
-app.post('/api/orders/:orderId/cancel', optionalAuth, async (req, res) => {
+app.post('/api/orders/:orderId/cancel', requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
     const order = liveOrderStore.get(orderId);
 
     if (!order) {
       return res.status(404).json({ error: `Order ${orderId} not found.` });
+    }
+
+    if (order.userId !== req.userId) {
+      return res.status(403).json({ error: `Unauthorized: You do not have permission to cancel order ${orderId}.` });
     }
 
     if (order.status === 'FILLED') {
@@ -1936,7 +2068,7 @@ app.post('/api/orders/:orderId/cancel', optionalAuth, async (req, res) => {
 
     await recordAuditLog({
       eventType: 'ORDER_CANCELLED',
-      userId: req.userId || 'demo-user',
+      userId: req.userId,
       orderId,
       symbol: order.symbol,
       status: 'CANCELLED'
@@ -1948,15 +2080,18 @@ app.post('/api/orders/:orderId/cancel', optionalAuth, async (req, res) => {
   }
 });
 
-// 5. GET /api/orders — Live Orders & State Machine Tracking
-app.get('/api/orders', optionalAuth, (req, res) => {
-  const orders = Array.from(liveOrderStore.values()).reverse();
+// 5. GET /api/orders — Live Orders & State Machine Tracking (Filtered by User)
+app.get('/api/orders', requireAuth, (req, res) => {
+  const orders = Array.from(liveOrderStore.values())
+    .filter(o => o.userId === req.userId)
+    .reverse();
   return res.json({ orders });
 });
 
-// 6. GET /api/trading/audit-logs — Historical Order Execution Audit Trail
-app.get('/api/trading/audit-logs', optionalAuth, (req, res) => {
-  return res.json({ auditLogs: auditLogStore });
+// 6. GET /api/trading/audit-logs — Historical Order Execution Audit Trail (Filtered by User)
+app.get('/api/trading/audit-logs', requireAuth, (req, res) => {
+  const userLogs = auditLogStore.filter(l => l.userId === req.userId);
+  return res.json({ auditLogs: userLogs });
 });
 
 // ============================================================================
@@ -2973,7 +3108,7 @@ async function fetchMarketNewsInternal(symbol, companyName, market) {
               link: r.url,
               publisher: r.profile?.name || 'Financial News',
               snippet: r.description || r.title,
-              pubDate: r.page_age || new Date().toISOString()
+              pubDate: r.page_age || null
             });
           }
         }
@@ -3019,7 +3154,7 @@ async function fetchMarketNewsInternal(symbol, companyName, market) {
               link: linkMatch ? linkMatch[1] : '',
               publisher: source || 'Financial News',
               snippet: snippet.length > 25 ? snippet : title,
-              pubDate: pubDateMatch ? pubDateMatch[1] : new Date().toISOString()
+              pubDate: pubDateMatch ? pubDateMatch[1] : null
             });
           }
         }
@@ -3048,7 +3183,7 @@ async function fetchMarketNewsInternal(symbol, companyName, market) {
               link: item.link || '',
               publisher: item.publisher || 'Yahoo Finance',
               snippet: item.snippet || item.title,
-              pubDate: item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toISOString() : new Date().toISOString()
+              pubDate: item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toISOString() : null
             });
             if (articles.length >= 8) break;
           }
@@ -3240,7 +3375,8 @@ app.get('/api/market/quotes', marketLimiter, async (req, res) => {
         return;
       }
 
-      const isIndia = market === 'IN' || symbol.endsWith('.NS') || symbol.endsWith('.BO');
+      const knownIndianSymbols = ['TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'SBIN', 'SUZLON', 'TATASTEEL', 'TATAMOTORS', 'WIPRO', 'ITC', 'BHARTIARTL', 'LT', 'BAJFINANCE', 'KOTAKBANK', 'MARUTI', 'AXISBANK', 'NTPC', 'ONGC', 'POWERGRID', 'TITAN'];
+      const isIndia = market === 'IN' || symbol.endsWith('.NS') || symbol.endsWith('.BO') || (!market && knownIndianSymbols.includes(symbol));
       const candidates = isIndia
         ? (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? [symbol] : [`${symbol}.NS`, `${symbol}.BO`, symbol])
         : [`${symbol}`, `${symbol}.NS`];
@@ -3461,7 +3597,7 @@ async function callGeminiWithGrounding(prompt, userApiKey, enableSearch = false)
               title: chunk.web.title || domain || 'Web Reference',
               url: chunk.web.uri,
               domain: domain || 'google.com',
-              publishedAt: new Date().toISOString(),
+              publishedAt: chunk.web.publishedAt || null,
               sourceType: 'web'
             });
           }
@@ -3556,26 +3692,47 @@ app.post('/api/ai/analyze', async (req, res) => {
         bottomLine: dyn.directAnswer || 'Evidence-based analysis completed.'
       },
       supportingEvidence: (dyn.supportingEvidence || pred.supportingEvidence || []).map(e => ({
-        claim: e.factor || e.claim || 'Verified Metric',
-        evidence: e.claim || e.value || '',
-        sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
-        sourceUrl: '#',
-        date: 'Verified'
+        title: e.title || e.factor || 'Supporting Factor',
+        claim: e.title || e.factor || 'Supporting Factor',
+        evidence: e.factualObservation || e.claim || (e.underlyingEvidence ? `${e.underlyingEvidence.metric}: ${e.underlyingEvidence.value}` : 'Verified Observation'),
+        evidenceId: e.evidenceId || null,
+        underlyingEvidence: e.underlyingEvidence || null,
+        sourceTitle: e.source || e.underlyingEvidence?.source || e.provenance || 'Official Market Feed',
+        sourceUrl: e.sourceUrl || e.underlyingEvidence?.sourceUrl || null,
+        date: e.observedAt || e.underlyingEvidence?.observedAt || null,
+        status: e.status || 'VERIFIED',
+        validationReason: e.validationReason || null,
+        isInterpretation: Boolean(e.isInterpretation),
+        interpretation: e.interpretation || null,
+        limitations: e.limitations || null
       })),
       contradictingEvidence: (dyn.contradictingEvidence || pred.contradictingEvidence || []).map(e => ({
-        claim: e.factor || e.claim || 'Risk Factor',
-        evidence: e.claim || e.value || '',
-        sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
-        sourceUrl: '#',
-        date: 'Verified'
+        title: e.title || e.factor || 'Contrary Factor',
+        claim: e.title || e.factor || 'Contrary Factor',
+        evidence: e.factualObservation || e.claim || (e.underlyingEvidence ? `${e.underlyingEvidence.metric}: ${e.underlyingEvidence.value}` : 'Risk Factor'),
+        evidenceId: e.evidenceId || null,
+        underlyingEvidence: e.underlyingEvidence || null,
+        sourceTitle: e.source || e.underlyingEvidence?.source || e.provenance || 'Official Market Feed',
+        sourceUrl: e.sourceUrl || e.underlyingEvidence?.sourceUrl || null,
+        date: e.observedAt || e.underlyingEvidence?.observedAt || null,
+        status: e.status || 'VERIFIED',
+        validationReason: e.validationReason || null,
+        isInterpretation: Boolean(e.isInterpretation),
+        interpretation: e.interpretation || null,
+        limitations: e.limitations || null
       })),
-      uncertainFactors: (dyn.uncertainty || pred.uncertainty || []).map(u => ({
-        claim: 'Uncertainty Variable',
-        evidence: typeof u === 'string' ? u : u.claim,
+      watch: data.watch || data.watchConditions || [],
+      watchConditions: data.watchConditions || data.watch || [],
+      uncertainFactors: (pred.uncertainty || dyn.uncertainty || []).map(u => ({
+        claim: 'Analytical Uncertainty',
+        evidence: typeof u === 'string' ? u : (u.claim || u.evidence),
         sourceTitle: 'Analytical Assessment',
-        sourceUrl: '#',
-        date: 'Current'
+        sourceUrl: null,
+        date: null
       })),
+      verifiedEvidence: data.verifiedEvidence || data.evidenceLedger || [],
+      evidenceLedger: data.evidenceLedger || [],
+      claimValidation: data.claimValidation || null,
       risks: (pred.keyRisks || []).map(r => ({
         item: typeof r === 'string' ? r : r.item,
         whyItMatters: typeof r === 'string' ? r : r.whyItMatters

@@ -23,11 +23,14 @@ const { classifyIntent, INTENTS } = require('./intent-engine');
 const { buildEvidenceLedger, EvidenceLedger } = require('./evidence-ledger');
 const { PredictionEngine } = require('./prediction-engine');
 const { ClaimValidator } = require('./claim-validator');
+const { buildWatchConditions } = require('./watch-engine');
 const { summarizeFiling } = require('./filings-summary-engine');
 const { compareCompanies } = require('./comparison-engine');
 const { createAnalystEnvelope } = require('../envelope');
 const { resolveSecurity } = require('../providers/security-master');
-const FinancialCalculationEngine = require('./financial-calculation-engine');
+const { registerEvidence } = require('./evidence-store');
+const { processNewsIntelligence } = require('./news-intelligence');
+const { calculatePossibleScenarios } = require('./scenario-engine');
 
 // Common ticker aliases map
 const SYMBOL_MAP = {
@@ -297,12 +300,12 @@ async function processAnalystQuery({
     newsEnv,
     macroEnv
   ] = await Promise.all([
-    withTimeout(getStockMarketData(primarySymbol, effectiveMarket), 4000, { status: 'TIMEOUT', data: null }),
-    withTimeout(getCompanyFundamentals(primarySymbol, effectiveMarket), 4000, { status: 'TIMEOUT', data: null }),
-    withTimeout(getStockEarnings(primarySymbol, effectiveMarket), 4000, { status: 'TIMEOUT', data: null }),
-    withTimeout(getCompanyFilings(primarySymbol, effectiveMarket), 4000, { status: 'TIMEOUT', data: null }),
-    withTimeout(getAnalystNews({ symbol: primarySymbol, market: effectiveMarket, limit: 6 }), 4000, { status: 'TIMEOUT', data: [] }),
-    withTimeout(getMacroOverview(), 3000, { status: 'TIMEOUT', data: null })
+    withTimeout(getStockMarketData(primarySymbol, effectiveMarket), 8000, { status: 'TIMEOUT', data: null }),
+    withTimeout(getCompanyFundamentals(primarySymbol, effectiveMarket), 6000, { status: 'TIMEOUT', data: null }),
+    withTimeout(getStockEarnings(primarySymbol, effectiveMarket), 6000, { status: 'TIMEOUT', data: null }),
+    withTimeout(getCompanyFilings(primarySymbol, effectiveMarket), 6000, { status: 'TIMEOUT', data: null }),
+    withTimeout(getAnalystNews({ symbol: primarySymbol, market: effectiveMarket, limit: 6 }), 6000, { status: 'TIMEOUT', data: [] }),
+    withTimeout(getMacroOverview(), 4000, { status: 'TIMEOUT', data: null })
   ]);
 
   const mData = marketDataEnv?.data || {};
@@ -357,7 +360,41 @@ async function processAnalystQuery({
       marketData: mData.status || 'UNAVAILABLE',
       fundamentals: fData.status || 'UNAVAILABLE',
       news: newsList.length > 0 ? 'FRESH' : 'UNAVAILABLE'
-    }
+    },
+    ledger
+  });
+
+  // 7b. REAL WATCH MONITORING CONDITIONS
+  const watchConditions = buildWatchConditions({
+    symbol: primarySymbol,
+    currency: mData.currency || (effectiveMarket === 'US' ? 'USD' : 'INR'),
+    quote: mData,
+    technicals,
+    fundamentals: fData,
+    ledger,
+    userConfiguredAlerts: []
+  });
+
+  // 7c. STOCK-SPECIFIC NEWS INTELLIGENCE & IMPACT ANALYSIS
+  const intelligentNews = processNewsIntelligence({
+    symbol: primarySymbol,
+    companyName: secMeta.companyName || fData.companyName || mData.companyName || primarySymbol,
+    news: newsList,
+    quote: mData,
+    technicals
+  });
+
+  // 7d. CALCULATION-DRIVEN POSSIBLE SCENARIOS (Zero generic text, grounded in OHLCV swing pivots and ATR)
+  const calculatedScenarios = calculatePossibleScenarios({
+    symbol: primarySymbol,
+    exchange: secMeta.exchange || (effectiveMarket === 'US' ? 'NASDAQ' : 'NSE'),
+    market: effectiveMarket,
+    currency: mData.currency || (effectiveMarket === 'US' ? 'USD' : 'INR'),
+    quote: mData,
+    technicals,
+    historyBars: mData.recentPoints || [],
+    news: intelligentNews,
+    fundamentals: fData
   });
 
   // 8. GEMINI GROUNDED REASONING WITH DYNAMIC INTENT INSTRUCTIONS
@@ -597,7 +634,7 @@ ${schemaExample}
       if (rawAiText) {
         const parsed = extractJsonFromLlmResponse(rawAiText);
         if (parsed) {
-          aiResponse = ClaimValidator.validate(parsed, ledger);
+          aiResponse = ClaimValidator.validate(parsed, ledger, primarySymbol);
         }
       }
     } catch (e) {
@@ -774,6 +811,8 @@ ${schemaExample}
         risks: prediction.keyRisks
       };
     }
+    // Run claim validation on deterministic response
+    aiResponse = ClaimValidator.validate(aiResponse, ledger, primarySymbol);
   }
 
   // 10. DETERMINE NORMALIZED RESPONSE TYPE
@@ -1230,10 +1269,27 @@ ${schemaExample}
   console.log(`[AI_ANALYST] question="${qText}" intent=${intent} symbol=${primarySymbol} responseType=${responseType} providers=${sources.map(s => s.name).join(',')} evidenceCount=${ledger.getAll().length} geminiCalled=${Boolean(geminiCaller)} geminiResponseLength=${rawAiText?.length || 0} answerLength=${finalAnswer.length}`);
 
   // 14. ASSEMBLE AUDITABLE NORMALIZED RESPONSE ENVELOPE
+  const analysisId = `aurum-eval-${Date.now()}`;
+  const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  // Index evidence entries in evidence store with full analysis context
+  try {
+    for (const ev of ledger.getAll()) {
+      registerEvidence(ev, {
+        analysisId,
+        requestId,
+        symbol: primarySymbol,
+        question: qText,
+        market: effectiveMarket,
+        userId
+      });
+    }
+  } catch {}
+
   const finalResult = {
     success: true,
-    requestId: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    analysisId: `aurum-eval-${Date.now()}`,
+    requestId,
+    analysisId,
     question: qText,
     intent,
     symbol: primarySymbol,
@@ -1274,15 +1330,26 @@ ${schemaExample}
       : prediction,
     positionScenario: positionScenarioContract || null,
     dynamicResponse: positionScenarioContract
-      ? { ...(aiResponse || {}), positionScenario: positionScenarioContract }
-      : aiResponse,
+      ? { ...(aiResponse || {}), positionScenario: positionScenarioContract, scenarios: calculatedScenarios, conditionalHorizon: calculatedScenarios }
+      : { ...(aiResponse || {}), scenarios: calculatedScenarios, conditionalHorizon: calculatedScenarios },
     evidenceLedger: ledger.getAll(),
+    verifiedEvidence: ledger.getVerifiedOnly(),
+    watch: watchConditions,
+    watchConditions,
+    scenarios: calculatedScenarios,
+    possibleScenarios: calculatedScenarios,
+    claimValidation: aiResponse?.claimValidation || {
+      status: 'VALIDATED_AGAINST_LEDGER',
+      totalLedgerItems: ledger.getAll().length,
+      validatedAt: new Date().toISOString()
+    },
     marketData: mData,
     fundamentals: fData,
     technicals,
     earnings: eData,
     filings: filData,
-    news: newsList,
+    news: intelligentNews.length > 0 ? intelligentNews : newsList,
+    newsIntelligence: intelligentNews,
     portfolio: portfolioContext
   };
 

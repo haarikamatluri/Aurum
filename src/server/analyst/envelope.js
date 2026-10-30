@@ -57,6 +57,7 @@ function createAnalystEnvelope({
   }) + ' IST';
 
   return {
+    success: finalStatus !== 'UNAVAILABLE',
     symbol: symbol ? String(symbol).toUpperCase() : undefined,
     market: market ? String(market).toUpperCase() : undefined,
     timestamp: now.toISOString(),

@@ -32,11 +32,40 @@ export interface AiAnalysisRequest {
 }
 
 export interface AiEvidence {
+  title?: string;
+  factor?: string;
   claim: string;
   evidence: string;
+  factualObservation?: string;
+  interpretation?: string | null;
+  isInterpretation?: boolean;
+  evidenceId?: string | null;
+  underlyingEvidence?: any;
   sourceTitle: string;
-  sourceUrl: string;
-  date: string;
+  sourceUrl: string | null;
+  date: string | null;
+  status?: 'VERIFIED' | 'PARTIALLY_SUPPORTED' | 'UNVERIFIED' | 'CONFLICTING' | 'STALE' | 'UNAVAILABLE';
+  validationReason?: string | null;
+  limitations?: string | null;
+}
+
+export interface AiWatchCondition {
+  id: string;
+  symbol: string;
+  title: string;
+  metric: string;
+  operator: string;
+  threshold: number | null;
+  unit: string;
+  timeframe: string;
+  reason: string;
+  evidenceIds: string[];
+  source: string | null;
+  lastEvaluatedAt: string | null;
+  currentValue: number | null;
+  status: 'ACTIVE_TRIGGERED' | 'ACTIVE_UNTRIGGERED' | 'AWAITING_CONFIGURATION' | 'INPUT_UNAVAILABLE' | 'EVALUATION_FAILED';
+  isTriggered: boolean;
+  conditionText: string;
 }
 
 export interface StockChartPoint {
@@ -69,6 +98,20 @@ export interface AiRisk {
 export interface AiScenario {
   trigger: string;
   outcome: string;
+  direction?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  label?: string;
+  symbol?: string;
+  currentPrice?: number | null;
+  currency?: string;
+  confirmation?: string;
+  invalidation?: string;
+  potentialTarget?: string;
+  targetMath?: string;
+  mathBasis?: string;
+  keyRisks?: string;
+  calculatedAt?: string;
+  marketDataTimestamp?: string;
+  status?: string;
 }
 
 export interface AiAnalysis {
@@ -114,6 +157,10 @@ export interface AiAnalysis {
   uncertainFactors?: AiEvidence[];
   risks?: AiRisk[];
   whatToWatch?: string[];
+  watch?: AiWatchCondition[];
+  watchConditions?: AiWatchCondition[];
+  verifiedEvidence?: any[];
+  claimValidation?: any;
   portfolioImpact?: {
     shares: number;
     averageCost: number;
@@ -144,6 +191,22 @@ export interface AiAnalysis {
   positionScenario?: any;
   evidenceLedger?: any[];
   prediction?: any;
+  news?: StockNewsItem[];
+  newsIntelligence?: StockNewsItem[];
+  possibleScenarios?: {
+    status?: string;
+    symbol?: string;
+    currency?: string;
+    currentPrice?: number | null;
+    calculatedAt?: string;
+    marketDataTimestamp?: string;
+    dataFreshness?: string;
+    levels?: any;
+    mathBasis?: string;
+    positive: AiScenario[];
+    neutral: AiScenario[];
+    negative: AiScenario[];
+  } | null;
 }
 
 export interface AiSource {
@@ -164,6 +227,24 @@ export interface StockNewsItem {
   publisher: string;
   link: string;
   pubDate: string;
+  category?: string;
+  impact?: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  confirmationStatus?: string;
+  affectedMetric?: string;
+  timeHorizon?: string;
+  summary?: string;
+  whyItMatters?: string;
+  marketReaction?: {
+    stockMovementPercent: number | null;
+    sectorMovementPercent: number | null;
+    volumeChangePercent: number | null;
+    reactionAssessment: string;
+    correlationDisclaimer: string;
+  } | null;
+  verificationStatus?: string;
+  isSourceVerified?: boolean;
+  freshness?: string;
+  symbol?: string;
 }
 
 export interface MorningBriefing {
@@ -660,6 +741,23 @@ export class AiAnalystService {
     return await res.json();
   }
 
+  /**
+   * Retrieve authoritative evidence record and verification audit trail by evidence ID.
+   */
+  async getEvidenceDetails(evidenceId: string, symbol?: string): Promise<any> {
+    const q = `/api/analyst/evidence/${encodeURIComponent(evidenceId)}${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`;
+    const res = await fetch(q);
+    if (!res.ok) {
+      if (res.status === 404) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.message || 'Verification details unavailable. This claim has not been independently verified.');
+      }
+      throw new Error(`Failed to retrieve evidence details (${res.status})`);
+    }
+    const json = await res.json();
+    return json.data || json;
+  }
+
   /** Get persisted chat history for a specific stock symbol. */
   getMessages(symbol: string): AiChatMessage[] {
     return this.conversations.get(symbol.toUpperCase()) || [];
@@ -681,11 +779,35 @@ export class AiAnalystService {
     this.saveConversations();
   }
 
-  /**
-   * Fetch live breaking market news for a stock symbol from backend news service.
-   */
   async fetchStockNews(symbol: string, companyName?: string, market?: string): Promise<StockNewsItem[]> {
     try {
+      // 1. Primary: Real-time stock-specific News Intelligence
+      const analystRes = await fetch(`/api/analyst/news/${encodeURIComponent(symbol)}?market=${encodeURIComponent(market || 'IN')}`);
+      if (analystRes.ok) {
+        const env = await analystRes.json();
+        if (Array.isArray(env.data) && env.data.length > 0) {
+          return env.data.map((item: any) => ({
+            title: item.title,
+            publisher: item.publisher || 'Financial News',
+            link: item.link || item.url || '#',
+            pubDate: item.publishedAt || item.pubDate || null,
+            category: item.category,
+            impact: item.impact,
+            confirmationStatus: item.confirmationStatus,
+            affectedMetric: item.affectedMetric,
+            timeHorizon: item.timeHorizon,
+            summary: item.summary,
+            whyItMatters: item.whyItMatters,
+            marketReaction: item.marketReaction,
+            verificationStatus: item.verificationStatus,
+            isSourceVerified: item.isSourceVerified,
+            freshness: item.freshness,
+            symbol: item.symbol
+          }));
+        }
+      }
+
+      // 2. Secondary: Market News feed
       const q = `/api/market/news?symbol=${encodeURIComponent(symbol)}&company=${encodeURIComponent(companyName || symbol)}&market=${encodeURIComponent(market || 'IN')}`;
       const res = await fetch(q);
       if (res.ok) {
@@ -751,14 +873,60 @@ export class AiAnalystService {
             evidenceStrength: (pred.confidence || 0) > 70 ? 'STRONG' : 'MODERATE',
             summary: data.answer || dyn.directAnswer || data.reasoning?.summary || 'Analysis complete.'
           },
-          quickTake: {
-            whatHappened: dyn.priceMovement?.changePercent
-              ? `${sec.symbol} is trading at ${sec.currency || '₹'}${sec.price} (${dyn.priceMovement.changePercent} today).`
-              : `${sec.symbol} is trading at ${sec.currency || '₹'}${sec.price || 'N/A'}.`,
-            why: dyn.interpretation || dyn.calculationAndMechanics || 'Evidence-grounded multi-factor evaluation.',
-            portfolioImpact: data.portfolio ? `Active position: ${data.portfolio.shares} shares held.` : 'No active position in portfolio.',
-            bottomLine: data.answer || dyn.directAnswer || 'Analysis completed from verified evidence.'
-          },
+          quickTake: (() => {
+            const currencySym = sec.currency === 'USD' ? '$' : (sec.currency || '₹');
+            const priceVal = typeof mData.price === 'number' ? mData.price : (typeof sec.price === 'number' ? sec.price : null);
+            const changePctVal = typeof mData.changePercent === 'number' ? mData.changePercent : null;
+
+            // 1. What Happened: Verify quote and session percentage consistency
+            let whatHappened = '';
+            if (priceVal !== null && changePctVal !== null) {
+              const dir = changePctVal >= 0 ? 'up' : 'down';
+              whatHappened = `${sec.symbol} is trading at ${currencySym}${priceVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, ${dir} ${Math.abs(changePctVal).toFixed(2)}% today (verified ${mData.status === 'LIVE' ? 'live session quote' : (mData.status?.toLowerCase() || 'market quote')}).`;
+            } else if (priceVal !== null) {
+              whatHappened = `${sec.symbol} is trading at ${currencySym}${priceVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Daily session percentage movement is currently unverified or unavailable.`;
+            } else {
+              whatHappened = `Verified market quote for ${sec.symbol} is currently unavailable from primary providers.`;
+            }
+
+            // 2. Why It Happened: Distinguish confirmed catalysts from unconfirmed hypotheses
+            let why = '';
+            const confirmedList = Array.isArray(dyn.confirmedCatalysts) && dyn.confirmedCatalysts.length > 0 ? dyn.confirmedCatalysts : null;
+            const topNews = Array.isArray(data.news) && data.news.length > 0 ? data.news[0] : null;
+
+            if (confirmedList && confirmedList.length > 0) {
+              why = `Confirmed market catalyst: ${confirmedList[0]}. ${dyn.interpretation ? 'Analysis: ' + dyn.interpretation : ''}`.trim();
+            } else if (topNews && topNews.title) {
+              why = `Confirmed headline: "${topNews.title}" (${topNews.publisher || 'Financial Newswire'}). ${dyn.interpretation ? 'Analysis: ' + dyn.interpretation : ''}`.trim();
+            } else if (dyn.interpretation) {
+              why = `Specific catalyst is unconfirmed by primary exchange filings. Analytical observation: ${dyn.interpretation}`;
+            } else {
+              why = 'Specific market catalyst is unconfirmed. Price movement reflects broader sector rotation and general index liquidity.';
+            }
+
+            // 3. Portfolio Impact: Deterministic calculation (market value, cost basis, unrealized P&L, return %)
+            let portfolioImpact = '';
+            if (data.portfolio && Number(data.portfolio.shares) > 0) {
+              const sh = Number(data.portfolio.shares);
+              const ac = Number(data.portfolio.avgCost || data.portfolio.averageCost || data.portfolio.avgPurchasePrice || 0);
+              const cp = priceVal !== null ? priceVal : ac;
+              const mv = sh * cp;
+              const cb = sh * ac;
+              const upnl = mv - cb;
+              const upnlPct = cb > 0 ? (upnl / cb) * 100 : 0;
+              const sign = upnl >= 0 ? '+' : '';
+              portfolioImpact = `Your ${sh} shares are currently worth ${currencySym}${mv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Cost basis is ${currencySym}${cb.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, giving an unrealized ${upnl >= 0 ? 'gain' : 'loss'} of ${currencySym}${Math.abs(upnl).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${upnlPct.toFixed(2)}%), excluding fees and taxes.`;
+            } else {
+              portfolioImpact = `No active position in portfolio. You currently hold 0 shares of ${sec.symbol}.`;
+            }
+
+            return {
+              whatHappened,
+              why,
+              portfolioImpact,
+              bottomLine: data.answer || dyn.directAnswer || 'Analysis completed from verified evidence.'
+            };
+          })(),
           marketData: {
             price: mData.price || null,
             change: mData.changePercent || null,
@@ -766,36 +934,92 @@ export class AiAnalystService {
             timestamp: mData.timestamp || new Date().toISOString(),
             dataStatus: mData.status || 'UNAVAILABLE'
           },
-          supportingEvidence: (dyn.supportingEvidence || pred.supportingEvidence || []).map((e: any) => ({
-            claim: e.factor || e.claim || 'Verified Factor',
-            evidence: e.claim || e.value || '',
-            sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
-            sourceUrl: '#',
-            date: 'Verified'
-          })),
-          contradictingEvidence: (dyn.contradictingEvidence || pred.contradictingEvidence || []).map((e: any) => ({
-            claim: e.factor || e.claim || 'Risk Factor',
-            evidence: e.claim || e.value || '',
-            sourceTitle: e.provenance || e.evidenceId || 'Evidence Ledger',
-            sourceUrl: '#',
-            date: 'Verified'
-          })),
-          uncertainFactors: (dyn.uncertainty || pred.uncertainty || []).map((u: any) => ({
-            claim: 'Uncertainty Variable',
-            evidence: typeof u === 'string' ? u : u.claim,
+          supportingEvidence: (dyn.supportingEvidence || pred.supportingEvidence || []).map((e: any) => {
+            const underlyingStr = e.underlyingEvidence
+              ? `${e.underlyingEvidence.metric}: ${e.underlyingEvidence.value}${e.underlyingEvidence.unit ? ' ' + e.underlyingEvidence.unit : ''}${e.underlyingEvidence.period ? ' (' + e.underlyingEvidence.period + ')' : ''}`
+              : '';
+            const factualData = e.factualObservation && e.factualObservation !== e.claim
+              ? e.factualObservation
+              : (underlyingStr || e.factualObservation || e.evidence || e.claim || 'Verified Observation');
+
+            return {
+              title: e.title || e.factor || 'Supporting Factor',
+              claim: e.claim || e.title || e.factor || 'Supporting Factor',
+              evidence: factualData,
+              factualObservation: factualData,
+              interpretation: e.interpretation || null,
+              isInterpretation: Boolean(e.isInterpretation),
+              evidenceId: e.evidenceId || null,
+              underlyingEvidence: e.underlyingEvidence || null,
+              sourceTitle: e.source || e.underlyingEvidence?.source || e.provenance || 'Source unavailable',
+              sourceUrl: e.sourceUrl || e.underlyingEvidence?.sourceUrl || null,
+              date: e.observedAt || e.underlyingEvidence?.observedAt || null,
+              status: e.status || (e.evidenceId ? 'VERIFIED' : 'UNVERIFIED'),
+              validationReason: e.validationReason || null,
+              limitations: e.limitations || null
+            };
+          }),
+          contradictingEvidence: (dyn.contradictingEvidence || pred.contradictingEvidence || []).map((e: any) => {
+            const underlyingStr = e.underlyingEvidence
+              ? `${e.underlyingEvidence.metric}: ${e.underlyingEvidence.value}${e.underlyingEvidence.unit ? ' ' + e.underlyingEvidence.unit : ''}${e.underlyingEvidence.period ? ' (' + e.underlyingEvidence.period + ')' : ''}`
+              : '';
+            const factualData = e.factualObservation && e.factualObservation !== e.claim
+              ? e.factualObservation
+              : (underlyingStr || e.factualObservation || e.evidence || e.claim || 'Risk Factor Observation');
+
+            return {
+              title: e.title || e.factor || 'Contrary Factor',
+              claim: e.claim || e.title || e.factor || 'Contrary Factor',
+              evidence: factualData,
+              factualObservation: factualData,
+              interpretation: e.interpretation || null,
+              isInterpretation: Boolean(e.isInterpretation),
+              evidenceId: e.evidenceId || null,
+              underlyingEvidence: e.underlyingEvidence || null,
+              sourceTitle: e.source || e.underlyingEvidence?.source || e.provenance || 'Source unavailable',
+              sourceUrl: e.sourceUrl || e.underlyingEvidence?.sourceUrl || null,
+              date: e.observedAt || e.underlyingEvidence?.observedAt || null,
+              status: e.status || (e.evidenceId ? 'VERIFIED' : 'UNVERIFIED'),
+              validationReason: e.validationReason || null,
+              limitations: e.limitations || null
+            };
+          }),
+          watch: data.watch || data.watchConditions || pred.watchConditions || [],
+          watchConditions: data.watchConditions || data.watch || pred.watchConditions || [],
+          verifiedEvidence: data.verifiedEvidence || data.evidenceLedger || [],
+          claimValidation: data.claimValidation || null,
+          uncertainFactors: (pred.uncertainty || dyn.uncertainty || []).map((u: any) => ({
+            claim: 'Analytical Uncertainty',
+            evidence: typeof u === 'string' ? u : (u.claim || u.evidence),
             sourceTitle: 'Analytical Assessment',
-            sourceUrl: '#',
-            date: 'Current'
+            sourceUrl: null,
+            date: null
           })),
           risks: (pred.keyRisks || []).map((r: any) => ({
             item: typeof r === 'string' ? r : r.item,
             whyItMatters: typeof r === 'string' ? r : r.whyItMatters
           })),
-          scenarios: dyn.conditionalHorizon || {
-            positive: [{ trigger: 'Breaks resistance with volume expansion', outcome: 'Bullish continuation' }],
-            neutral: [{ trigger: 'Consolidates in current range', outcome: 'Range-bound action' }],
-            negative: [{ trigger: 'Breaches key support level', outcome: 'Downside retracement' }]
-          },
+          scenarios: (() => {
+            const sc = data.scenarios || data.possibleScenarios;
+            if (sc && (sc.positive?.length || sc.neutral?.length || sc.negative?.length)) {
+              return {
+                positive: sc.positive || [],
+                neutral: sc.neutral || [],
+                negative: sc.negative || []
+              };
+            }
+            if (dyn.conditionalHorizon && (dyn.conditionalHorizon.positive?.length || dyn.conditionalHorizon.neutral?.length || dyn.conditionalHorizon.negative?.length)) {
+              return dyn.conditionalHorizon;
+            }
+            return {
+              positive: [],
+              neutral: [],
+              negative: []
+            };
+          })(),
+          possibleScenarios: data.scenarios || data.possibleScenarios || null,
+          news: Array.isArray(data.news) ? data.news : (Array.isArray(data.newsIntelligence) ? data.newsIntelligence : []),
+          newsIntelligence: Array.isArray(data.newsIntelligence) ? data.newsIntelligence : (Array.isArray(data.news) ? data.news : []),
           portfolioImpact: data.portfolio,
           sources: (data.sources || []).map((s: any) => ({
             title: s.name || s.type,
@@ -830,8 +1054,14 @@ export class AiAnalystService {
       supportingEvidence: [],
       contradictingEvidence: [],
       uncertainFactors: [],
+      watch: [],
+      watchConditions: [],
+      verifiedEvidence: [],
       risks: [{ item: 'Provider Connectivity', whyItMatters: 'Verified market feed is offline.' }],
       scenarios: { positive: [], neutral: [], negative: [] },
+      possibleScenarios: null,
+      news: [],
+      newsIntelligence: [],
       sources: [],
       dataFreshness: { marketData: 'UNAVAILABLE', news: 'UNAVAILABLE', fundamentals: 'UNAVAILABLE', filings: 'UNAVAILABLE' },
       disclaimer: 'Verified evidence unavailable.',
