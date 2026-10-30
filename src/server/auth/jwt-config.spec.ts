@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const jwt = require('jsonwebtoken');
 const {
   validateJwtSecret,
+  formatStartupError,
   getJwtSecret,
   assertProductionJwtSecret,
   signUserToken,
@@ -40,7 +41,7 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
     it('should throw ERR_INSECURE_JWT_SECRET when getJwtSecret() is called without JWT_SECRET in production', () => {
       delete process.env['JWT_SECRET'];
       expect(() => getJwtSecret('production', undefined)).toThrowError(
-        /In production mode, JWT_SECRET must be configured with a secure random secret/
+        /\[FATAL\]\[CONFIG\]/
       );
     });
   });
@@ -63,7 +64,7 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
 
     it('should throw when getJwtSecret() receives empty string in production', () => {
       expect(() => getJwtSecret('production', '')).toThrowError(
-        /In production mode, JWT_SECRET must be configured with a secure random secret/
+        /\[FATAL\]\[CONFIG\]/
       );
     });
   });
@@ -95,7 +96,7 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
 
       it(`should throw on placeholder "${placeholder}" in production getJwtSecret()`, () => {
         expect(() => getJwtSecret('production', placeholder)).toThrowError(
-          /In production mode, JWT_SECRET must be configured with a secure random secret/
+          /\[FATAL\]\[CONFIG\]/
         );
       });
     });
@@ -231,7 +232,7 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
   // TEST 8: Production Startup Validation
   // --------------------------------------------------------------------------
   describe('8. Production Startup Validation (assertProductionJwtSecret)', () => {
-    it('should trigger process.exit(1) and log fatal banner when JWT_SECRET is missing in production', () => {
+    it('should trigger process.exit(1) and log concise fatal error when JWT_SECRET is missing in production', () => {
       const mockExit = vi.fn();
       const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -241,19 +242,21 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
       expect(result).toBe(false);
 
       const loggedMessages = mockConsoleError.mock.calls.map(c => c[0]).join('\n');
-      expect(loggedMessages).toContain('[FATAL] In production mode, JWT_SECRET must be configured with a secure random secret. Refusing insecure startup.');
-      expect(loggedMessages).toContain('RAILWAY DEPLOYMENT ACTION REQUIRED');
-      expect(loggedMessages).toContain('node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+      expect(loggedMessages).toBe('[FATAL][CONFIG] Required environment variable JWT_SECRET is missing. Configure it in Railway backend service variables.');
     });
 
     it('should trigger process.exit(1) when JWT_SECRET is a placeholder in production', () => {
       const mockExit = vi.fn();
-      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = assertProductionJwtSecret('production', 'replace_with_a_secure_random_secret', mockExit);
 
       expect(mockExit).toHaveBeenCalledWith(1);
       expect(result).toBe(false);
+
+      const loggedMessages = mockConsoleError.mock.calls.map(c => c[0]).join('\n');
+      expect(loggedMessages).toContain('[FATAL][CONFIG] Invalid JWT_SECRET:');
+      expect(loggedMessages).toContain('Configure a secure random secret in Railway backend service variables.');
     });
 
     it('should succeed and return true when valid secret is provided in production', () => {
@@ -297,6 +300,55 @@ describe('Aurum Production JWT Security & Deployment Audit Test Suite', () => {
 
       expect(mockExit).not.toHaveBeenCalled();
       expect(result).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 10: Startup Error Formatting & Optional Integrations
+  // --------------------------------------------------------------------------
+  describe('10. Startup Error Formatting & Non-Fatal Optional Integrations', () => {
+    it('should format missing secret error as concise single line', () => {
+      const validation = validateJwtSecret(undefined, 'production');
+      const formatted = formatStartupError(validation);
+      expect(formatted).toBe('[FATAL][CONFIG] Required environment variable JWT_SECRET is missing. Configure it in Railway backend service variables.');
+    });
+
+    it('should format placeholder secret error cleanly without multi-line banner', () => {
+      const validation = validateJwtSecret('your-production-jwt-secret-at-least-32-chars', 'production');
+      const formatted = formatStartupError(validation);
+      expect(formatted).toContain('[FATAL][CONFIG] Invalid JWT_SECRET:');
+      expect(formatted).toContain('Configure a secure random secret in Railway backend service variables.');
+      expect(formatted.split('\n').length).toBe(1);
+    });
+
+    it('should never expose the candidate secret string in the fatal startup message', () => {
+      const candidateSecret = 'insecure-test-sample-secret-value-1234';
+      const validation = validateJwtSecret(candidateSecret, 'production');
+      const formatted = formatStartupError(validation);
+      expect(formatted).not.toContain(candidateSecret);
+    });
+
+    it('should ensure missing optional provider keys do not prevent secret resolution or token operations', () => {
+      // Simulate missing optional API keys
+      delete process.env['GEMINI_API_KEY'];
+      delete process.env['FINNHUB_API_KEY'];
+      delete process.env['UPSTOX_ACCESS_TOKEN'];
+      delete process.env['TWELVE_DATA_API_KEY'];
+
+      process.env['NODE_ENV'] = 'production';
+      process.env['JWT_SECRET'] = SECURE_TEST_SECRET;
+
+      expect(() => getJwtSecret('production', process.env['JWT_SECRET'])).not.toThrow();
+      const token = signUserToken('test-optional-keys-user');
+      const verified = verifyToken(token);
+      expect(verified.sub).toBe('test-optional-keys-user');
+    });
+
+    it('should enforce environment initialization before JWT configuration access', () => {
+      // Secret passed dynamically from environment reflects current env
+      process.env['JWT_SECRET'] = SECURE_TEST_SECRET;
+      const secret = getJwtSecret('production', process.env['JWT_SECRET']);
+      expect(secret).toBe(SECURE_TEST_SECRET);
     });
   });
 });

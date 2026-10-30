@@ -112,14 +112,27 @@ function validateJwtSecret(secret, nodeEnv = process.env.NODE_ENV) {
 }
 
 /**
+ * Formats a concise structured error message for startup logging.
+ * 
+ * @param {{ valid: boolean, reason?: string, message?: string }} validation
+ * @returns {string}
+ */
+function formatStartupError(validation) {
+  if (validation.reason === 'MISSING' || validation.reason === 'EMPTY') {
+    return '[FATAL][CONFIG] Required environment variable JWT_SECRET is missing. Configure it in Railway backend service variables.';
+  }
+  return `[FATAL][CONFIG] Invalid JWT_SECRET: ${validation.message} Configure a secure random secret in Railway backend service variables.`;
+}
+
+/**
  * Resolves the canonical JWT secret according to the environment.
  * 
- * @param {string} [nodeEnv=process.env.NODE_ENV] - Current NODE_ENV.
- * @param {string} [envSecret=process.env.JWT_SECRET] - Candidate secret string.
+ * @param {string} [nodeEnv=process.env['NODE_ENV']] - Current NODE_ENV.
+ * @param {string} [envSecret=process.env['JWT_SECRET']] - Candidate secret string.
  * @returns {string} The active JWT secret.
  * @throws {Error} If in production and secret is invalid.
  */
-function getJwtSecret(nodeEnv = process.env.NODE_ENV, envSecret = process.env.JWT_SECRET) {
+function getJwtSecret(nodeEnv = process.env['NODE_ENV'], envSecret = process.env['JWT_SECRET']) {
   const isProduction = nodeEnv === 'production';
   const candidate = (envSecret !== undefined && envSecret !== null) ? String(envSecret).trim() : '';
 
@@ -127,7 +140,7 @@ function getJwtSecret(nodeEnv = process.env.NODE_ENV, envSecret = process.env.JW
 
   if (isProduction) {
     if (!validation.valid) {
-      const err = new Error(`[FATAL] In production mode, JWT_SECRET must be configured with a secure random secret. Refusing insecure startup. Reason: ${validation.message}`);
+      const err = new Error(formatStartupError(validation));
       err.code = 'ERR_INSECURE_JWT_SECRET';
       err.validationReason = validation.reason;
       throw err;
@@ -147,45 +160,19 @@ function getJwtSecret(nodeEnv = process.env.NODE_ENV, envSecret = process.env.JW
 
 /**
  * Asserts valid JWT_SECRET configuration during server startup.
- * In production mode, if invalid, logs an actionable Railway diagnostic banner and exits with code 1.
+ * In production mode, if invalid, prints one concise structured startup error and exits with code 1.
  * 
- * @param {string} [nodeEnv=process.env.NODE_ENV] - Current NODE_ENV.
- * @param {string} [envSecret=process.env.JWT_SECRET] - Candidate secret string.
+ * @param {string} [nodeEnv=process.env['NODE_ENV']] - Current NODE_ENV.
+ * @param {string} [envSecret=process.env['JWT_SECRET']] - Candidate secret string.
  * @param {Function} [exitFn=process.exit] - Exit handler (injected for testing).
  * @returns {boolean} True if validation passed or running in development fallback.
  */
-function assertProductionJwtSecret(nodeEnv = process.env.NODE_ENV, envSecret = process.env.JWT_SECRET, exitFn = process.exit) {
+function assertProductionJwtSecret(nodeEnv = process.env['NODE_ENV'], envSecret = process.env['JWT_SECRET'], exitFn = process.exit) {
   const isProduction = nodeEnv === 'production';
   const validation = validateJwtSecret(envSecret, nodeEnv);
 
   if (isProduction && !validation.valid) {
-    console.error('');
-    console.error('================================================================================');
-    console.error('[FATAL] In production mode, JWT_SECRET must be configured with a secure random secret. Refusing insecure startup.');
-    console.error('================================================================================');
-    console.error(`DIAGNOSTIC REASON: ${validation.message}`);
-    console.error('');
-    console.error('RAILWAY DEPLOYMENT ACTION REQUIRED:');
-    console.error('1. Generate a cryptographically secure 64-byte random hex secret on your local machine:');
-    console.error('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
-    console.error('');
-    console.error('2. Open the Railway Dashboard:');
-    console.error('   - Navigate to your Aurum project.');
-    console.error('   - Select your Backend Service.');
-    console.error('   - Click the "Variables" tab.');
-    console.error('   - Add or edit variable:');
-    console.error('       Variable Name:  JWT_SECRET');
-    console.error('       Variable Value: <paste the 128-hex-character output from step 1>');
-    console.error('');
-    console.error('3. Redeploy:');
-    console.error('   - Railway will automatically redeploy the service once the variable is saved.');
-    console.error('');
-    console.error('SECURITY POLICY:');
-    console.error('- Ephemeral in-memory secrets are intentionally NOT auto-generated on startup');
-    console.error('  because they would immediately invalidate all active user sessions across restarts');
-    console.error('  and break session consistency in multi-replica deployments.');
-    console.error('================================================================================');
-    console.error('');
+    console.error(formatStartupError(validation));
     if (typeof exitFn === 'function') {
       exitFn(1);
     }
@@ -255,6 +242,7 @@ module.exports = {
   DEV_FALLBACK_SECRET,
   KNOWN_INSECURE_SECRETS,
   validateJwtSecret,
+  formatStartupError,
   getJwtSecret,
   assertProductionJwtSecret,
   signUserToken,
