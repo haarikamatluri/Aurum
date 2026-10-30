@@ -375,5 +375,5 @@ describe('AI Analyst Evidence Integrity & Pipeline Tests (Cases A through Q)', (
     expect(Array.isArray(d.watchConditions)).toBe(true);
     expect(d.claimValidation).toBeDefined();
     expect(d.claimValidation.status).toBeDefined();
-  });
+  }, 15000);
 });

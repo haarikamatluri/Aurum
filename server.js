@@ -1,5 +1,8 @@
-if (process.env.NODE_ENV !== 'production') {
-  try { require('dotenv').config(); } catch { /* dotenv not installed in prod build — fine */ }
+try {
+  require('dotenv').config();
+} catch {
+  // dotenv is an optional devDependency not present in production container images.
+  // In container environments (Railway, Docker), environment variables are injected directly by the runtime.
 }
 
 const express = require('express');
@@ -7,7 +10,6 @@ const path = require('path');
 const { MongoClient } = require('mongodb');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const rateLimit = require('express-rate-limit');
 const webpush = require('web-push');
@@ -15,6 +17,7 @@ const { generateSecret, generateURI, verifySync } = require('otplib');
 const QRCode = require('qrcode');
 const { GoogleGenAI } = require('@google/genai');
 
+const jwtConfig = require('./src/server/auth/jwt-config');
 const brokerRouter = require('./src/server/brokers/broker-router');
 const zerodhaAdapter = require('./src/server/brokers/zerodha-adapter');
 const webullAdapter = require('./src/server/brokers/webull-adapter');
@@ -32,15 +35,11 @@ const DIST_DIR = path.join(__dirname, 'dist', 'portfolio-intelligence', 'browser
 const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 const MONGODB_DB_NAME = (process.env.MONGODB_DB_NAME || 'portfolio_intelligence').trim();
 
-const JWT_SECRET = (process.env.JWT_SECRET || 'dev-insecure-secret-change-me').trim();
+// Enforce production JWT_SECRET security policy before any requests are served
+jwtConfig.assertProductionJwtSecret();
+const JWT_SECRET = jwtConfig.getJwtSecret();
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
-if (process.env.NODE_ENV === 'production' && (JWT_SECRET === 'dev-insecure-secret-change-me' || !JWT_SECRET)) {
-  console.error('[FATAL] In production mode, JWT_SECRET must be configured with a secure random secret. Refusing insecure startup.');
-  process.exit(1);
-} else if (JWT_SECRET === 'dev-insecure-secret-change-me') {
-  console.warn('[auth] JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
-}
 
 app.use(express.json());
 app.use(cookieParser());
@@ -272,7 +271,7 @@ function publicUser(u) {
 }
 
 function signToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '30d' });
+  return jwtConfig.signUserToken(userId);
 }
 
 function setAuthCookie(res, token) {
@@ -362,7 +361,7 @@ function requireAuth(req, res, next) {
   const token = getAuthToken(req);
   if (!token) return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   try {
-    req.userId = jwt.verify(token, JWT_SECRET).sub;
+    req.userId = jwtConfig.verifyToken(token).sub;
     return next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
@@ -373,7 +372,7 @@ function optionalAuth(req, res, next) {
   const token = getAuthToken(req);
   if (token) {
     try {
-      req.userId = jwt.verify(token, JWT_SECRET).sub;
+      req.userId = jwtConfig.verifyToken(token).sub;
     } catch {
       req.userId = 'demo-user';
     }
@@ -452,7 +451,7 @@ app.post('/api/auth/login', safeAuthLimiter, async (req, res) => {
 
     // Check if Two-Factor Authentication is enabled
     if (user.twoFactorEnabled && user.twoFactorSecret) {
-      const tempToken = jwt.sign({ sub: user.id, is2FaChallenge: true }, JWT_SECRET, { expiresIn: '5m' });
+      const tempToken = jwtConfig.sign2FaChallengeToken(user.id);
       return res.json({ twoFactorRequired: true, tempToken });
     }
 
@@ -472,7 +471,7 @@ app.post('/api/auth/login-2fa', authLimiter, async (req, res) => {
     }
     let decoded;
     try {
-      decoded = jwt.verify(tempToken, JWT_SECRET);
+      decoded = jwtConfig.verifyToken(tempToken);
     } catch {
       return res.status(401).json({ error: '2FA session expired. Please sign in again.' });
     }
